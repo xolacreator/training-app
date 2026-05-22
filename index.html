@@ -638,6 +638,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">⌚ Garmin live sync</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Direct Connect API — coming in v3</div>
     </div>
+    <div class="sec-lbl">Cloud Sync</div>
+    <div class="card" id="drive-card" style="min-height:60px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
@@ -1484,6 +1486,7 @@ function load() {
 
 function saveData() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch(e) {}
+  driveAutoSave();
 }
 
 // Normalise a session object from any prior schema to the current one
@@ -2466,12 +2469,14 @@ function initTheme(){
 
 function renderDataSummary(){
   const lastExport = localStorage.getItem('ht-last-export');
-  const templates = (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')||'[]').length; } catch(e) { return 0; } })();
-  const exportLine = lastExport
-    ? `Last backup: ${new Date(lastExport).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}`
-    : '⚠ No backup yet — export recommended';
-  document.getElementById('data-summary').innerHTML =
-    `${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.<br>${exportLine}`;
+  const lastSync   = localStorage.getItem('ht-last-sync');
+  const templates  = (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')||'[]').length; } catch(e) { return 0; } })();
+  const fmt = d => new Date(d).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  const lines = [`${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.`];
+  if (lastSync)   lines.push(`Drive sync: ${fmt(lastSync)}`);
+  if (lastExport) lines.push(`File backup: ${fmt(lastExport)}`);
+  if (!lastSync && !lastExport) lines.push('⚠ No backup yet — export or connect Drive');
+  document.getElementById('data-summary').innerHTML = lines.join('<br>');
 }
 function confirmClear(){
   if(confirm('Clear all logged sessions? This cannot be undone.')){
@@ -2717,6 +2722,263 @@ function aiLogNow() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GOOGLE DRIVE SYNC
+// ═══════════════════════════════════════════════════════════════════════════
+const DRIVE_FILE  = 'hybrid-training-sync.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+let driveToken    = null;
+let driveClientId = '';
+let driveAutoTimer = null;
+let driveState    = 'idle'; // 'idle' | 'syncing' | 'error'
+
+function initDrive() {
+  driveClientId = localStorage.getItem('ht-drive-cid') || '';
+  // Handle redirect-back from Google OAuth (token in URL hash)
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const tok = hash.get('access_token');
+  if (tok) {
+    driveToken = tok;
+    try {
+      localStorage.setItem('ht-drive-tok', JSON.stringify({
+        access_token: tok,
+        expires: Date.now() + parseInt(hash.get('expires_in') || '3600') * 1000,
+      }));
+    } catch(e) {}
+    window.history.replaceState({}, '', window.location.pathname);
+    setTimeout(() => syncFromDrive(), 400); // pull remote data right after auth
+  } else {
+    // Restore saved token if still valid
+    try {
+      const saved = JSON.parse(localStorage.getItem('ht-drive-tok') || 'null');
+      if (saved && saved.expires > Date.now()) driveToken = saved.access_token;
+    } catch(e) {}
+  }
+  renderDriveCard();
+}
+
+function connectDrive() {
+  const cid = (document.getElementById('drive-cid-input')?.value || '').trim() || driveClientId;
+  if (!cid) { toast('Paste your Google OAuth Client ID first'); return; }
+  localStorage.setItem('ht-drive-cid', cid);
+  driveClientId = cid;
+  // Redirect-based implicit flow — works in standalone PWA mode on iOS
+  const redirect = window.location.origin + window.location.pathname;
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', cid);
+  url.searchParams.set('redirect_uri', redirect);
+  url.searchParams.set('response_type', 'token');
+  url.searchParams.set('scope', DRIVE_SCOPE);
+  url.searchParams.set('prompt', 'consent');
+  window.location.href = url.toString();
+}
+
+function disconnectDrive() {
+  driveToken = null; driveState = 'idle';
+  try { localStorage.removeItem('ht-drive-tok'); } catch(e) {}
+  renderDriveCard();
+  toast('Disconnected from Google Drive');
+}
+
+// ── Drive REST helpers ────────────────────────────────────────────────────
+
+async function driveGet(path, params) {
+  const url = new URL('https://www.googleapis.com' + path);
+  if (params) Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${driveToken}` } });
+  if (r.status === 401) { disconnectDrive(); throw new Error('Session expired — reconnect Drive'); }
+  if (!r.ok) throw new Error(`Drive API ${r.status}`);
+  return r.json();
+}
+
+async function driveFileId() {
+  const list = await driveGet('/drive/v3/files', {
+    spaces: 'appDataFolder',
+    q: `name='${DRIVE_FILE}' and trashed=false`,
+    fields: 'files(id)',
+  });
+  return list.files?.[0]?.id || null;
+}
+
+async function driveUpload(payload) {
+  const body = JSON.stringify(payload);
+  const fid  = await driveFileId();
+  if (fid) {
+    // Update existing file content
+    const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fid}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${driveToken}`, 'Content-Type': 'application/json' },
+      body,
+    });
+    if (!r.ok) throw new Error(`Drive upload ${r.status}`);
+  } else {
+    // Create new file in appDataFolder using multipart upload
+    const boundary = 'ht-mp-boundary';
+    const mp = [
+      `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '',
+      JSON.stringify({ name: DRIVE_FILE, parents: ['appDataFolder'] }),
+      `--${boundary}`, 'Content-Type: application/json', '', body, `--${boundary}--`,
+    ].join('\r\n');
+    const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${driveToken}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: mp,
+    });
+    if (!r.ok) throw new Error(`Drive create ${r.status}`);
+  }
+}
+
+async function driveDownload() {
+  const fid = await driveFileId();
+  if (!fid) return null;
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`, {
+    headers: { Authorization: `Bearer ${driveToken}` },
+  });
+  if (!r.ok) throw new Error(`Drive download ${r.status}`);
+  return r.json();
+}
+
+// ── Sync logic ────────────────────────────────────────────────────────────
+
+async function syncFromDrive() {
+  if (!driveToken) return;
+  driveState = 'syncing'; renderDriveCard();
+  try {
+    const remote = await driveDownload();
+    let added = 0;
+    if (remote) {
+      // Merge sessions
+      const incoming = normaliseSessions(remote.sessions || []);
+      const have = new Set(sessions.map(s => s.gid).filter(Boolean));
+      const newS = incoming.filter(s => !have.has(s.gid));
+      if (newS.length) {
+        sessions = [...newS, ...sessions].sort((a,b) => b.ts - a.ts);
+        saveData();
+        added = newS.length;
+      }
+      // Merge custom plan sessions
+      if (remote.custom && typeof remote.custom === 'object') {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-custom') || '{}');
+          Object.entries(remote.custom).forEach(([w, days]) => {
+            if (!cur[w]) cur[w] = {};
+            Object.assign(cur[w], days);
+            Object.entries(days).forEach(([d, s]) => { if (!LIB[w]) LIB[w]={}; LIB[w][d]=s; });
+          });
+          localStorage.setItem('ht-custom', JSON.stringify(cur));
+        } catch(e) {}
+      }
+      // Merge templates
+      if (Array.isArray(remote.templates)) {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-tmpl') || '[]');
+          const names = new Set(cur.map(t => t._name));
+          const newT = remote.templates.filter(t => !names.has(t._name));
+          if (newT.length) localStorage.setItem('ht-tmpl', JSON.stringify([...newT, ...cur]));
+        } catch(e) {}
+      }
+      if (added) renderAll();
+    }
+    // Push local state up (always keeps Drive current)
+    await driveUpload(drivePayload());
+    localStorage.setItem('ht-last-sync', new Date().toISOString());
+    driveState = 'idle';
+    renderDriveCard();
+    renderDataSummary();
+    toast(added ? `Synced ${added} new session${added===1?'':'s'} from Drive ✓` : 'Drive sync complete ✓');
+  } catch(err) {
+    driveState = 'error'; renderDriveCard();
+    toast('Drive error: ' + (err.message || 'Unknown'));
+  }
+}
+
+async function syncToDrive(silent) {
+  if (!driveToken) return;
+  if (!silent) { driveState = 'syncing'; renderDriveCard(); }
+  try {
+    await driveUpload(drivePayload());
+    localStorage.setItem('ht-last-sync', new Date().toISOString());
+    if (!silent) { driveState = 'idle'; renderDriveCard(); renderDataSummary(); toast('Saved to Google Drive ✓'); }
+  } catch(err) {
+    driveState = 'error'; renderDriveCard();
+    if (!silent) toast('Drive upload error: ' + (err.message || 'Unknown'));
+  }
+}
+
+function drivePayload() {
+  return {
+    version: '4', syncedAt: new Date().toISOString(),
+    sessions,
+    custom:    (() => { try { return JSON.parse(localStorage.getItem('ht-custom') || '{}'); } catch(e) { return {}; } })(),
+    templates: (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')   || '[]'); } catch(e) { return []; } })(),
+  };
+}
+
+// Debounced auto-push — called from saveData(), fires 6s after last write
+function driveAutoSave() {
+  if (!driveToken) return;
+  clearTimeout(driveAutoTimer);
+  driveAutoTimer = setTimeout(() => syncToDrive(true), 6000);
+}
+
+// ── Drive UI card ─────────────────────────────────────────────────────────
+
+function renderDriveCard() {
+  const card = document.getElementById('drive-card');
+  if (!card) return;
+  if (!driveToken) {
+    const cid = driveClientId;
+    card.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">Connect Google Drive</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-bottom:10px;">
+        Auto-syncs sessions, custom plans, and templates across all your devices.<br>
+        Requires a free Google Cloud OAuth Client ID (one-time setup).
+      </div>
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Google OAuth Client ID</label>
+        <input type="text" id="drive-cid-input" placeholder="xxxxxxxx.apps.googleusercontent.com" value="${cid}" style="font-size:12px;">
+      </div>
+      <button class="btn btn-accent" onclick="connectDrive()">Connect Google Drive →</button>
+      <details style="margin-top:10px;">
+        <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:4px 0;">
+          ▸ Setup instructions
+        </summary>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2;margin-top:6px;">
+          1. console.cloud.google.com → New project<br>
+          2. APIs &amp; Services → Enable APIs → Google Drive API<br>
+          3. Credentials → + Create → OAuth 2.0 Client ID<br>
+          4. Application type: Web application<br>
+          5. Authorised redirect URIs → add: <span id="drive-origin" style="color:var(--blue);word-break:break-all;"></span><br>
+          6. Copy Client ID → paste above &amp; tap Connect
+        </div>
+      </details>`;
+    const o = document.getElementById('drive-origin');
+    if (o) o.textContent = window.location.origin + window.location.pathname;
+  } else {
+    const lastSync = localStorage.getItem('ht-last-sync');
+    const syncLine = lastSync
+      ? new Date(lastSync).toLocaleString('en-AU', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+      : 'Not yet synced';
+    const stateColor = driveState==='error' ? 'var(--red)' : driveState==='syncing' ? 'var(--accent)' : 'var(--green)';
+    const stateLabel = driveState==='error' ? 'Error' : driveState==='syncing' ? 'Syncing…' : 'Connected';
+    card.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);">Google Drive</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">Last sync: ${syncLine}</div>
+        </div>
+        <span style="font-family:var(--mono);font-size:9px;font-weight:600;color:${stateColor};flex-shrink:0;margin-top:2px;">${stateLabel}</span>
+      </div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromDrive()">Sync now</button>
+        <button class="btn" style="color:var(--red);border-color:rgba(248,113,113,.2);" onclick="disconnectDrive()">Disconnect</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">
+        Auto-saves to Drive ~6 s after each logged session.
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PWA
 // ═══════════════════════════════════════════════════════════════════════════
 if('serviceWorker'in navigator){
@@ -2733,6 +2995,7 @@ document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.c
 // ═══════════════════════════════════════════════════════════════════════════
 load();
 initTheme();
+initDrive();
 setCat('run',document.querySelector('.cat-tab.run'));
 renderPlanTabs();
 </script>
