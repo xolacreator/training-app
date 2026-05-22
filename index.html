@@ -6,21 +6,21 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Training">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#091525">
 <title>Hybrid Training</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* Dark (default) */
-  --bg:#0d0d0d; --bg2:#171717; --bg3:#202020; --bg4:#2a2a2a;
-  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.13); --border3:rgba(255,255,255,0.24);
-  --text:#f2f2f2; --text2:#808080; --text3:#404040;
-  --accent:#f5c842; --accent-dim:rgba(245,200,66,0.13);
+  /* Dark (default) — deep navy · blue + orange accent */
+  --bg:#091525; --bg2:#0e2040; --bg3:#152a55; --bg4:#1d3568;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
+  --text:#e8f0ff; --text2:#7a9cc8; --text3:#2e4d7a;
+  --accent:#FF6B35; --accent-dim:rgba(255,107,53,0.14);
   --green:#34d399; --green-dim:rgba(52,211,153,0.11);
-  --blue:#60a5fa; --blue-dim:rgba(96,165,250,0.11);
+  --blue:#4D9EFF; --blue-dim:rgba(77,158,255,0.13);
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
   --purple:#a78bfa; --purple-dim:rgba(167,139,250,0.11);
-  --shadow:rgba(0,0,0,0.4);
+  --shadow:rgba(0,0,0,0.5);
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
@@ -33,36 +33,36 @@
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --bg:#f7f7f5; --bg2:#ffffff; --bg3:#eeede9; --bg4:#e4e3df;
-    --border:rgba(0,0,0,0.07); --border2:rgba(0,0,0,0.12); --border3:rgba(0,0,0,0.22);
-    --text:#111111; --text2:#666666; --text3:#aaaaaa;
-    --accent:#c49b00; --accent-dim:rgba(196,155,0,0.1);
+    --bg:#EFF3FF; --bg2:#ffffff; --bg3:#DDE5FF; --bg4:#C8D5FF;
+    --border:rgba(21,80,180,0.08); --border2:rgba(21,80,180,0.14); --border3:rgba(21,80,180,0.28);
+    --text:#0a1e40; --text2:#3d6090; --text3:#8aadda;
+    --accent:#D94F00; --accent-dim:rgba(217,79,0,0.1);
     --green:#059669; --green-dim:rgba(5,150,105,0.1);
-    --blue:#2563eb; --blue-dim:rgba(37,99,235,0.1);
+    --blue:#1558CC; --blue-dim:rgba(21,88,204,0.1);
     --red:#dc2626; --red-dim:rgba(220,38,38,0.1);
-    --shadow:rgba(0,0,0,0.12);
+    --shadow:rgba(10,30,64,0.12);
   }
 }
 /* Manual override classes */
 body.force-dark {
-  --bg:#0d0d0d; --bg2:#171717; --bg3:#202020; --bg4:#2a2a2a;
-  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.13); --border3:rgba(255,255,255,0.24);
-  --text:#f2f2f2; --text2:#808080; --text3:#404040;
-  --accent:#f5c842; --accent-dim:rgba(245,200,66,0.13);
+  --bg:#091525; --bg2:#0e2040; --bg3:#152a55; --bg4:#1d3568;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
+  --text:#e8f0ff; --text2:#7a9cc8; --text3:#2e4d7a;
+  --accent:#FF6B35; --accent-dim:rgba(255,107,53,0.14);
   --green:#34d399; --green-dim:rgba(52,211,153,0.11);
-  --blue:#60a5fa; --blue-dim:rgba(96,165,250,0.11);
+  --blue:#4D9EFF; --blue-dim:rgba(77,158,255,0.13);
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
-  --shadow:rgba(0,0,0,0.4);
+  --shadow:rgba(0,0,0,0.5);
 }
 body.force-light {
-  --bg:#f7f7f5; --bg2:#ffffff; --bg3:#eeede9; --bg4:#e4e3df;
-  --border:rgba(0,0,0,0.07); --border2:rgba(0,0,0,0.12); --border3:rgba(0,0,0,0.22);
-  --text:#111111; --text2:#666666; --text3:#aaaaaa;
-  --accent:#c49b00; --accent-dim:rgba(196,155,0,0.1);
+  --bg:#EFF3FF; --bg2:#ffffff; --bg3:#DDE5FF; --bg4:#C8D5FF;
+  --border:rgba(21,80,180,0.08); --border2:rgba(21,80,180,0.14); --border3:rgba(21,80,180,0.28);
+  --text:#0a1e40; --text2:#3d6090; --text3:#8aadda;
+  --accent:#D94F00; --accent-dim:rgba(217,79,0,0.1);
   --green:#059669; --green-dim:rgba(5,150,105,0.1);
-  --blue:#2563eb; --blue-dim:rgba(37,99,235,0.1);
+  --blue:#1558CC; --blue-dim:rgba(21,88,204,0.1);
   --red:#dc2626; --red-dim:rgba(220,38,38,0.1);
-  --shadow:rgba(0,0,0,0.12);
+  --shadow:rgba(10,30,64,0.12);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html{height:100%;background:var(--bg);}
@@ -123,7 +123,7 @@ body{
   color:var(--text3);transition:color .15s;
 }
 .nb svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
-.nb.active{color:var(--text);}
+.nb.active{color:var(--blue);}
 
 /* ── OVERLAYS ── */
 .overlay{
@@ -176,9 +176,9 @@ body{
 /* ── METRICS ── */
 .mg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
 .metric{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r);padding:11px 12px;}
-.metric.am{background:var(--accent-dim);border-color:rgba(232,197,71,.2);}
+.metric.am{background:var(--accent-dim);border-color:rgba(255,107,53,.2);}
 .metric.gr{background:var(--green-dim);border-color:rgba(62,207,142,.2);}
-.metric.bl{background:var(--blue-dim);border-color:rgba(91,156,246,.2);}
+.metric.bl{background:var(--blue-dim);border-color:rgba(77,158,255,.2);}
 .mlbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:5px;}
 .mval{font-size:26px;font-weight:800;line-height:1;color:var(--text);letter-spacing:-.5px;}
 .mval.am{color:var(--accent);}
@@ -330,8 +330,8 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 /* ── STAT BOXES (log detail) ── */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;}
 .stat-box{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;}
-.stat-box.bl{background:var(--blue-dim);border-color:rgba(91,156,246,.2);}
-.stat-box.am{background:var(--accent-dim);border-color:rgba(232,197,71,.2);}
+.stat-box.bl{background:var(--blue-dim);border-color:rgba(77,158,255,.2);}
+.stat-box.am{background:var(--accent-dim);border-color:rgba(255,107,53,.2);}
 .stat-lbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--text3);margin-bottom:5px;}
 .stat-val{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.3px;}
@@ -345,10 +345,10 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
   padding:6px 11px;border-radius:20px;border:.5px solid var(--border);background:transparent;
   color:var(--text3);cursor:pointer;transition:all .15s;}
 .cat-tab.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
-.cat-tab.run.active{background:var(--blue-dim);color:var(--blue);border-color:rgba(91,156,246,.3);}
+.cat-tab.run.active{background:var(--blue-dim);color:var(--blue);border-color:rgba(77,158,255,.3);}
 .cat-tab.strength.active{background:var(--red-dim);color:var(--red);border-color:rgba(240,101,101,.3);}
 .cat-tab.erg.active{background:var(--purple-dim);color:var(--purple);border-color:rgba(167,139,250,.3);}
-.cat-tab.mixed.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(232,197,71,.3);}
+.cat-tab.mixed.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(255,107,53,.3);}
 
 /* ── SPLIT TABLE ── */
 .split-tbl{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px;}
@@ -502,7 +502,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="px" style="padding-top:8px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <div><div class="eyebrow">Record</div><div class="screen-title">Log</div></div>
-      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(91,156,246,.3);">+ Build</button>
+      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
     </div>
     <div class="card">
       <div class="g2" style="margin-bottom:10px;">
@@ -568,7 +568,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="px" style="padding-top:8px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div><div class="eyebrow">Programme</div><div class="screen-title">Plan</div></div>
-      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(91,156,246,.3);">+ Build</button>
+      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
     <div class="sec-lbl" id="plan-vol"></div>
@@ -623,10 +623,16 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         4. Upload the file above
       </div>
     </div>
-    <div class="sec-lbl">Coming soon</div>
-    <div class="card" style="opacity:.45;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">🤖 AI session builder</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Generate sessions from goals + constraints</div>
+    <div class="sec-lbl">AI Training</div>
+    <div class="card" style="background:linear-gradient(135deg,rgba(77,158,255,0.08),rgba(255,107,53,0.08));border-color:rgba(77,158,255,0.2);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:19px;">🤖</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;">AI Session Builder</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Generate sessions · extend your plan · build from scratch</div>
+        </div>
+      </div>
+      <button class="btn btn-accent" onclick="openAI()">Build with AI →</button>
     </div>
     <div class="card" style="opacity:.45;margin-top:-2px;">
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">⌚ Garmin live sync</div>
@@ -673,7 +679,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div id="po-breakdown"></div>
     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-accent" id="po-log-btn">Log this session</button>
-      <button class="btn" id="po-edit-btn" style="color:var(--blue);border-color:rgba(91,156,246,.2);">Edit / customise</button>
+      <button class="btn" id="po-edit-btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Edit / customise</button>
     </div>
   </div>
 </div>
@@ -738,8 +744,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="opt-tabs" id="bld-opt-tabs"></div>
     <div id="bld-blocks"></div>
     <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
-      <button class="btn btn-sm" onclick="addBldBlock('warmup')" style="color:var(--accent);border-color:rgba(232,197,71,.3);">+ Warm-Up</button>
-      <button class="btn btn-sm" onclick="addBldBlock('main')" style="color:var(--blue);border-color:rgba(91,156,246,.3);">+ Main Set</button>
+      <button class="btn btn-sm" onclick="addBldBlock('warmup')" style="color:var(--accent);border-color:rgba(255,107,53,.3);">+ Warm-Up</button>
+      <button class="btn btn-sm" onclick="addBldBlock('main')" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Main Set</button>
       <button class="btn btn-sm" onclick="addBldBlock('cooldown')" style="color:var(--green);border-color:rgba(62,207,142,.3);">+ Cool-Down</button>
     </div>
     <div class="fg"><label class="flbl">Coaching notes (one per line)</label>
@@ -756,7 +762,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="btn" onclick="bldSaveBoth()">Save to both</button>
       </div>
     </div>
-    <button class="btn" onclick="bldUseToLog()" style="color:var(--blue);border-color:rgba(91,156,246,.2);">Use this session → Log now</button>
+    <button class="btn" onclick="bldUseToLog()" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Use this session → Log now</button>
   </div>
 </div>
 
@@ -768,8 +774,54 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </button>
     <div class="eyebrow">Saved</div>
     <div class="overlay-title" style="margin-bottom:12px;">Templates</div>
-    <button class="btn" onclick="closeOv('templates-overlay');openBuilder(null,null)" style="color:var(--blue);border-color:rgba(91,156,246,.2);margin-bottom:12px;">+ Build new session</button>
+    <button class="btn" onclick="closeOv('templates-overlay');openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.2);margin-bottom:12px;">+ Build new session</button>
     <div class="card" id="tmpl-list"></div>
+  </div>
+</div>
+
+<!-- AI SESSION BUILDER OVERLAY -->
+<div class="overlay" id="ai-overlay">
+  <div class="oi">
+    <button class="back-btn" onclick="closeOv('ai-overlay')">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+    </button>
+    <div class="eyebrow">AI-Powered</div>
+    <div class="overlay-title" style="margin-bottom:4px;">Plan Builder</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Powered by Claude · extend your plan or build new sessions</div>
+
+    <div class="sec-lbl">API Key</div>
+    <div class="card" style="margin-bottom:8px;">
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Claude API Key (stored locally on device)</label>
+        <input type="password" id="ai-api-key" placeholder="sk-ant-api03-…" oninput="aiKeySave()">
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">
+        Get your key at console.anthropic.com → API Keys<br>
+        Stored only in this browser · never sent elsewhere
+      </div>
+    </div>
+
+    <div class="sec-lbl">Training Context</div>
+    <div class="card" id="ai-context" style="margin-bottom:8px;"></div>
+
+    <div class="sec-lbl">What do you need?</div>
+    <div class="card" style="margin-bottom:8px;">
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Describe your session or request</label>
+        <textarea id="ai-prompt" placeholder="e.g. Build me a VO2max track session for W9 Saturday using the same format as my Phase 1 track sessions but 5% harder. Include 3 options (track / compromised run / easy fallback)." style="min-height:90px;"></textarea>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;" id="ai-quick-prompts"></div>
+      <button class="btn btn-accent" onclick="runAI()" id="ai-run-btn">Generate with AI →</button>
+    </div>
+
+    <div id="ai-output" style="display:none;">
+      <div class="sec-lbl">Generated Session</div>
+      <div class="card" id="ai-result-card" style="margin-bottom:8px;"></div>
+      <div class="btn-row">
+        <button class="btn btn-accent" onclick="aiLoadToBuilder()">Load into Builder</button>
+        <button class="btn" onclick="aiLogNow()" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Log now</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1509,7 +1561,7 @@ function renderToday() {
   `;
 
   // Phase bars
-  const cols=['#3ecf8e','#3ecf8e','#5b9cf6','#555','#e8c547','#555','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#f06565'];
+  const cols=['#34d399','#34d399','#4D9EFF','#556','#FF6B35','#556','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#f87171'];
   let bars = '';
   for(let w=1;w<=12;w++){
     const done=wc[w], pct=Math.min(100,Math.round(done/7*100));
@@ -2109,14 +2161,14 @@ function renderStats(){
     feelData.push(wf.length?Math.round(wf.reduce((a,s)=>a+s.feel,0)/wf.length*10)/10:null);
   }
 
-  drawChart('chart-volume',labels,volData,'bar','#5b9cf6');
-  drawChart('chart-pace',labels,paceData,'line','#3ecf8e',true);
-  drawChart('chart-feel',labels,feelData,'bar','#e8c547');
+  drawChart('chart-volume',labels,volData,'bar','#4D9EFF');
+  drawChart('chart-pace',labels,paceData,'line','#34d399',true);
+  drawChart('chart-feel',labels,feelData,'bar','#FF6B35');
 
   let cb='';
   for(let w=1;w<=12;w++){
     const d=wc[w],p=Math.min(100,Math.round(d/7*100));
-    const col=w<=6?'#5b9cf6':'#a78bfa';
+    const col=w<=6?'#4D9EFF':'#a78bfa';
     cb+=`<div style="display:grid;grid-template-columns:26px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
       <div style="font-family:var(--mono);font-size:8px;color:var(--text3);">W${w}</div>
       <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.max(d===0?0:3,p)}%;background:${col};"></div></div>
@@ -2134,10 +2186,10 @@ function drawChart(id,labels,data,type,color,spanGaps=false){
     borderColor:color,borderWidth:type==='bar'?0:2,borderRadius:type==='bar'?3:0,
     pointRadius:type==='line'?3:0,pointBackgroundColor:color,fill:type==='line',tension:.4,spanGaps,
   }]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
-    tooltip:{backgroundColor:'#1c1c1c',titleColor:'#f0ede8',bodyColor:'#7a7775',
-      borderColor:'rgba(255,255,255,0.08)',borderWidth:1}},
-    scales:{x:{ticks:{font:{size:8,family:'DM Mono'},color:'#3a3835'},grid:{color:'rgba(255,255,255,0.04)'}},
-      y:{ticks:{font:{size:8,family:'DM Mono'},color:'#3a3835'},grid:{color:'rgba(255,255,255,0.04)'}}}
+    tooltip:{backgroundColor:'#0e2040',titleColor:'#e8f0ff',bodyColor:'#7a9cc8',
+      borderColor:'rgba(77,158,255,0.2)',borderWidth:1}},
+    scales:{x:{ticks:{font:{size:8,family:'DM Mono'},color:'rgba(122,156,200,0.7)'},grid:{color:'rgba(77,158,255,0.06)'}},
+      y:{ticks:{font:{size:8,family:'DM Mono'},color:'rgba(122,156,200,0.7)'},grid:{color:'rgba(77,158,255,0.06)'}}}
   }});
 }
 
@@ -2296,6 +2348,243 @@ function confirmClear(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AI SESSION BUILDER
+// ═══════════════════════════════════════════════════════════════════════════
+let aiGeneratedSession = null;
+
+function openAI() {
+  const key = localStorage.getItem('ht-ai-key') || '';
+  const keyEl = document.getElementById('ai-api-key');
+  if (keyEl) keyEl.value = key;
+  renderAIContext();
+  renderAIQuickPrompts();
+  document.getElementById('ai-output').style.display = 'none';
+  aiGeneratedSession = null;
+  openOv('ai-overlay');
+}
+
+function aiKeySave() {
+  const k = document.getElementById('ai-api-key')?.value || '';
+  try { localStorage.setItem('ht-ai-key', k); } catch(e) {}
+}
+
+function renderAIContext() {
+  const el = document.getElementById('ai-context');
+  if (!el) return;
+  const wk = PLAN[currentPlanWeek];
+  const recentRuns = sessions.filter(s => s.pace && s.pace.includes(':'));
+  const avgPaceSecs = recentRuns.length
+    ? recentRuns.reduce((a,s) => { const p=s.pace.split(':'); return a+parseInt(p[0])*60+parseFloat(p[1]); }, 0) / recentRuns.length
+    : 0;
+  const thisWeekLogged = sessions.filter(s => s.week === String(currentPlanWeek)).length;
+
+  el.innerHTML = `<div style="display:grid;gap:7px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Current week</span>
+      <span style="font-size:12px;font-weight:700;color:var(--text);">W${currentPlanWeek} · ${wk?.range || ''}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Phase</span>
+      <span style="font-size:12px;font-weight:700;color:var(--text);">Phase ${wk?.ph || 1} · ${currentPlanWeek <= 6 ? 'Base Building' : 'VO2max + Race Prep'}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">This week logged</span>
+      <span style="font-size:12px;font-weight:700;color:var(--text);">${thisWeekLogged}/7 sessions</span>
+    </div>
+    ${avgPaceSecs ? `<div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Recent avg pace</span>
+      <span style="font-size:12px;font-weight:700;color:var(--blue);">${secsToMMSS(avgPaceSecs)}/km</span>
+    </div>` : ''}
+    <div style="border-top:.5px solid var(--border);padding-top:8px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Injury Flags (always respected)</div>
+      <div style="font-size:11px;color:var(--red);line-height:1.8;">⚠ Left knee — medial sensitivity · high cadence protective<br>⚠ Right wrist — straps required on all pulling movements<br>⚠ Low back — brace before deadlifts, SkiErg, sled work</div>
+    </div>
+  </div>`;
+}
+
+function renderAIQuickPrompts() {
+  const el = document.getElementById('ai-quick-prompts');
+  if (!el) return;
+  const w = currentPlanWeek;
+  const prompts = [
+    `Build a W${w} track session — 3 options (VO2max / compromised run / fallback)`,
+    `Extend this week's training — add a quality session to fill a gap`,
+    `Create a full deload week plan for W${Math.min(w+1,12)}`,
+    `Generate a strength session targeting my weak areas + injury flags`,
+    `What should I do differently based on my recent logged sessions?`,
+    `Build a new 12-week plan starting from my current fitness level`,
+  ];
+  el.innerHTML = prompts.map((p,i) =>
+    `<button class="fchip" onclick="setAIPrompt(this)" data-p="${p.replace(/"/g,'&quot;')}">${p.length>48?p.slice(0,46)+'…':p}</button>`
+  ).join('');
+}
+
+function setAIPrompt(btn) {
+  const el = document.getElementById('ai-prompt');
+  if (el) el.value = btn.getAttribute('data-p');
+  document.querySelectorAll('#ai-quick-prompts .fchip').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function runAI() {
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) {
+    toast('Enter a valid Claude API key first'); return;
+  }
+  const prompt = document.getElementById('ai-prompt')?.value?.trim();
+  if (!prompt) { toast('Describe what you need first'); return; }
+
+  const btn = document.getElementById('ai-run-btn');
+  if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
+  document.getElementById('ai-output').style.display = 'none';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-allow-browser': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 2400,
+        system: buildAISystemPrompt(),
+        messages: [{ role: 'user', content: buildAIUserMessage(prompt) }],
+      }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `API ${res.status}`);
+    }
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    const jMatch = text.match(/```json\n?([\s\S]+?)\n?```/) || text.match(/(\{[\s\S]*"options"[\s\S]*\})/);
+    if (!jMatch) throw new Error('No structured session in response — try rephrasing your request');
+    const sess = JSON.parse(jMatch[1]);
+    aiGeneratedSession = sess;
+    renderAIResult(sess, text);
+  } catch(err) {
+    toast('Error: ' + (err.message || 'Unknown'));
+  } finally {
+    if (btn) { btn.textContent = 'Generate with AI →'; btn.disabled = false; }
+  }
+}
+
+function buildAISystemPrompt() {
+  return `You are an expert HYROX and hybrid endurance-strength coach AI embedded in a personal training app.
+
+The athlete is following a 12-week programme toward a HYROX race on June 20, 2026.
+Phase 1 (W1-W6): Base building — Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
+Phase 2 (W7-W12): VO2max intervals, threshold work, race simulation, taper.
+Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.
+
+INJURY FLAGS — always respect these:
+- Left knee: medial sensitivity. High cadence (170-172 BPM) protective. Avoid 180+ BPM. Bike as Zone 2 alternative on flare-up days.
+- Right wrist: straps required on ALL pulling movements (lat pulldown, SkiErg, rowing, pull-ups).
+- Low back: brace before every deadlift, SkiErg pull, sled work.
+
+Session structure rules:
+- Quality sessions (track, threshold, race sim) MUST have warm-up and cool-down blocks.
+- Always offer 2-3 options: A = target, B = modified/alternative, C = easy fallback.
+- Include RPE targets, pace targets, and rep distances/times in the "detail" field.
+- Coaching cues go in the "cue" field — technique, RPE, pacing strategy.
+- Notes = big-picture coaching points (💡 prefix). Warnings = injury flags (⚠ prefix).
+
+Return a JSON block inside \`\`\`json ... \`\`\` with EXACTLY this structure:
+{
+  "_name": "Session name",
+  "options": [
+    {
+      "label": "Option A — Full description",
+      "subtitle": "Short description · duration or volume",
+      "intensity": "Easy|Moderate|Hard|Mixed",
+      "blocks": [
+        {
+          "type": "warmup",
+          "title": "Warm-Up",
+          "items": [
+            { "name": "Exercise or interval name", "detail": "Reps/distance/duration", "cue": "Coaching cue" }
+          ]
+        },
+        { "type": "main", "title": "Main Set", "items": [...] },
+        { "type": "cooldown", "title": "Cool-Down", "items": [...] }
+      ],
+      "notes": ["💡 Key coaching insight"],
+      "warnings": ["⚠ Injury flag or caution"]
+    }
+  ]
+}
+
+After the JSON block, write 2-3 sentences of coaching rationale explaining WHY this session fits the athlete's current training state.`;
+}
+
+function buildAIUserMessage(prompt) {
+  const wk = PLAN[currentPlanWeek];
+  const weekPlan = (wk?.sessions || []).map(s => `  ${s.day} ${s.date}: ${s.session} [${s.intensity}]`).join('\n');
+  const recent = sessions.slice(0, 10).map(s =>
+    `  W${s.week} ${s.day}: ${s.session} (${s.intensity}${s.pace?', '+s.pace+'/km':''}${s.dist?', '+s.dist+'km':''}${s.feel?', feel '+s.feel+'/5':''}${s.notes?', "'+s.notes.slice(0,40)+'"':''})`
+  ).join('\n');
+
+  return `Current training context:
+Week ${currentPlanWeek} of 12 · Phase ${wk?.ph||1} · ${currentPlanWeek<=6?'Base Building':'VO2max + Race Prep'}
+Volume target: ${wk?.vol||'unknown'}
+
+Week ${currentPlanWeek} plan:
+${weekPlan}
+
+Recent logged sessions (newest first):
+${recent || '  None logged yet'}
+
+Athlete request: ${prompt}`;
+}
+
+function renderAIResult(sess, rawText) {
+  const card = document.getElementById('ai-result-card');
+  if (!card) return;
+  let html = `<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;">${sess._name || 'Generated Session'}</div>`;
+  if (sess.options?.length > 1) {
+    html += `<div class="opt-tabs" id="ai-opt-tabs">`;
+    sess.options.forEach((o,i) =>
+      html += `<button class="opt-tab ${i===0?'active':''}" onclick="switchAIOpt(${i})">${(o.label||'').split('—')[0].trim()||'Option '+String.fromCharCode(65+i)}</button>`
+    );
+    html += `</div>`;
+  }
+  html += `<div id="ai-opt-content">${renderBlocks(sess.options?.[0]||{blocks:[]})}</div>`;
+  const coaching = rawText.replace(/```json[\s\S]+?```/,'').trim();
+  if (coaching) {
+    html += `<div style="margin-top:14px;padding-top:12px;border-top:.5px solid var(--border);">
+      <div class="sec-lbl">Coaching rationale</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.7;">${coaching}</div>
+    </div>`;
+  }
+  card.innerHTML = html;
+  document.getElementById('ai-output').style.display = 'block';
+  setTimeout(() => document.getElementById('ai-output').scrollIntoView({behavior:'smooth',block:'nearest'}), 120);
+}
+
+function switchAIOpt(idx) {
+  if (!aiGeneratedSession?.options) return;
+  document.querySelectorAll('#ai-opt-tabs .opt-tab').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const c = document.getElementById('ai-opt-content');
+  if (c) c.innerHTML = renderBlocks(aiGeneratedSession.options[idx]);
+}
+
+function aiLoadToBuilder() {
+  if (!aiGeneratedSession) return;
+  closeOv('ai-overlay');
+  openBuilder(null, null, aiGeneratedSession);
+}
+
+function aiLogNow() {
+  if (!aiGeneratedSession) return;
+  closeOv('ai-overlay');
+  nav('log', document.querySelectorAll('.nb')[1]);
+  toast('AI session ready — fill in your metrics and save');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PWA
 // ═══════════════════════════════════════════════════════════════════════════
 if('serviceWorker'in navigator){
@@ -2303,7 +2592,7 @@ if('serviceWorker'in navigator){
   const blob=new Blob([sw],{type:'application/javascript'});
   navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
 }
-const mf={name:'Hybrid Training',short_name:'Training',start_url:'.',display:'standalone',background_color:'#0a0a0a',theme_color:'#0a0a0a',icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23e8c547"/><path d="M24 72L38 28L50 55L62 38L76 72" stroke="%23000" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="76" cy="28" r="7" fill="%23000"/></svg>',sizes:'any',type:'image/svg+xml'}]};
+const mf={name:'Hybrid Training',short_name:'Training',start_url:'.',display:'standalone',background_color:'#091525',theme_color:'#091525',icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23FF6B35"/><path d="M24 72L38 28L50 55L62 38L76 72" stroke="%23000" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="76" cy="28" r="7" fill="%23000"/></svg>',sizes:'any',type:'image/svg+xml'}]};
 const mb=new Blob([JSON.stringify(mf)],{type:'application/json'});
 document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.createObjectURL(mb)}">`);
 
