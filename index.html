@@ -638,9 +638,18 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">⌚ Garmin live sync</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Direct Connect API — coming in v3</div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Data</div>
+    <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
     <div class="card">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;" id="data-summary"></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="exportData()">Export backup</button>
+        <button class="btn" onclick="document.getElementById('import-data-input').click()">Import backup</button>
+      </div>
+      <input type="file" id="import-data-input" accept=".json" style="display:none" onchange="importDataFile(this.files[0]);this.value=''">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
+        Export saves all sessions, custom plan sessions, and templates.<br>
+        Import merges without removing existing data.
+      </div>
       <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmClear()">Clear all data</button>
     </div>
   </div>
@@ -1432,13 +1441,35 @@ let charts = {};
 // ═══════════════════════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'ht-v4';
+const LEGACY_KEYS = ['ht-v3','ht-v2','ht-v1','ht-sessions'];
+
 function load() {
   try {
-    const r = localStorage.getItem('ht-v4');
-    sessions = r ? JSON.parse(r) : [...SEED];
-    if (!r) saveData();
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      sessions = JSON.parse(raw);
+    } else {
+      // Migration: check legacy keys newest-first
+      let migrated = false;
+      for (const key of LEGACY_KEYS) {
+        const legacy = localStorage.getItem(key);
+        if (!legacy) continue;
+        try {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sessions = normaliseSessions(parsed);
+            saveData();
+            migrated = true;
+            break;
+          }
+        } catch(e) {}
+      }
+      if (!migrated) { sessions = [...SEED]; saveData(); }
+    }
   } catch(e) { sessions = [...SEED]; }
-  // Load custom sessions into LIB
+
+  // Load custom plan sessions into LIB
   try {
     const custom = JSON.parse(localStorage.getItem('ht-custom') || '{}');
     Object.entries(custom).forEach(([w, days]) =>
@@ -1450,8 +1481,103 @@ function load() {
   } catch(e) {}
   renderAll();
 }
+
 function saveData() {
-  try { localStorage.setItem('ht-v4', JSON.stringify(sessions)); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch(e) {}
+}
+
+// Normalise a session object from any prior schema to the current one
+function normaliseSessions(arr) {
+  return arr.map(s => ({
+    week:      s.week      ?? s.w         ?? '',
+    day:       s.day       ?? s.d         ?? '',
+    session:   s.session   ?? s.name      ?? s.type ?? 'Session',
+    intensity: s.intensity ?? s.int       ?? 'moderate',
+    pace:      s.pace      ?? s.avgPace   ?? '',
+    dist:      s.dist      ?? s.distance  ?? '',
+    hr:        s.hr        ?? s.avgHr     ?? s.avgHR ?? '',
+    dur:       s.dur       ?? s.duration  ?? '',
+    feel:      s.feel      ?? null,
+    notes:     s.notes     ?? s.note      ?? '',
+    ts:        s.ts        ?? s.timestamp ?? Date.now(),
+    gid:       s.gid       ?? s.id        ?? `mg-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+  }));
+}
+
+// Export all data (sessions + custom plan + templates) as a dated JSON file
+function exportData() {
+  try {
+    const blob = new Blob([JSON.stringify({
+      version: '4',
+      exportedAt: new Date().toISOString(),
+      appName: 'Hybrid Training',
+      sessions,
+      custom: JSON.parse(localStorage.getItem('ht-custom') || '{}'),
+      templates: JSON.parse(localStorage.getItem('ht-tmpl') || '[]'),
+      settings: { theme: localStorage.getItem('ht-theme') || '' },
+    }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `training-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    try { localStorage.setItem('ht-last-export', new Date().toISOString()); } catch(e) {}
+    renderDataSummary();
+    toast('Backup exported ✓');
+  } catch(e) { toast('Export failed'); }
+}
+
+// Import from a backup file — merges without overwriting existing entries
+function importDataFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const raw = JSON.parse(e.target.result);
+      const importedSessions = normaliseSessions(
+        Array.isArray(raw) ? raw : (raw.sessions || [])
+      );
+
+      // Merge sessions — skip any gid already present
+      const existingGids = new Set(sessions.map(s => s.gid).filter(Boolean));
+      const added = importedSessions.filter(s => !existingGids.has(s.gid));
+      sessions = [...added, ...sessions].sort((a,b) => b.ts - a.ts);
+      saveData();
+
+      // Merge custom plan sessions
+      if (raw.custom && typeof raw.custom === 'object') {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-custom') || '{}');
+          Object.entries(raw.custom).forEach(([w, days]) => {
+            if (!cur[w]) cur[w] = {};
+            Object.assign(cur[w], days);
+            Object.entries(days).forEach(([d, sess]) => {
+              if (!LIB[w]) LIB[w] = {};
+              LIB[w][d] = sess;
+            });
+          });
+          localStorage.setItem('ht-custom', JSON.stringify(cur));
+        } catch(e) {}
+      }
+
+      // Merge templates — skip names already present
+      if (Array.isArray(raw.templates) && raw.templates.length) {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-tmpl') || '[]');
+          const existingNames = new Set(cur.map(t => t._name));
+          const newTmpls = raw.templates.filter(t => !existingNames.has(t._name));
+          localStorage.setItem('ht-tmpl', JSON.stringify([...newTmpls, ...cur]));
+        } catch(e) {}
+      }
+
+      renderAll();
+      toast(`Imported ${added.length} new session${added.length===1?'':'s'} ✓`);
+    } catch(err) {
+      toast('Import failed: ' + (err.message || 'Invalid file'));
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2339,7 +2465,13 @@ function initTheme(){
 }
 
 function renderDataSummary(){
-  document.getElementById('data-summary').textContent=`${sessions.length} sessions stored locally on this device.`;
+  const lastExport = localStorage.getItem('ht-last-export');
+  const templates = (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')||'[]').length; } catch(e) { return 0; } })();
+  const exportLine = lastExport
+    ? `Last backup: ${new Date(lastExport).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}`
+    : '⚠ No backup yet — export recommended';
+  document.getElementById('data-summary').innerHTML =
+    `${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.<br>${exportLine}`;
 }
 function confirmClear(){
   if(confirm('Clear all logged sessions? This cannot be undone.')){
