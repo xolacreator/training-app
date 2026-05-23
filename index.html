@@ -645,6 +645,17 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </div>
       <button class="btn btn-accent" onclick="openAI()">Build with AI →</button>
     </div>
+    <div class="sec-lbl">Personal Coach</div>
+    <div class="card" id="coach-card" onclick="openCoach()" style="cursor:pointer;background:linear-gradient(135deg,rgba(212,175,55,0.08),rgba(167,139,250,0.08));border-color:rgba(212,175,55,0.2);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:19px;">🎯</div>
+        <div style="flex:1;">
+          <div id="coach-card-name" style="font-size:14px;font-weight:700;">Set up your coach</div>
+          <div id="coach-card-sub" style="font-family:var(--mono);font-size:9px;color:var(--text3);">Personalised AI coaching powered by Claude</div>
+        </div>
+        <div style="font-size:18px;color:var(--text3);">›</div>
+      </div>
+    </div>
     <div class="card" style="opacity:.45;margin-top:-2px;">
       <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">⌚ Garmin → Strava → App</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Enable Strava sync below · Garmin auto-pushes to Strava</div>
@@ -904,6 +915,39 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
     <div class="card" id="hx-summary" style="margin-top:12px;"></div>
     <div style="height:32px;"></div>
+  </div>
+</div>
+
+<!-- COACH SETUP WIZARD -->
+<div class="overlay" id="coach-setup-overlay">
+  <div class="oi">
+    <button class="back-btn" onclick="closeCoachSetup()">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+    </button>
+    <div class="eyebrow">Setup</div>
+    <div class="overlay-title" style="margin-bottom:4px;">Meet Your Coach</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;">5 questions · build your personal coaching style</div>
+    <div id="coach-setup-content"></div>
+  </div>
+</div>
+
+<!-- COACH CHAT -->
+<div class="overlay" id="coach-overlay">
+  <div class="oi">
+    <button class="back-btn" onclick="closeOv('coach-overlay')">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+    </button>
+    <div id="coach-chat-header"></div>
+    <div id="coach-messages" style="padding-bottom:8px;"></div>
+    <div style="position:sticky;bottom:0;background:var(--bg);padding:12px 0 20px;border-top:.5px solid var(--border);">
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <textarea id="coach-input" rows="2" placeholder="Ask your coach anything…"
+          style="flex:1;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
+        <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="padding:11px 15px;font-size:18px;line-height:1;">↑</button>
+      </div>
+      <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">⚙ Reconfigure coach</button>
+    </div>
   </div>
 </div>
 
@@ -1891,6 +1935,37 @@ let bldOptions = [{label:'Option A',blocks:[]}];
 let bldActiveOpt = 0;
 let charts = {};
 let hyroxPlan = null;
+let coachProfile = null;
+let coachSetupStep = 0;
+let coachSetupAnswers = {};
+let coachMessages = [];
+let coachTyping = false;
+
+const COACH_SETUP_STEPS = [
+  {id:'name',  q:"What should your coach go by?",         sub:"They'll introduce themselves with this name",    type:'text',   placeholder:'e.g. Coach Sam, The Hammer, Coach Mia…'},
+  {id:'style', q:"What coaching style fits you?",         sub:"Shapes the tone of every conversation",         type:'choice', options:[
+    {val:'direct',       label:'Direct & Challenging', icon:'💪', desc:'Hard truths, no sugar-coating'},
+    {val:'motivational', label:'Motivational',          icon:'🔥', desc:'Energy and belief-focused'},
+    {val:'technical',    label:'Technical',             icon:'📊', desc:'Data-driven and analytical'},
+    {val:'balanced',     label:'Balanced',              icon:'⚖️', desc:'Mix of all three'},
+  ]},
+  {id:'goal',  q:"What's your HYROX target?",             sub:"Sets the performance benchmark",                type:'choice', options:[
+    {val:'sub60',  label:'Sub-60 min',         icon:'🏆', desc:'Elite level'},
+    {val:'sub75',  label:'Sub-75 min',         icon:'🥇', desc:'Competitive'},
+    {val:'sub90',  label:'Sub-90 min',         icon:'🥈', desc:'Strong amateur'},
+    {val:'finish', label:'First HYROX finish', icon:'🏅', desc:'Strong and smart race'},
+  ]},
+  {id:'focus', q:"Where do you need the most coaching?",  sub:"Your coach will emphasise this area",           type:'choice', options:[
+    {val:'running',  label:'Running pace',   icon:'🏃', desc:'Speed and endurance development'},
+    {val:'stations', label:'Station work',   icon:'🏋️', desc:'Technique and transition efficiency'},
+    {val:'strategy', label:'Race strategy',  icon:'🧠', desc:'Pacing and race execution'},
+    {val:'all',      label:'Full package',   icon:'💯', desc:'All areas equally'},
+  ]},
+  {id:'detail',q:"How do you prefer your feedback?",      sub:"Sets response length and depth",                type:'choice', options:[
+    {val:'short',    label:'Short & sharp',   icon:'⚡', desc:'Bullet points, no fluff'},
+    {val:'detailed', label:'Full breakdown',  icon:'📋', desc:'Deep analysis and reasoning'},
+  ]},
+];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STORAGE
@@ -4048,12 +4123,224 @@ async function hyroxPullTraining(){
   toast(`Runs set · base ${hxFmt(avg)}/km · from ${src}`);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH PERSONA
+// ═══════════════════════════════════════════════════════════════════════════
+function loadCoach() {
+  try { coachProfile = JSON.parse(localStorage.getItem('ht-coach') || 'null'); } catch(e) {}
+  renderCoachCard();
+}
+
+function renderCoachCard() {
+  const name = document.getElementById('coach-card-name');
+  const sub  = document.getElementById('coach-card-sub');
+  if (!name || !sub) return;
+  if (coachProfile) {
+    const goalLabel = {sub60:'Sub-60',sub75:'Sub-75',sub90:'Sub-90',finish:'First finish'}[coachProfile.goal] || '';
+    name.textContent = coachProfile.name;
+    sub.textContent  = goalLabel + ' · ' + coachProfile.style + ' style · tap to chat';
+  } else {
+    name.textContent = 'Set up your coach';
+    sub.textContent  = 'Personalised AI coaching powered by Claude';
+  }
+}
+
+function openCoach() {
+  if (!coachProfile) { openCoachSetup(); return; }
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) {
+    toast('Add a Claude API key in AI Session Builder first'); return;
+  }
+  if (coachMessages.length === 0) coachMessages = [{role:'assistant', text:coachIntro()}];
+  renderCoachHeader();
+  renderCoachMessages();
+  openOv('coach-overlay');
+}
+
+function coachIntro() {
+  const p = coachProfile;
+  const goalStr = {sub60:'sub 60 minutes',sub75:'sub 75 minutes',sub90:'sub 90 minutes',finish:'your first HYROX finish'}[p.goal] || p.goal;
+  return `Hey — I'm ${p.name}. I'll be coaching you toward ${goalStr} on June 20, 2026. Ask me anything about your training, your plan, or your race prep.`;
+}
+
+function openCoachSetup() {
+  coachSetupStep = 0;
+  coachSetupAnswers = coachProfile ? {...coachProfile} : {};
+  renderCoachSetupStep();
+  if (document.getElementById('coach-overlay')?.classList.contains('open')) closeOv('coach-overlay');
+  openOv('coach-setup-overlay');
+}
+
+function closeCoachSetup() {
+  closeOv('coach-setup-overlay');
+}
+
+function renderCoachSetupStep() {
+  const step = COACH_SETUP_STEPS[coachSetupStep];
+  const prog = `${coachSetupStep + 1} of ${COACH_SETUP_STEPS.length}`;
+  const isLast = coachSetupStep === COACH_SETUP_STEPS.length - 1;
+  let inner = '';
+
+  if (step.type === 'text') {
+    inner = `
+      <input type="text" id="coach-text-input" placeholder="${step.placeholder}" value="${coachSetupAnswers[step.id]||''}"
+        style="font-size:19px;font-weight:700;width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);margin-bottom:16px;"
+        onkeydown="if(event.key==='Enter')coachSetupNext()">
+      <button class="btn btn-accent" style="width:100%;" onclick="coachSetupNext()">${isLast?'Meet my coach →':'Next →'}</button>`;
+  } else {
+    inner = step.options.map(o => {
+      const sel = coachSetupAnswers[step.id] === o.val;
+      return `<div class="card" onclick="coachSetupChoice('${o.val}')" style="cursor:pointer;margin-bottom:8px;${sel?'border-color:var(--accent);background:var(--accent-dim);':''}">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:22px;line-height:1;">${o.icon}</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${o.label}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${o.desc}</div></div>
+          <div style="font-size:16px;color:${sel?'var(--accent)':'var(--text3)'};">${sel?'✓':'›'}</div>
+        </div></div>`;
+    }).join('');
+  }
+
+  document.getElementById('coach-setup-content').innerHTML = `
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:8px;">${prog}</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${step.q}</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">${step.sub}</div>
+    ${inner}
+    ${coachSetupStep > 0 ? `<button class="btn" style="width:100%;margin-top:8px;" onclick="coachSetupBack()">← Back</button>` : ''}`;
+
+  if (step.type === 'text') setTimeout(() => document.getElementById('coach-text-input')?.focus(), 120);
+}
+
+function coachSetupChoice(val) {
+  coachSetupAnswers[COACH_SETUP_STEPS[coachSetupStep].id] = val;
+  coachSetupNext();
+}
+
+function coachSetupNext() {
+  const step = COACH_SETUP_STEPS[coachSetupStep];
+  if (step.type === 'text') {
+    const v = document.getElementById('coach-text-input')?.value?.trim();
+    if (!v) { toast('Enter a name to continue'); return; }
+    coachSetupAnswers[step.id] = v;
+  } else if (!coachSetupAnswers[step.id]) {
+    toast('Pick an option to continue'); return;
+  }
+  if (coachSetupStep < COACH_SETUP_STEPS.length - 1) {
+    coachSetupStep++;
+    renderCoachSetupStep();
+  } else {
+    coachProfile = {...coachSetupAnswers};
+    try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+    renderCoachCard();
+    coachMessages = [{role:'assistant', text:coachIntro()}];
+    closeOv('coach-setup-overlay');
+    renderCoachHeader();
+    renderCoachMessages();
+    openOv('coach-overlay');
+  }
+}
+
+function coachSetupBack() {
+  if (coachSetupStep > 0) { coachSetupStep--; renderCoachSetupStep(); }
+}
+
+function renderCoachHeader() {
+  const el = document.getElementById('coach-chat-header');
+  if (!el || !coachProfile) return;
+  const goalLabel = {sub60:'Sub-60',sub75:'Sub-75',sub90:'Sub-90',finish:'First finish'}[coachProfile.goal]||'';
+  const styleLabel = {direct:'Direct',motivational:'Motivational',technical:'Technical',balanced:'Balanced'}[coachProfile.style]||'';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎯</div>
+      <div>
+        <div style="font-size:16px;font-weight:700;">${coachProfile.name}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${goalLabel} · ${styleLabel}</div>
+      </div>
+    </div>`;
+}
+
+function renderCoachMessages() {
+  const el = document.getElementById('coach-messages');
+  if (!el) return;
+  el.innerHTML = coachMessages.map(m => {
+    const isUser = m.role === 'user';
+    return `<div style="display:flex;justify-content:${isUser?'flex-end':'flex-start'};margin-bottom:10px;">
+      <div style="max-width:84%;padding:10px 13px;border-radius:${isUser?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isUser?'var(--accent)':'var(--bg2)'};color:${isUser?'#000':'var(--text)'};border:${isUser?'none':'.5px solid var(--border)'};font-size:13px;line-height:1.55;white-space:pre-wrap;">${m.text}</div>
+    </div>`;
+  }).join('') + (coachTyping ? `<div style="display:flex;margin-bottom:10px;"><div style="padding:10px 14px;border-radius:14px 14px 14px 4px;background:var(--bg2);border:.5px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text3);">···</div></div>` : '');
+  const overlay = document.getElementById('coach-overlay');
+  if (overlay) setTimeout(() => { overlay.scrollTop = overlay.scrollHeight; }, 40);
+}
+
+async function sendCoachMessage() {
+  const input = document.getElementById('coach-input');
+  const text = input?.value?.trim();
+  if (!text || coachTyping) return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) { toast('Add a Claude API key in AI Session Builder first'); return; }
+  input.value = '';
+  coachMessages.push({role:'user', text});
+  coachTyping = true;
+  renderCoachMessages();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5', max_tokens:600,
+        system: buildCoachSystemPrompt(),
+        messages: coachMessages.map(m => ({role:m.role, content:m.text})),
+      }),
+    });
+    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API ${res.status}`); }
+    const data = await res.json();
+    coachMessages.push({role:'assistant', text: data.content?.[0]?.text||'…'});
+  } catch(err) {
+    coachMessages.push({role:'assistant', text:`Sorry, something went wrong: ${err.message}`});
+  } finally {
+    coachTyping = false;
+    renderCoachMessages();
+  }
+}
+
+function buildCoachSystemPrompt() {
+  const p = coachProfile;
+  const goalMap = {sub60:'finish sub 60 minutes (elite)',sub75:'finish sub 75 minutes (competitive)',sub90:'finish sub 90 minutes (strong amateur)',finish:'complete their first HYROX strongly'};
+  const styleMap = {
+    direct:'Be direct and demanding. Give hard truths without softening them. Push relentlessly.',
+    motivational:'Be energetic and belief-focused. Build confidence while holding them accountable.',
+    technical:'Be analytical. Reference numbers, paces and data whenever possible.',
+    balanced:'Balance challenge, motivation and technical depth in every response.',
+  };
+  const focusMap = {running:'running pace and endurance',stations:'station technique and transition efficiency',strategy:'race strategy and pacing execution',all:'all aspects of HYROX performance'};
+  const detailMap = {short:'Keep every reply under 120 words. Use bullet points. No padding.',detailed:'Give thorough replies with reasoning. Up to 280 words.'};
+
+  const recent = sessions.slice(0,5).map(s=>`  W${s.week} ${s.day}: ${s.session}${s.pace?' · '+s.pace+'/km':''}${s.dist?' · '+s.dist+'km':''}${s.feel?' · feel '+s.feel+'/5':''}`).join('\n');
+  const bestTempo = sessions.filter(s=>s.pace&&/(tempo)/i.test(s.session||'')).sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
+  const bestPace  = bestTempo ? (bestTempo.best_pace||bestTempo.pace) : null;
+  const hxGoal    = hyroxPlan ? `HYROX race plan: ${hxFmtLong(hyroxPlan.goalSecs)} target` : '';
+
+  return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal} at their race on June 20 2026.
+
+${styleMap[p.style]} Focus especially on ${focusMap[p.focus]}.
+${detailMap[p.detail]}
+
+ATHLETE DATA (current):
+Current plan week: ${currentPlanWeek} of 12
+${hxGoal}
+Best tempo pace: ${bestPace||'not yet logged'}
+Recent sessions:
+${recent||'  No sessions logged yet'}
+
+Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
+}
+
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 load();
 initTheme();
 initDrive();
 initStrava();
+loadCoach();
 setCat('run',document.querySelector('.cat-tab.run'));
 renderPlanTabs();
 </script>
