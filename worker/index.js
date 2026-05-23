@@ -20,7 +20,7 @@ export default {
         client_id:       env.STRAVA_CLIENT_ID,
         redirect_uri:    `${url.origin}/callback`,
         response_type:   'code',
-        approval_prompt: 'auto',
+        approval_prompt: 'force',
         scope:           'activity:read_all',
       });
       return Response.redirect(`${STRAVA_AUTH_URL}?${params}`, 302);
