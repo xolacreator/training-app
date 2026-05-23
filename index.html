@@ -3478,6 +3478,7 @@ function initStrava() {
         expires_at:    parseInt(p.get('expires_at') || '0'),
         athlete:       stravaAthlete,
       }));
+      stravaState = 'idle';
       window.history.replaceState({}, '', window.location.pathname);
       // Navigate to More tab so user can see connected state, then sync
       setTimeout(() => {
@@ -3743,6 +3744,11 @@ function closeReviewFlow() {
   if (pendingReview.length === 0) toast('All imports rated ✓');
 }
 
+function reconnectStrava() {
+  if (!stravaWorker) { toast('Disconnect first, then re-enter the worker URL'); return; }
+  window.location.href = `${stravaWorker}/auth`;
+}
+
 function renderStravaCard() {
   const card = document.getElementById('strava-card');
   if (!card) return;
@@ -3770,20 +3776,24 @@ function renderStravaCard() {
     const errored = stravaState === 'error';
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="var(--accent)" stroke-width="2">
+        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="${errored?'var(--red)':'var(--accent)'}" stroke-width="2">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:700;color:var(--text);">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
           <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
-            ${errored ? '⚠ Sync error' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
+            ${errored ? '⚠ Token expired or sync failed' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
           </div>
         </div>
       </div>
+      ${errored ? `
+      <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava</button>
+      <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
+      ` : `
       <div class="btn-row">
         <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromStrava(false)" ${syncing?'disabled':''}>Sync now</button>
         <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
-      </div>`;
+      </div>`}`;
   }
 }
 
