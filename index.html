@@ -489,6 +489,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="wstrip" id="week-strip"></div>
     <div class="sec-lbl">Today's session</div>
     <div class="card" id="today-session" style="cursor:pointer;"></div>
+    <div id="review-banner"></div>
     <div class="sec-lbl">12-week progress</div>
     <div class="card" id="phase-bars"></div>
   </div>
@@ -713,6 +714,29 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div id="lo-breakdown"></div>
     <div style="margin-top:16px;">
       <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.15);" id="lo-del-btn">Remove session</button>
+    </div>
+  </div>
+</div>
+
+<!-- REVIEW IMPORTS OVERLAY -->
+<div class="overlay" id="review-overlay">
+  <div class="oi">
+    <button class="back-btn" onclick="closeReviewFlow()">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Done
+    </button>
+    <div class="eyebrow" id="rv-progress"></div>
+    <div class="overlay-title" id="rv-title" style="margin-bottom:4px;"></div>
+    <div id="rv-strava-name" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:16px;"></div>
+    <div class="stat-grid" id="rv-stats"></div>
+    <div class="sec-lbl" style="margin-top:16px;">How did it feel?</div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;" id="rv-feel-btns"></div>
+    <div class="fg">
+      <label class="flbl">Notes (optional)</label>
+      <textarea id="rv-notes" rows="2" style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn" onclick="reviewSkip()" style="flex:1;">Skip</button>
+      <button class="btn btn-accent" onclick="reviewSave()" style="flex:2;" id="rv-save-btn">Next →</button>
     </div>
   </div>
 </div>
@@ -1841,6 +1865,9 @@ function load() {
       })
     );
   } catch(e) {}
+
+  try { pendingReview = JSON.parse(localStorage.getItem('ht-pending-review') || '[]'); } catch(e) {}
+
   renderAll();
 }
 
@@ -2057,6 +2084,31 @@ function renderToday() {
     </div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
   `;
+
+  // Review banner — shown when Strava imports need feel rating
+  const toReview = pendingReview.filter(gid => sessions.find(s => s.gid === gid && !s.feel));
+  const banner = document.getElementById('review-banner');
+  if (banner) {
+    if (toReview.length > 0) {
+      banner.innerHTML = `
+        <div class="card" style="cursor:pointer;margin-top:8px;background:linear-gradient(135deg,rgba(212,175,55,0.10),rgba(167,139,250,0.07));border-color:rgba(212,175,55,0.35);" onclick="openReviewFlow()">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="font-size:26px;line-height:1;">⭐</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);">Rate ${toReview.length} new import${toReview.length>1?'s':''}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Add your feel rating to Strava sessions</div>
+            </div>
+            <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
+          </div>
+        </div>`;
+    } else {
+      banner.innerHTML = '';
+      if (pendingReview.length > 0) {
+        pendingReview = [];
+        try { localStorage.setItem('ht-pending-review', JSON.stringify([])); } catch(e) {}
+      }
+    }
+  }
 
   // Phase bars — current week highlighted
   const cols=['#34d399','#34d399','#4D9EFF','#556','#FF6B35','#556','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#f87171'];
@@ -3119,6 +3171,7 @@ let stravaExpiry  = 0;
 let stravaAthlete = '';
 let stravaWorker  = '';
 let stravaState   = 'idle'; // 'idle' | 'syncing' | 'error'
+let pendingReview = []; // gids of Strava imports awaiting feel rating
 
 function initDrive() {
   driveClientId = localStorage.getItem('ht-drive-cid') || '479339090650-il0un5msincdmjcfp4dmeu45jg6p5p0j.apps.googleusercontent.com';
@@ -3550,6 +3603,7 @@ async function syncFromStrava(silent = false) {
 
     const activities = body;
     let imported = 0, skippedDup = 0, skippedRange = 0;
+    const newGids = [];
 
     for (const act of activities) {
       const gid = `strava-${act.id}`;
@@ -3563,10 +3617,13 @@ async function syncFromStrava(silent = false) {
       const d = new Date(localDate + 'T12:00:00');
       const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
 
+      // Match to plan session for this week/day
+      const planSess = PLAN[parseInt(week)]?.sessions.find(s => s.day === dow);
+
       sessions.unshift({
         week, day: dow,
-        session:   stravaClassify(act),
-        intensity: stravaIntensity(act),
+        session:   planSess?.session || stravaClassify(act),
+        intensity: planSess?.intensity || stravaIntensity(act),
         pace:      mpsToMinKm(act.average_speed),
         dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
         hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
@@ -3575,10 +3632,18 @@ async function syncFromStrava(silent = false) {
         ts: new Date(act.start_date).getTime(),
         gid,
       });
+      newGids.push(gid);
       imported++;
     }
 
-    if (imported > 0) { saveData(); renderAll(); }
+    if (imported > 0) {
+      // Queue new imports for feel rating
+      for (const gid of newGids) {
+        if (!pendingReview.includes(gid)) pendingReview.push(gid);
+      }
+      try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
+      saveData(); renderAll();
+    }
     stravaState = 'idle';
     try { localStorage.setItem('ht-strava-sync', new Date().toISOString()); } catch(e) {}
     renderStravaCard();
@@ -3596,6 +3661,86 @@ async function syncFromStrava(silent = false) {
     stravaState = 'error'; renderStravaCard();
     if (!silent) toast(`Strava sync error: ${e.message}`);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REVIEW IMPORTS FLOW
+// ═══════════════════════════════════════════════════════════════════════════
+let reviewQueue = [];
+let reviewIdx   = 0;
+let reviewFeel  = null;
+
+function openReviewFlow() {
+  reviewQueue = pendingReview
+    .map(gid => sessions.findIndex(s => s.gid === gid && !s.feel))
+    .filter(idx => idx !== -1);
+  if (reviewQueue.length === 0) {
+    pendingReview = [];
+    try { localStorage.setItem('ht-pending-review', JSON.stringify([])); } catch(e) {}
+    renderToday();
+    return;
+  }
+  reviewIdx = 0;
+  renderReviewStep();
+  openOv('review-overlay');
+}
+
+function renderReviewStep() {
+  const s = sessions[reviewQueue[reviewIdx]];
+  reviewFeel = null;
+  document.getElementById('rv-progress').textContent = `${reviewIdx + 1} of ${reviewQueue.length} · W${s.week} · ${s.day}`;
+  document.getElementById('rv-title').textContent = s.session;
+  const stravaName = s.notes?.startsWith('Strava: ') ? s.notes.slice(8) : '';
+  document.getElementById('rv-strava-name').textContent = stravaName ? `Strava: ${stravaName}` : '';
+
+  const sc = [];
+  if (s.pace) sc.push({l:'Avg Pace', v:s.pace, u:'/km', c:'bl'});
+  if (s.dist) sc.push({l:'Distance', v:s.dist, u:'km', c:''});
+  if (s.hr)   sc.push({l:'Avg HR',   v:s.hr,   u:'bpm', c:'am'});
+  if (s.dur)  sc.push({l:'Duration', v:s.dur,  u:'min', c:''});
+  document.getElementById('rv-stats').innerHTML = sc.map(x =>
+    `<div class="stat-box ${x.c}"><div class="stat-lbl">${x.l}</div>
+      <div class="stat-val ${x.c}">${x.v}<span class="stat-unit"> ${x.u}</span></div></div>`
+  ).join('');
+
+  document.getElementById('rv-feel-btns').innerHTML = [1,2,3,4,5].map(f =>
+    `<button class="feel-btn" onclick="setReviewFeel(${f})" style="flex:1;min-width:0;">${FEEL_EMOJI[f]}</button>`
+  ).join('');
+  document.getElementById('rv-notes').value = '';
+  document.getElementById('rv-save-btn').textContent = reviewIdx < reviewQueue.length - 1 ? 'Next →' : 'Done ✓';
+}
+
+function setReviewFeel(f) {
+  reviewFeel = f;
+  document.querySelectorAll('#rv-feel-btns .feel-btn').forEach((b, i) => b.classList.toggle('sel', i + 1 === f));
+}
+
+function reviewSave() {
+  const idx = reviewQueue[reviewIdx];
+  if (reviewFeel) sessions[idx].feel = reviewFeel;
+  const extra = (document.getElementById('rv-notes').value || '').trim();
+  if (extra) sessions[idx].notes = (sessions[idx].notes ? sessions[idx].notes + '\n' : '') + extra;
+  saveData();
+  reviewNext();
+}
+
+function reviewSkip() { reviewNext(); }
+
+function reviewNext() {
+  reviewIdx++;
+  if (reviewIdx >= reviewQueue.length) {
+    closeReviewFlow();
+  } else {
+    renderReviewStep();
+  }
+}
+
+function closeReviewFlow() {
+  pendingReview = pendingReview.filter(gid => sessions.find(s => s.gid === gid && !s.feel));
+  try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
+  closeOv('review-overlay');
+  renderAll();
+  if (pendingReview.length === 0) toast('All imports rated ✓');
 }
 
 function renderStravaCard() {
