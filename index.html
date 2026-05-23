@@ -638,9 +638,20 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">⌚ Garmin live sync</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Direct Connect API — coming in v3</div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Data</div>
+    <div class="sec-lbl">Cloud Sync</div>
+    <div class="card" id="drive-card" style="min-height:60px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
     <div class="card">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;" id="data-summary"></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="exportData()">Export backup</button>
+        <button class="btn" onclick="document.getElementById('import-data-input').click()">Import backup</button>
+      </div>
+      <input type="file" id="import-data-input" accept=".json" style="display:none" onchange="importDataFile(this.files[0]);this.value=''">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
+        Export saves all sessions, custom plan sessions, and templates.<br>
+        Import merges without removing existing data.
+      </div>
       <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmClear()">Clear all data</button>
     </div>
   </div>
@@ -1340,6 +1351,31 @@ const LIB = {
   ]},
 },
 '11':{
+  'Wed':{options:[
+    {label:'Option A — Race Pace: 4×1000m',subtitle:'@ 3:40–3:48/km · sharpening before race sim',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'1.5 km',cue:'RPE 5. Long warm-up before race pace work.'},
+        {name:'Dynamic drills + build strides',detail:'2 × 20m drills / 4 × 100m',cue:'65/75/85/92%. Full walk-back.'},
+        {name:'Standing rest',detail:'3–4 min',cue:'Non-negotiable before race pace.'},
+      ]},
+      {type:'main',title:'Main Set — 4×1000m',items:[
+        {name:'Rep 1',detail:'1000m',cue:'3:45–3:50/km / RPE 8.5. Conservative entry.'},
+        {name:'Rep 2',detail:'1000m',cue:'3:42–3:47/km / RPE 9. Find race rhythm.'},
+        {name:'Rep 3',detail:'1000m',cue:'3:40–3:45/km / RPE 9. Stimulus rep. Hold form.'},
+        {name:'Rep 4',detail:'1000m',cue:'Match rep 1. Controlled finish — Saturday is the peak session.'},
+        {name:'Rest between reps',detail:'3 min full walk',cue:'Full recovery. Do not shorten.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog + stretch',detail:'800m + 10 min',cue:'Hip flexor priority.'},
+      ]},
+    ],notes:['💡 Protect your legs for Saturday\'s Race Simulation. Hit the paces but don\'t dig a hole.'],warnings:['⚠ Left knee: high cadence is protective at race pace']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Active recovery option',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'35–40 min',cue:'RPE 5–6. Save energy for Saturday.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Controlled float. Walk-back.'},
+      ]},
+    ],notes:['💡 Take Option B if fatigued. Saturday\'s race sim is the priority session.']},
+  ]},
   'Sat':{options:[
     {label:'Option A — Full Race Simulation',subtitle:'THE rehearsal · peak session of Phase 2',intensity:'Hard',blocks:[
       {type:'main',title:'Race Simulation — Full HYROX Format',items:[
@@ -1382,6 +1418,334 @@ const LIB = {
     ],notes:['💡 Taper week. Stay sharp, not tired.']},
   ]},
 },
+'1':{
+  'Sat':{options:[
+    {label:'Option A — TRACK: 6×400m Aerobic Speed',subtitle:'Track session · ~45 min total',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'10 min',cue:'RPE 4–5. Gradual build.'},
+        {name:'Dynamic drills',detail:'A-skips, B-skips, leg swings',cue:'2 × 20m each drill.'},
+        {name:'Build strides',detail:'3 × 60m',cue:'80% → 90% → 95%. Full walk-back recovery.'},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'6 × 400m',detail:'~90 sec each',cue:'Zone 4 / RPE 8–8.5. Target aerobic speed, not sprint. 90 sec full rest between reps.'},
+        {name:'Cadence target',detail:'175–180 BPM',cue:'Short, quick steps. High cadence is protective.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog',detail:'5 min',cue:'RPE 3. HR under 120.'},
+        {name:'Hip flexor + hamstring stretch',detail:'60 sec each side',cue:'Left hip priority.'},
+      ]},
+    ],notes:['💡 Week 1 — base entry. Goal is rhythm and aerobic feel, not max effort.'],warnings:['⚠ Left knee: high cadence protects the joint at pace']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic build · 50 min',intensity:'Moderate',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6 / 5:10–5:45/km. Conversational effort.'},
+        {name:'Aerobic strides',detail:'4 × 80m',cue:'Float at 85–90%. Walk-back recovery.'},
+      ]},
+    ],notes:['💡 Choose Option B if legs feel heavy or you missed a mid-week session.']},
+  ]},
+  'Wed':{options:[
+    {label:'Option A — Tempo Run',subtitle:'20–22 min continuous tempo',intensity:'Moderate',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'8 min',cue:'RPE 4. Gradual.'},
+        {name:'Leg swings + hip circles',detail:'10 each',cue:'Activate hips.'},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'Continuous tempo run',detail:'20–22 min',cue:'Zone 3 / RPE 7 / 4:30–4:45/km. Comfortably hard. Steady state.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog',detail:'5 min',cue:'RPE 3.'},
+        {name:'Calf + glute stretch',detail:'45 sec each',cue:''},
+      ]},
+    ],notes:['💡 First tempo of the block. Aim to feel comfortable at this pace.']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic + speed',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6. Easy and aerobic.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Controlled acceleration. Not sprinting.'},
+      ]},
+    ]},
+  ]},
+},
+'2':{
+  'Sat':{options:[
+    {label:'Option A — COMPROMISED RUN: Short Course',subtitle:'Strength then run · 60–70 min total',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy row or ski',detail:'5 min',cue:'RPE 4. Wake up the body.'},
+        {name:'Glute bridges + hip circles',detail:'2 × 12 reps',cue:'Activate glutes before loading.'},
+      ]},
+      {type:'main',title:'Strength Block (pre-fatigue)',items:[
+        {name:'SkiErg',detail:'3 × 250m',cue:'Moderate effort / RPE 7. 60 sec rest.'},
+        {name:'DB Front Squat',detail:'3 × 10 reps',cue:'Moderate load. Full depth. Knees tracking.'},
+        {name:'Burpee Broad Jump',detail:'3 × 8 reps',cue:'Explosive landing. Soft knees.'},
+      ]},
+      {type:'main',title:'Compromised Run',items:[
+        {name:'Run immediately after strength block',detail:'20 min continuous',cue:'Zone 3 / RPE 7–7.5. Legs will feel heavy — that\'s the point.'},
+        {name:'Target pace',detail:'4:45–5:00/km',cue:'Adjust for fatigue. Effort over pace here.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy walk',detail:'5 min',cue:'HR below 110.'},
+        {name:'Hip flexor + hamstring',detail:'60 sec each',cue:'Left hip priority.'},
+      ]},
+    ],notes:['💡 This simulates HYROX race conditions. The run after fatigue is the skill.'],warnings:['⚠ Right wrist: use straps on all loaded movements']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6. Comfortable and aerobic.'},
+        {name:'Aerobic strides',detail:'4 × 80m',cue:'Controlled float. Walk-back recovery.'},
+      ]},
+    ],notes:['💡 Take Option B if fatigued from the week.']},
+  ]},
+  'Wed':{options:[
+    {label:'Option A — Tempo Run',subtitle:'22–24 min continuous tempo',intensity:'Moderate',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'8 min',cue:'RPE 4.'},
+        {name:'Dynamic drills',detail:'A-skips, leg swings',cue:'2 × 20m each.'},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'Continuous tempo run',detail:'22–24 min',cue:'Zone 3 / RPE 7 / 4:30–4:45/km. 2 minutes longer than last week.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog + stretch',detail:'5 min + 5 min',cue:'Hip flexor and calf focus.'},
+      ]},
+    ],notes:['💡 Week 2 — add 2 minutes to last week\'s tempo. Same pace, more volume.']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 45 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Float effort. Walk-back.'},
+      ]},
+    ]},
+  ]},
+},
+'3':{
+  'Sat':{options:[
+    {label:'Option A — TRACK: 8×400m Aerobic Speed',subtitle:'Track session · ~55 min total',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'10 min',cue:'RPE 4–5.'},
+        {name:'Dynamic drills + build strides',detail:'2 rounds',cue:'A-skips, B-skips, 3 × 60m build.'},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'8 × 400m',detail:'~90 sec each',cue:'Zone 4 / RPE 8–8.5. Two more reps than Week 1. Consistent splits.'},
+        {name:'Rest interval',detail:'90 sec full rest',cue:'Walk between reps. Recover fully.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog',detail:'5–8 min',cue:'RPE 3.'},
+        {name:'Full lower body stretch',detail:'10 min',cue:'Hip flexor, hamstring, calf priority.'},
+      ]},
+    ],notes:['💡 Week 3 — volume step-up. Same pace as Week 1, 2 more reps.'],warnings:['⚠ Left knee: monitor at pace. Back off if pain above 3/10.']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Float at 85–90%.'},
+      ]},
+    ]},
+  ]},
+  'Wed':{options:[
+    {label:'Option A — Tempo Run',subtitle:'24–26 min continuous tempo',intensity:'Moderate',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'8 min',cue:'RPE 4.'},
+        {name:'Dynamic drills',detail:'A-skips, leg swings, glute activation',cue:''},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'Continuous tempo run',detail:'24–26 min',cue:'Zone 3 / RPE 7 / 4:25–4:40/km. Building week over week.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog + stretch',detail:'5 min + 8 min',cue:'Full lower body.'},
+      ]},
+    ],notes:['💡 Week 3 tempo — slight pace progression from Week 2 if feeling good.']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 45 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6.'},
+        {name:'Strides',detail:'5 × 80m',cue:'One extra rep vs. Week 2.'},
+      ]},
+    ]},
+  ]},
+},
+'6':{
+  'Sat':{options:[
+    {label:'5K TIME TEST — Full Effort',subtitle:'Deload week peak · race simulation',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'10 min',cue:'RPE 4–5. Keep it easy — you\'re racing today.'},
+        {name:'Dynamic drills',detail:'A-skips, leg swings',cue:'2 × 20m each. Activate without fatigue.'},
+        {name:'Build strides',detail:'4 × 80m',cue:'Progressive. Final one at 95%. Full rest between.'},
+        {name:'2 min standing rest',detail:'',cue:'HR down before the effort.'},
+      ]},
+      {type:'main',title:'5K Time Test',items:[
+        {name:'5K full effort',detail:'Full race pace',cue:'Go from the gun. Even pace first km, then build. Target sub-20:00.'},
+        {name:'Km 1',detail:'Target ~4:05/km',cue:'Controlled but committed. Don\'t go out too hot.'},
+        {name:'Km 2–4',detail:'Target 4:00–4:05/km',cue:'Lock in. RPE 9. Hold form.'},
+        {name:'Km 5',detail:'Empty the tank',cue:'Final 400m — leave nothing. Go!'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy walk + jog',detail:'5 min walk + 5 min easy jog',cue:'Flush lactate. No rushing.'},
+        {name:'Full body stretch',detail:'15 min',cue:'Hip flexor, quad, hamstring, calf, glute.'},
+      ]},
+    ],notes:['💡 Sub 18:00 = excellent. 18:00–19:00 = strong. 19:00–20:00 = good base. Log your splits — this is your baseline for Phase 2.'],warnings:['⚠ Deload week — you should feel fresh. If legs are still heavy, take Option B.']},
+    {label:'Option B — Zone 2 Easy Run',subtitle:'Skip the test if unwell or injured',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 easy run',detail:'40 min',cue:'RPE 5–6. No quality. Save it for next week.'},
+      ]},
+    ],notes:['💡 Don\'t force the test. A bad test gives false data.']},
+  ]},
+  'Wed':{options:[
+    {label:'Zone 2 Only — Deload',subtitle:'Easy aerobic · 40 min · no intensity',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 easy run',detail:'40 min',cue:'RPE 5–6 max. This is a deload — protect the legs for Saturday\'s test.'},
+        {name:'Cadence check',detail:'170+ BPM',cue:'Short stride, relaxed effort.'},
+      ]},
+    ],notes:['💡 Deload week — keep the engine ticking, don\'t stress it.']},
+  ]},
+},
+'8':{
+  'Sat':{options:[
+    {label:'Option A — Comp Run Extended or Track 8×400m',subtitle:'Phase 2 volume build · pick your format',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'10 min',cue:'RPE 4–5.'},
+        {name:'Dynamic drills',detail:'A-skips, leg swings, hip circles',cue:'2 × 20m each.'},
+        {name:'Build strides',detail:'3 × 60m',cue:'85–95%. Full walk-back rest.'},
+      ]},
+      {type:'main',title:'Option A1 — Compromised Run Extended',items:[
+        {name:'SkiErg',detail:'3 × 300m',cue:'RPE 7–8. 90 sec rest.'},
+        {name:'Sled Push or DB Squat',detail:'3 × 10 reps',cue:'Moderate load. Drive through heels.'},
+        {name:'Burpee Broad Jump',detail:'3 × 10 reps',cue:'Explosive. Soft landing.'},
+        {name:'Compromised run',detail:'25 min continuous',cue:'Zone 3 / RPE 7.5 / 4:40–5:00/km. Go immediately after strength.'},
+      ]},
+      {type:'main',title:'Option A2 — Track: 8×400m',items:[
+        {name:'8 × 400m',detail:'~88–92 sec each',cue:'Zone 4 / RPE 8.5. 90 sec rest between reps. Aim for consistent splits.'},
+        {name:'Cadence cue',detail:'177–180 BPM',cue:'Short, quick steps throughout.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog',detail:'5 min',cue:'RPE 3.'},
+        {name:'Hip flexor + hamstring',detail:'60 sec each side',cue:'Left hip priority.'},
+      ]},
+    ],notes:['💡 Week 8 — Phase 2 volume block. The comp run option is race-specific. Track option builds pure aerobic speed.'],warnings:['⚠ Right wrist: straps on all pulling/loaded movements','⚠ Left knee: monitor cadence at pace']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic if fatigued',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6 / 5:10–5:45/km.'},
+        {name:'Aerobic strides',detail:'5 × 80m',cue:'Float at 85–90%. Walk-back recovery.'},
+      ]},
+    ],notes:['💡 Take Option B if Week 7 left you depleted.']},
+  ]},
+  'Wed':{options:[
+    {label:'Option A — Zone 2 + Strides or Tempo 30min',subtitle:'Mid-week quality',intensity:'Moderate',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'8 min',cue:'RPE 4.'},
+        {name:'Dynamic drills',detail:'Leg swings, hip circles',cue:''},
+      ]},
+      {type:'main',title:'Option A1 — Tempo 30min',items:[
+        {name:'Continuous tempo run',detail:'30 min',cue:'Zone 3 / RPE 7 / 4:25–4:35/km. Longest tempo of Phase 2 entry.'},
+      ]},
+      {type:'main',title:'Option A2 — Zone 2 + Strides',items:[
+        {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6. Easy and aerobic.'},
+        {name:'Strides',detail:'5 × 80m',cue:'Controlled acceleration. Walk-back recovery.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog + stretch',detail:'5 min + 8 min',cue:'Lower body priority.'},
+      ]},
+    ],notes:['💡 Week 8 mid-week — go by feel. Tempo if legs are good, Zone 2 if they need recovery.']},
+  ]},
+},
+};
+
+// Generic session breakdowns — used when no specific LIB week+day entry exists.
+// Covers recurring session types so every day in every week has a breakdown.
+const GENERIC = {
+  perform: {options:[
+    {label:'Fitstop PERFORM',subtitle:'Team WFT format · 45–55 min',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Starter 6 min',detail:'Pull Ups / SkiErg / Bike Erg',cue:'Hard effort. Find a hard set of 5.'},
+        {name:'Hip activation',detail:'Glute bridge 2×12, hip circles 10 each',cue:'Left hip priority. Drive through heels.'},
+      ]},
+      {type:'main',title:'Main Session',items:[
+        {name:'Team WFT',detail:'35–40 min',cue:'Log machine distances. Record peak loads. Moderate throughout.'},
+        {name:'Build to Heavy (optional)',detail:'Hang Clean / Power Squat / High Pull',cue:'Record peak load. Power focus.'},
+        {name:'Accessory block (optional)',detail:'2–3 rounds',cue:'Pendlay Row / Fast Box Step Up.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy row or bike',detail:'3–5 min',cue:'RPE 3. HR under 110.'},
+        {name:'Hip flexor lunge',detail:'45 sec each side',cue:'Left hip priority.'},
+      ]},
+    ],notes:['💡 Log all machine distances and peak loads every session.'],warnings:['⚠ Right wrist: straps on all pulling / loaded movements']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic alternative · 40–45 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'40–45 min',cue:'RPE 5–6 / 5:10–5:45/km.'},
+        {name:'Aerobic strides',detail:'4 × 80m',cue:'85–90% float. Walk-back recovery.'},
+      ]},
+    ],notes:['💡 Take Option B if gym not available or body needs low impact.']},
+  ]},
+  lift: {options:[
+    {label:'Fitstop LIFT',subtitle:'Strength session · 45–55 min',intensity:'Moderate',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Bike or Row',detail:'5 min',cue:'RPE 4. General warm-up.'},
+        {name:'Hip activation',detail:'Glute bridge 2×12, hip circles',cue:'Left hip priority.'},
+        {name:'Shoulder CARs',detail:'5 each direction',cue:'Slow and controlled.'},
+      ]},
+      {type:'main',title:'Main Lifts',items:[
+        {name:'Primary compound lift',detail:'4 sets × 5–6 reps',cue:'Squat or hinge pattern. Log loads. Progressive overload.'},
+        {name:'Horizontal push/pull superset',detail:'3 sets × 8–10 reps',cue:'Bench / DB Row or Press / Lat Pull. Log loads.'},
+        {name:'Single-leg accessory',detail:'3 sets × 10 each',cue:'Bulgarian Split Squat or Step Up. Left knee: track over toes.'},
+        {name:'Core stability',detail:'3 sets',cue:'Dead bug or Pallof press. No crunches.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Hip flexor + hamstring',detail:'60 sec each side',cue:'Priority areas.'},
+        {name:'Thoracic opener',detail:'45 sec',cue:'Foam roller or doorframe.'},
+      ]},
+    ],notes:['💡 Log loads every session. Progressive overload is the goal.'],warnings:['⚠ Right wrist: straps on pulling movements','⚠ Left knee: control on all single-leg work']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Aerobic alternative',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'40 min',cue:'RPE 5–6.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Controlled float. Walk-back recovery.'},
+      ]},
+    ]},
+    {label:'Option C — Rest',subtitle:'Full rest day',intensity:'Easy',blocks:[
+      {type:'main',title:'Rest',items:[
+        {name:'Full rest or gentle walk',detail:'20 min optional',cue:'Active recovery only — no training load.'},
+      ]},
+    ]},
+  ]},
+  zone2: {options:[
+    {label:'Zone 2 Run',subtitle:'Easy aerobic · conversational',intensity:'Easy',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy walk',detail:'3–5 min',cue:'RPE 3.'},
+        {name:'Leg swings + hip circles',detail:'10 each',cue:''},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'40–50 min',cue:'RPE 5–6 / 5:10–5:45/km. Conversational. If HR drifts above 150 — slow down.'},
+        {name:'Cadence check',detail:'170–175 BPM',cue:'Short, light steps. Cadence is protective.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy walk',detail:'3–5 min',cue:'HR below 110.'},
+        {name:'Hip flexor + calf',detail:'45 sec each side',cue:''},
+      ]},
+    ],notes:['💡 Zone 2 is the foundation of your aerobic base. Easy and consistent beats hard and sporadic.']},
+    {label:'Option B — Easy Bike',subtitle:'Low-impact aerobic · 40–50 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Easy bike / spin',detail:'40–50 min',cue:'RPE 5. Legs spinning, not grinding. Zone 2 equivalent.'},
+      ]},
+    ]},
+  ]},
+  recovery: {options:[
+    {label:'Recovery + Mobility',subtitle:'Active recovery · 30–45 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Mobility Flow',items:[
+        {name:'Easy walk or gentle jog',detail:'10 min',cue:'RPE 3–4 max. Blood flow only.'},
+        {name:'Hip flexor lunge stretch',detail:'60 sec each side',cue:'Left hip priority. Anterior tilt cue.'},
+        {name:'Supine figure-four (piriformis)',detail:'60 sec each side',cue:'Right side priority.'},
+        {name:'Glute bridge',detail:'2 × 12',cue:'Activate without straining. 1 sec hold at top.'},
+        {name:'Seated hamstring',detail:'45 sec each side',cue:'Straight spine. Foot flexed.'},
+        {name:"Child's pose",detail:'60 sec',cue:'Low back decompression.'},
+        {name:'Thoracic rotation',detail:'10 each side',cue:'Seated or quadruped.'},
+        {name:'4-7-8 breathing',detail:'5 rounds',cue:'Parasympathetic reset. Especially important after hard weeks.'},
+      ]},
+    ],notes:["💡 Recovery sessions are training. Don't skip them — this is when adaptation happens."]},
+  ]},
+  bike: {options:[
+    {label:'Easy Bike or Rest',subtitle:'Low-impact aerobic or full rest',intensity:'Easy',blocks:[
+      {type:'main',title:'Option A — Easy Bike',items:[
+        {name:'Easy bike / spin',detail:'30–45 min',cue:'RPE 4–5. Legs spinning easily. No grinding.'},
+        {name:'Cadence',detail:'80–90 RPM',cue:'Light effort. Active recovery. Legs should feel better after than before.'},
+      ]},
+      {type:'main',title:'Option B — Rest',items:[
+        {name:'Full rest',detail:'',cue:'Take it if the body needs it. No guilt.'},
+        {name:'Light walk (optional)',detail:'15–20 min',cue:'Keep circulation moving without adding load.'},
+      ]},
+    ],notes:['💡 Thu is a buffer day. Protect the quality of Saturday\'s session — do not go hard today.']},
+  ]},
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1432,13 +1796,44 @@ let charts = {};
 // ═══════════════════════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'ht-v4';
+const LEGACY_KEYS = ['ht-v3','ht-v2','ht-v1','ht-sessions'];
+
 function load() {
   try {
-    const r = localStorage.getItem('ht-v4');
-    sessions = r ? JSON.parse(r) : [...SEED];
-    if (!r) saveData();
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      sessions = JSON.parse(raw);
+    } else {
+      // Migration: check legacy keys newest-first
+      let migrated = false;
+      for (const key of LEGACY_KEYS) {
+        const legacy = localStorage.getItem(key);
+        if (!legacy) continue;
+        try {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sessions = normaliseSessions(parsed);
+            saveData();
+            migrated = true;
+            break;
+          }
+        } catch(e) {}
+      }
+      if (!migrated) { sessions = [...SEED]; saveData(); }
+    }
   } catch(e) { sessions = [...SEED]; }
-  // Load custom sessions into LIB
+
+  // Auto-detect current plan week from WMAP
+  try {
+    const _tn = new Date();
+    const todayISO = `${_tn.getFullYear()}-${String(_tn.getMonth()+1).padStart(2,'0')}-${String(_tn.getDate()).padStart(2,'0')}`;
+    for (const [w, ws, we] of WMAP) {
+      if (todayISO >= ws && todayISO <= we) { currentPlanWeek = parseInt(w); break; }
+    }
+  } catch(e) {}
+
+  // Load custom plan sessions into LIB
   try {
     const custom = JSON.parse(localStorage.getItem('ht-custom') || '{}');
     Object.entries(custom).forEach(([w, days]) =>
@@ -1450,8 +1845,104 @@ function load() {
   } catch(e) {}
   renderAll();
 }
+
 function saveData() {
-  try { localStorage.setItem('ht-v4', JSON.stringify(sessions)); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch(e) {}
+  driveAutoSave();
+}
+
+// Normalise a session object from any prior schema to the current one
+function normaliseSessions(arr) {
+  return arr.map(s => ({
+    week:      s.week      ?? s.w         ?? '',
+    day:       s.day       ?? s.d         ?? '',
+    session:   s.session   ?? s.name      ?? s.type ?? 'Session',
+    intensity: s.intensity ?? s.int       ?? 'moderate',
+    pace:      s.pace      ?? s.avgPace   ?? '',
+    dist:      s.dist      ?? s.distance  ?? '',
+    hr:        s.hr        ?? s.avgHr     ?? s.avgHR ?? '',
+    dur:       s.dur       ?? s.duration  ?? '',
+    feel:      s.feel      ?? null,
+    notes:     s.notes     ?? s.note      ?? '',
+    ts:        s.ts        ?? s.timestamp ?? Date.now(),
+    gid:       s.gid       ?? s.id        ?? `mg-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+  }));
+}
+
+// Export all data (sessions + custom plan + templates) as a dated JSON file
+function exportData() {
+  try {
+    const blob = new Blob([JSON.stringify({
+      version: '4',
+      exportedAt: new Date().toISOString(),
+      appName: 'Hybrid Training',
+      sessions,
+      custom: JSON.parse(localStorage.getItem('ht-custom') || '{}'),
+      templates: JSON.parse(localStorage.getItem('ht-tmpl') || '[]'),
+      settings: { theme: localStorage.getItem('ht-theme') || '' },
+    }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `training-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    try { localStorage.setItem('ht-last-export', new Date().toISOString()); } catch(e) {}
+    renderDataSummary();
+    toast('Backup exported ✓');
+  } catch(e) { toast('Export failed'); }
+}
+
+// Import from a backup file — merges without overwriting existing entries
+function importDataFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const raw = JSON.parse(e.target.result);
+      const importedSessions = normaliseSessions(
+        Array.isArray(raw) ? raw : (raw.sessions || [])
+      );
+
+      // Merge sessions — skip any gid already present
+      const existingGids = new Set(sessions.map(s => s.gid).filter(Boolean));
+      const added = importedSessions.filter(s => !existingGids.has(s.gid));
+      sessions = [...added, ...sessions].sort((a,b) => b.ts - a.ts);
+      saveData();
+
+      // Merge custom plan sessions
+      if (raw.custom && typeof raw.custom === 'object') {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-custom') || '{}');
+          Object.entries(raw.custom).forEach(([w, days]) => {
+            if (!cur[w]) cur[w] = {};
+            Object.assign(cur[w], days);
+            Object.entries(days).forEach(([d, sess]) => {
+              if (!LIB[w]) LIB[w] = {};
+              LIB[w][d] = sess;
+            });
+          });
+          localStorage.setItem('ht-custom', JSON.stringify(cur));
+        } catch(e) {}
+      }
+
+      // Merge templates — skip names already present
+      if (Array.isArray(raw.templates) && raw.templates.length) {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-tmpl') || '[]');
+          const existingNames = new Set(cur.map(t => t._name));
+          const newTmpls = raw.templates.filter(t => !existingNames.has(t._name));
+          localStorage.setItem('ht-tmpl', JSON.stringify([...newTmpls, ...cur]));
+        } catch(e) {}
+      }
+
+      renderAll();
+      toast(`Imported ${added.length} new session${added.length===1?'':'s'} ✓`);
+    } catch(err) {
+      toast('Import failed: ' + (err.message || 'Invalid file'));
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1509,70 +2000,79 @@ function renderAll() {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderToday() {
   const now = new Date();
+  const todayDow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()];
   document.getElementById('today-date').textContent =
     now.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-  const target = new Date('2026-05-09');
-  const daysTo = Math.max(0, Math.ceil((target - now)/86400000));
-  const wc = {}; for(let w=1;w<=12;w++) wc[w]=0;
-  sessions.forEach(s => { if(s.week) wc[parseInt(s.week)]=(wc[parseInt(s.week)]||0)+1; });
-  const total = Object.values(wc).reduce((a,b)=>a+b,0);
-  const tempo = sessions.find(s=>s.session&&s.session.toLowerCase().includes('tempo')&&s.pace);
+  // Next upcoming race/test event
+  const allRaces = [];
+  for(let w=1;w<=12;w++) PLAN[w].sessions.forEach(s=>{
+    if(s.race) try{ allRaces.push({date:new Date(s.date+' 2026'),label:s.session,day:s.date}); }catch(e){}
+  });
+  const nextRace = allRaces.find(r=>r.date>=now) || allRaces[allRaces.length-1];
+  const daysTo = nextRace ? Math.max(0,Math.ceil((nextRace.date-now)/86400000)) : 0;
+  const raceShortLabel = nextRace ? nextRace.label.split('–')[0].trim().replace(/^RACE DAY$/,'Race Day') : 'Race Day';
+
+  const wc={}; for(let w=1;w<=12;w++) wc[w]=0;
+  sessions.forEach(s=>{ if(s.week) wc[parseInt(s.week)]=(wc[parseInt(s.week)]||0)+1; });
+  const total=Object.values(wc).reduce((a,b)=>a+b,0);
+  const tempo=sessions.filter(s=>s.session&&s.session.toLowerCase().includes('tempo')&&s.pace)
+    .sort((a,b)=>{ const p=x=>{ const q=x.split(':');return q.length===2?parseInt(q[0])*60+parseFloat(q[1]):999; }; return p(a.pace)-p(b.pace); })[0];
 
   document.getElementById('today-metrics').innerHTML = `
-    <div class="metric am"><div class="mlbl">Days to 5K</div>
-      <div class="mval am">${daysTo}</div><div class="msub">May 9 · race day</div></div>
+    <div class="metric am"><div class="mlbl">Days to ${raceShortLabel}</div>
+      <div class="mval am">${daysTo}</div><div class="msub">${nextRace?nextRace.day:''}</div></div>
     <div class="metric"><div class="mlbl">Sessions logged</div>
       <div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
     <div class="metric bl"><div class="mlbl">Peak tempo</div>
       <div class="mval bl" style="font-size:22px;">${tempo?tempo.pace:'—'}<span class="munit">/km</span></div>
-      <div class="msub">W5 · Wed · 28 min</div></div>
-    <div class="metric gr"><div class="mlbl">W5 logged</div>
-      <div class="mval gr">${wc[5]}<span class="munit">/7</span></div><div class="msub">this week</div></div>
+      <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'}</div></div>
+    <div class="metric gr"><div class="mlbl">W${currentPlanWeek} logged</div>
+      <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week</div></div>
   `;
 
-  // Week strip (W5)
-  const pw = PLAN[5];
-  const w5logged = sessions.filter(s=>s.week==='5').map(s=>s.day);
+  // Week strip — current week, today highlighted by day-of-week
+  const pw = PLAN[currentPlanWeek];
+  const wkLogged = sessions.filter(s=>s.week===String(currentPlanWeek)).map(s=>s.day);
   document.getElementById('week-strip').innerHTML = pw.sessions.map(p => {
-    const isToday = p.date === 'May 3';
-    const done = w5logged.some(d => d === p.day);
-    const cls = done ? 'done' : isToday ? 'today' : '';
-    return `<div class="dchip ${cls}">
+    const isToday = p.day === todayDow;
+    const done = wkLogged.some(d=>d===p.day);
+    return `<div class="dchip ${done?'done':isToday?'today':''}">
       <div class="dchip-name">${p.day}</div>
       <div class="dchip-dot"></div>
     </div>`;
   }).join('');
 
-  // Today's session
-  const todaySess = pw.sessions[pw.sessions.length-1];
+  // Today's session — match by day of week, fall back to last in week
+  const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
   document.getElementById('today-session').onclick = () =>
-    openPlanOverlay('5','Sun',todaySess.session,todaySess.session,`Week 5 · ${todaySess.day} ${todaySess.date}`);
+    openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
+      `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
   document.getElementById('today-session').innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
       ${pip(todaySess.intensity,32)}
       <div>
         <div style="font-size:15px;font-weight:700;color:var(--text);">${todaySess.session}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week 5 · ${todaySess.day} ${todaySess.date}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}</div>
       </div>
       <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
     </div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
   `;
 
-  // Phase bars
+  // Phase bars — current week highlighted
   const cols=['#34d399','#34d399','#4D9EFF','#556','#FF6B35','#556','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#f87171'];
-  let bars = '';
+  let bars='';
   for(let w=1;w<=12;w++){
     const done=wc[w], pct=Math.min(100,Math.round(done/7*100));
-    const isNow=w===5;
-    bars += `<div style="display:grid;grid-template-columns:32px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
+    const isNow=w===currentPlanWeek;
+    bars+=`<div style="display:grid;grid-template-columns:32px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
       <div style="font-family:var(--mono);font-size:8px;color:${isNow?'var(--accent)':'var(--text3)'};">W${w}${isNow?' ←':''}</div>
-      <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.max(w>6&&done===0?0:2,pct)}%;background:${cols[w-1]};"></div></div>
-      <div style="font-family:var(--mono);font-size:8px;text-align:right;color:${cols[w-1]};">${w>6&&done===0?'—':pct+'%'}</div>
+      <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.max(w>currentPlanWeek&&done===0?0:2,pct)}%;background:${cols[w-1]};"></div></div>
+      <div style="font-family:var(--mono);font-size:8px;text-align:right;color:${cols[w-1]};">${w>currentPlanWeek&&done===0?'—':pct+'%'}</div>
     </div>`;
   }
-  document.getElementById('phase-bars').innerHTML = bars;
+  document.getElementById('phase-bars').innerHTML=bars;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1940,13 +2440,27 @@ function openLogOverlay(idx){
 // ═══════════════════════════════════════════════════════════════════════════
 // BREAKDOWN ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
+function resolveGeneric(st){
+  st=(st||'').toLowerCase();
+  if(st.includes('perform'))return GENERIC.perform;
+  if(st.includes('lift'))return GENERIC.lift;
+  if(st.includes('zone 2')||st.includes('z2'))return GENERIC.zone2;
+  if(st.includes('recovery')||st.includes('mobility'))return GENERIC.recovery;
+  if(st.includes('bike')||st.includes('rest'))return GENERIC.bike;
+  return null;
+}
+
 function getBreakdown(week,day,sessionType){
   const wl=LIB[String(week)];
-  if(!wl)return noBreakdown(week,day);
-  // Try exact day match first, then 3-char prefix
-  const dl=wl[day]||wl[day?.slice(0,3)]||Object.values(wl).find(_=>_);
-  if(!dl||!dl.options?.length)return noBreakdown(week,day);
+  const dl=wl?.[day]||wl?.[day?.slice(0,3)];
+  if(!dl||!dl.options?.length){
+    const gen=resolveGeneric(sessionType);
+    return gen ? renderBkHtml(week,day,sessionType,gen) : noBreakdown(week,day);
+  }
+  return renderBkHtml(week,day,sessionType,dl);
+}
 
+function renderBkHtml(week,day,sessionType,dl){
   let matched=dl.options[0];
   if(dl.options.length>1){
     const st=(sessionType||'').toLowerCase();
@@ -1965,7 +2479,6 @@ function getBreakdown(week,day,sessionType){
   const bkId=`bk-${week}-${day||'x'}`.replace(/\s/g,'');
   let html='';
 
-  // Option tabs
   if(dl.options.length>1){
     html+=`<div class="opt-tabs" id="ot-${bkId}">`;
     dl.options.forEach((o,i)=>{
@@ -2339,7 +2852,15 @@ function initTheme(){
 }
 
 function renderDataSummary(){
-  document.getElementById('data-summary').textContent=`${sessions.length} sessions stored locally on this device.`;
+  const lastExport = localStorage.getItem('ht-last-export');
+  const lastSync   = localStorage.getItem('ht-last-sync');
+  const templates  = (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')||'[]').length; } catch(e) { return 0; } })();
+  const fmt = d => new Date(d).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  const lines = [`${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.`];
+  if (lastSync)   lines.push(`Drive sync: ${fmt(lastSync)}`);
+  if (lastExport) lines.push(`File backup: ${fmt(lastExport)}`);
+  if (!lastSync && !lastExport) lines.push('⚠ No backup yet — export or connect Drive');
+  document.getElementById('data-summary').innerHTML = lines.join('<br>');
 }
 function confirmClear(){
   if(confirm('Clear all logged sessions? This cannot be undone.')){
@@ -2585,6 +3106,263 @@ function aiLogNow() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GOOGLE DRIVE SYNC
+// ═══════════════════════════════════════════════════════════════════════════
+const DRIVE_FILE  = 'hybrid-training-sync.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+let driveToken    = null;
+let driveClientId = '';
+let driveAutoTimer = null;
+let driveState    = 'idle'; // 'idle' | 'syncing' | 'error'
+
+function initDrive() {
+  driveClientId = localStorage.getItem('ht-drive-cid') || '142460075810-9bqcia989sgo4ajojoaeforvpr39gll8.apps.googleusercontent.com';
+  // Handle redirect-back from Google OAuth (token in URL hash)
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const tok = hash.get('access_token');
+  if (tok) {
+    driveToken = tok;
+    try {
+      localStorage.setItem('ht-drive-tok', JSON.stringify({
+        access_token: tok,
+        expires: Date.now() + parseInt(hash.get('expires_in') || '3600') * 1000,
+      }));
+    } catch(e) {}
+    window.history.replaceState({}, '', window.location.pathname);
+    setTimeout(() => syncFromDrive(), 400); // pull remote data right after auth
+  } else {
+    // Restore saved token if still valid
+    try {
+      const saved = JSON.parse(localStorage.getItem('ht-drive-tok') || 'null');
+      if (saved && saved.expires > Date.now()) driveToken = saved.access_token;
+    } catch(e) {}
+  }
+  renderDriveCard();
+}
+
+function connectDrive() {
+  const cid = (document.getElementById('drive-cid-input')?.value || '').trim() || driveClientId;
+  if (!cid) { toast('Paste your Google OAuth Client ID first'); return; }
+  localStorage.setItem('ht-drive-cid', cid);
+  driveClientId = cid;
+  // Redirect-based implicit flow — works in standalone PWA mode on iOS
+  const redirect = window.location.origin + window.location.pathname;
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', cid);
+  url.searchParams.set('redirect_uri', redirect);
+  url.searchParams.set('response_type', 'token');
+  url.searchParams.set('scope', DRIVE_SCOPE);
+  url.searchParams.set('prompt', 'consent');
+  window.location.href = url.toString();
+}
+
+function disconnectDrive() {
+  driveToken = null; driveState = 'idle';
+  try { localStorage.removeItem('ht-drive-tok'); } catch(e) {}
+  renderDriveCard();
+  toast('Disconnected from Google Drive');
+}
+
+// ── Drive REST helpers ────────────────────────────────────────────────────
+
+async function driveGet(path, params) {
+  const url = new URL('https://www.googleapis.com' + path);
+  if (params) Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${driveToken}` } });
+  if (r.status === 401) { disconnectDrive(); throw new Error('Session expired — reconnect Drive'); }
+  if (!r.ok) throw new Error(`Drive API ${r.status}`);
+  return r.json();
+}
+
+async function driveFileId() {
+  const list = await driveGet('/drive/v3/files', {
+    spaces: 'appDataFolder',
+    q: `name='${DRIVE_FILE}' and trashed=false`,
+    fields: 'files(id)',
+  });
+  return list.files?.[0]?.id || null;
+}
+
+async function driveUpload(payload) {
+  const body = JSON.stringify(payload);
+  const fid  = await driveFileId();
+  if (fid) {
+    // Update existing file content
+    const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fid}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${driveToken}`, 'Content-Type': 'application/json' },
+      body,
+    });
+    if (!r.ok) throw new Error(`Drive upload ${r.status}`);
+  } else {
+    // Create new file in appDataFolder using multipart upload
+    const boundary = 'ht-mp-boundary';
+    const mp = [
+      `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '',
+      JSON.stringify({ name: DRIVE_FILE, parents: ['appDataFolder'] }),
+      `--${boundary}`, 'Content-Type: application/json', '', body, `--${boundary}--`,
+    ].join('\r\n');
+    const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${driveToken}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: mp,
+    });
+    if (!r.ok) throw new Error(`Drive create ${r.status}`);
+  }
+}
+
+async function driveDownload() {
+  const fid = await driveFileId();
+  if (!fid) return null;
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`, {
+    headers: { Authorization: `Bearer ${driveToken}` },
+  });
+  if (!r.ok) throw new Error(`Drive download ${r.status}`);
+  return r.json();
+}
+
+// ── Sync logic ────────────────────────────────────────────────────────────
+
+async function syncFromDrive() {
+  if (!driveToken) return;
+  driveState = 'syncing'; renderDriveCard();
+  try {
+    const remote = await driveDownload();
+    let added = 0;
+    if (remote) {
+      // Merge sessions
+      const incoming = normaliseSessions(remote.sessions || []);
+      const have = new Set(sessions.map(s => s.gid).filter(Boolean));
+      const newS = incoming.filter(s => !have.has(s.gid));
+      if (newS.length) {
+        sessions = [...newS, ...sessions].sort((a,b) => b.ts - a.ts);
+        saveData();
+        added = newS.length;
+      }
+      // Merge custom plan sessions
+      if (remote.custom && typeof remote.custom === 'object') {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-custom') || '{}');
+          Object.entries(remote.custom).forEach(([w, days]) => {
+            if (!cur[w]) cur[w] = {};
+            Object.assign(cur[w], days);
+            Object.entries(days).forEach(([d, s]) => { if (!LIB[w]) LIB[w]={}; LIB[w][d]=s; });
+          });
+          localStorage.setItem('ht-custom', JSON.stringify(cur));
+        } catch(e) {}
+      }
+      // Merge templates
+      if (Array.isArray(remote.templates)) {
+        try {
+          const cur = JSON.parse(localStorage.getItem('ht-tmpl') || '[]');
+          const names = new Set(cur.map(t => t._name));
+          const newT = remote.templates.filter(t => !names.has(t._name));
+          if (newT.length) localStorage.setItem('ht-tmpl', JSON.stringify([...newT, ...cur]));
+        } catch(e) {}
+      }
+      if (added) renderAll();
+    }
+    // Push local state up (always keeps Drive current)
+    await driveUpload(drivePayload());
+    localStorage.setItem('ht-last-sync', new Date().toISOString());
+    driveState = 'idle';
+    renderDriveCard();
+    renderDataSummary();
+    toast(added ? `Synced ${added} new session${added===1?'':'s'} from Drive ✓` : 'Drive sync complete ✓');
+  } catch(err) {
+    driveState = 'error'; renderDriveCard();
+    toast('Drive error: ' + (err.message || 'Unknown'));
+  }
+}
+
+async function syncToDrive(silent) {
+  if (!driveToken) return;
+  if (!silent) { driveState = 'syncing'; renderDriveCard(); }
+  try {
+    await driveUpload(drivePayload());
+    localStorage.setItem('ht-last-sync', new Date().toISOString());
+    if (!silent) { driveState = 'idle'; renderDriveCard(); renderDataSummary(); toast('Saved to Google Drive ✓'); }
+  } catch(err) {
+    driveState = 'error'; renderDriveCard();
+    if (!silent) toast('Drive upload error: ' + (err.message || 'Unknown'));
+  }
+}
+
+function drivePayload() {
+  return {
+    version: '4', syncedAt: new Date().toISOString(),
+    sessions,
+    custom:    (() => { try { return JSON.parse(localStorage.getItem('ht-custom') || '{}'); } catch(e) { return {}; } })(),
+    templates: (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')   || '[]'); } catch(e) { return []; } })(),
+  };
+}
+
+// Debounced auto-push — called from saveData(), fires 6s after last write
+function driveAutoSave() {
+  if (!driveToken) return;
+  clearTimeout(driveAutoTimer);
+  driveAutoTimer = setTimeout(() => syncToDrive(true), 6000);
+}
+
+// ── Drive UI card ─────────────────────────────────────────────────────────
+
+function renderDriveCard() {
+  const card = document.getElementById('drive-card');
+  if (!card) return;
+  if (!driveToken) {
+    const cid = driveClientId;
+    card.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">Connect Google Drive</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-bottom:10px;">
+        Auto-syncs sessions, custom plans, and templates across all your devices.<br>
+        Requires a free Google Cloud OAuth Client ID (one-time setup).
+      </div>
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Google OAuth Client ID</label>
+        <input type="text" id="drive-cid-input" placeholder="xxxxxxxx.apps.googleusercontent.com" value="${cid}" style="font-size:12px;">
+      </div>
+      <button class="btn btn-accent" onclick="connectDrive()">Connect Google Drive →</button>
+      <details style="margin-top:10px;">
+        <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:4px 0;">
+          ▸ Setup instructions
+        </summary>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2;margin-top:6px;">
+          1. console.cloud.google.com → New project<br>
+          2. APIs &amp; Services → Enable APIs → Google Drive API<br>
+          3. Credentials → + Create → OAuth 2.0 Client ID<br>
+          4. Application type: Web application<br>
+          5. Authorised redirect URIs → add: <span id="drive-origin" style="color:var(--blue);word-break:break-all;"></span><br>
+          6. Copy Client ID → paste above &amp; tap Connect
+        </div>
+      </details>`;
+    const o = document.getElementById('drive-origin');
+    if (o) o.textContent = window.location.origin + window.location.pathname;
+  } else {
+    const lastSync = localStorage.getItem('ht-last-sync');
+    const syncLine = lastSync
+      ? new Date(lastSync).toLocaleString('en-AU', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+      : 'Not yet synced';
+    const stateColor = driveState==='error' ? 'var(--red)' : driveState==='syncing' ? 'var(--accent)' : 'var(--green)';
+    const stateLabel = driveState==='error' ? 'Error' : driveState==='syncing' ? 'Syncing…' : 'Connected';
+    card.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);">Google Drive</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">Last sync: ${syncLine}</div>
+        </div>
+        <span style="font-family:var(--mono);font-size:9px;font-weight:600;color:${stateColor};flex-shrink:0;margin-top:2px;">${stateLabel}</span>
+      </div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromDrive()">Sync now</button>
+        <button class="btn" style="color:var(--red);border-color:rgba(248,113,113,.2);" onclick="disconnectDrive()">Disconnect</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">
+        Auto-saves to Drive ~6 s after each logged session.
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PWA
 // ═══════════════════════════════════════════════════════════════════════════
 if('serviceWorker'in navigator){
@@ -2601,6 +3379,7 @@ document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.c
 // ═══════════════════════════════════════════════════════════════════════════
 load();
 initTheme();
+initDrive();
 setCat('run',document.querySelector('.cat-tab.run'));
 renderPlanTabs();
 </script>
