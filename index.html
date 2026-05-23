@@ -1937,7 +1937,7 @@ let bldActiveOpt = 0;
 let charts = {};
 let hyroxPlan = null;
 let recoveryLog = [];
-let rcDraft = { hours: 7.5, score: '', hrv: '' };
+let rcDraft = { hours: 7.5, score: '', hrv: '', restingHR: '' };
 let coachProfile = null;
 let coachSetupStep = 0;
 let coachSetupAnswers = {};
@@ -3316,7 +3316,8 @@ function aiLogNow() {
 // GOOGLE DRIVE SYNC
 // ═══════════════════════════════════════════════════════════════════════════
 const DRIVE_FILE  = 'hybrid-training-sync.json';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const HEALTH_FILE = 'health-checkin.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.readonly';
 let driveToken    = null;
 let driveClientId = '';
 let driveAutoTimer = null;
@@ -3436,6 +3437,44 @@ async function driveDownload() {
   return r.json();
 }
 
+// ── Health file (written by iOS Shortcut via Google Drive) ───────────────
+
+async function driveGetHealthFile() {
+  if (!driveToken) return null;
+  try {
+    const list = await driveGet('/drive/v3/files', {
+      q: `name='${HEALTH_FILE}' and trashed=false`,
+      fields: 'files(id)',
+    });
+    const fid = list.files?.[0]?.id;
+    if (!fid) return null;
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`,
+      { headers: { Authorization: `Bearer ${driveToken}` } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { return null; } // silent — scope may not be granted until re-auth
+}
+
+function parseHealthFile(data) {
+  if (!data || !data.date) return false;
+  const existing = recoveryLog.find(r => r.date === data.date);
+  // Never overwrite a manually entered entry
+  if (existing && existing.source !== 'drive') return false;
+  const entry = {
+    ...(existing || {}),
+    date:       data.date,
+    sleepHours: Math.round((parseFloat(data.sleepHours)||existing?.sleepHours||0) * 2) / 2,
+    hrv:        parseInt(data.hrv)       || existing?.hrv       || null,
+    restingHR:  parseInt(data.restingHR) || existing?.restingHR || null,
+    source:     'drive',
+    ts:         existing?.ts || Date.now(),
+  };
+  recoveryLog = recoveryLog.filter(r => r.date !== data.date);
+  recoveryLog.unshift(entry);
+  saveRecovery();
+  return true;
+}
+
 // ── Sync logic ────────────────────────────────────────────────────────────
 
 async function syncFromDrive() {
@@ -3480,6 +3519,9 @@ async function syncFromDrive() {
     // Push local state up (always keeps Drive current)
     await driveUpload(drivePayload());
     localStorage.setItem('ht-last-sync', new Date().toISOString());
+    // Silently pull health check-in written by iOS Shortcut
+    const healthData = await driveGetHealthFile();
+    if (healthData && parseHealthFile(healthData)) renderRecoveryCard();
     driveState = 'idle';
     renderDriveCard();
     renderDataSummary();
@@ -3995,28 +4037,61 @@ function renderRecoveryCard() {
   const entry    = getTodayEntry();
   const baseline = recoveryBaseline();
 
-  if (entry) {
-    // Collapsed / logged state
-    const diff   = baseline ? entry.sleepScore - baseline : null;
-    const diffTxt = diff != null ? ` (${diff>=0?'+':''}${diff} vs avg)` : '';
-    const sc     = scoreColor(entry.sleepScore, baseline);
-    el.innerHTML = `
+  if (entry && entry.sleepScore) {
+    // ── State 3: complete entry — collapsed one-liner ─────────────────────
+    const diff    = baseline ? entry.sleepScore - baseline : null;
+    const diffTxt = diff != null ? ` (${diff>=0?'+':''}${diff})` : '';
+    const sc      = scoreColor(entry.sleepScore, baseline);
+    const src     = entry.source === 'drive' ? ' · via Shortcut' : '';
+    el.innerHTML  = `
       <div class="card" onclick="rcOpenEdit()" style="cursor:pointer;">
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="font-size:18px;line-height:1;">🌙</div>
           <div style="flex:1;">
-            <div style="font-size:12px;font-weight:700;color:var(--text);">
+            <div style="font-size:12px;font-weight:700;">
               ${entry.sleepHours}h
-              ${entry.sleepScore?`· <span style="color:${sc};">${entry.sleepScore}/100${diffTxt}</span>`:''}
-              ${entry.hrv?`· HRV ${entry.hrv}`:''}
+              · <span style="color:${sc};">${entry.sleepScore}/100${diffTxt}</span>
+              ${entry.hrv ? `· HRV ${entry.hrv}` : ''}
+              ${entry.restingHR ? `· RHR ${entry.restingHR}` : ''}
             </div>
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Morning check-in · tap to edit</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Morning check-in${src} · tap to edit</div>
           </div>
           <div style="font-size:14px;color:var(--green);">✓</div>
         </div>
       </div>`;
+
+  } else if (entry && entry.source === 'drive') {
+    // ── State 2: auto-filled from Shortcut, score still needed ───────────
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <div style="font-size:18px;line-height:1;">🌙</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">Morning Check-in</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Synced from Shortcut · one tap left</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:14px;">
+          <span>🛌 ${entry.sleepHours}h</span>
+          ${entry.hrv       ? `<span>HRV ${entry.hrv}</span>`      : ''}
+          ${entry.restingHR ? `<span>RHR ${entry.restingHR}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Sleep Score</div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input id="rc-score" type="number" min="0" max="100" placeholder="—"
+                style="width:100%;font-family:var(--mono);font-size:20px;font-weight:700;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);text-align:center;-moz-appearance:textfield;">
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">/100</span>
+            </div>
+          </div>
+          <button class="btn btn-accent" style="margin-top:20px;padding:10px 16px;" onclick="rcAddScore()">Save →</button>
+        </div>
+        ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:8px;">Your avg: ${baseline}/100</div>` : ''}
+      </div>`;
+
   } else {
-    // Expanded / unlogged form
+    // ── State 1: nothing logged — full manual form ────────────────────────
     el.innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
@@ -4026,7 +4101,6 @@ function renderRecoveryCard() {
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">How did you sleep?</div>
           </div>
         </div>
-
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Sleep</div>
@@ -4045,13 +4119,18 @@ function renderRecoveryCard() {
             </div>
           </div>
         </div>
-
-        <div style="margin-bottom:14px;">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">HRV <span style="font-size:8px;">(optional)</span></div>
-          <input id="rc-hrv" type="number" min="0" max="200" placeholder="from your watch" value="${rcDraft.hrv}"
-            style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);-moz-appearance:textfield;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">HRV</div>
+            <input id="rc-hrv" type="number" min="0" max="200" placeholder="—" value="${rcDraft.hrv}"
+              style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Resting HR</div>
+            <input id="rc-rhr" type="number" min="0" max="120" placeholder="—" value="${rcDraft.restingHR}"
+              style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
+          </div>
         </div>
-
         <button class="btn btn-accent" style="width:100%;" onclick="rcLog()">Log check-in</button>
         ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-top:8px;">Your avg sleep score: ${baseline}/100</div>` : ''}
       </div>`;
@@ -4067,7 +4146,7 @@ function rcAdjHours(delta) {
 function rcOpenEdit() {
   const entry = getTodayEntry();
   if (entry) {
-    rcDraft = { hours: entry.sleepHours, score: entry.sleepScore||'', hrv: entry.hrv||'' };
+    rcDraft = { hours: entry.sleepHours||7.5, score: entry.sleepScore||'', hrv: entry.hrv||'', restingHR: entry.restingHR||'' };
     recoveryLog = recoveryLog.filter(r => r.date !== todayISO());
     saveRecovery();
   }
@@ -4075,16 +4154,26 @@ function rcOpenEdit() {
 }
 
 function rcLog() {
-  const score = parseInt(document.getElementById('rc-score')?.value) || null;
-  const hrv   = parseInt(document.getElementById('rc-hrv')?.value)   || null;
+  const score    = parseInt(document.getElementById('rc-score')?.value)  || null;
+  const hrv      = parseInt(document.getElementById('rc-hrv')?.value)    || null;
+  const restingHR= parseInt(document.getElementById('rc-rhr')?.value)    || null;
   if (score && (score < 0 || score > 100)) { toast('Sleep score must be 0–100'); return; }
-  const entry = { date: todayISO(), sleepHours: rcDraft.hours, sleepScore: score, hrv, ts: Date.now() };
+  const entry = { date:todayISO(), sleepHours:rcDraft.hours, sleepScore:score, hrv, restingHR, source:'manual', ts:Date.now() };
   recoveryLog = recoveryLog.filter(r => r.date !== entry.date);
   recoveryLog.unshift(entry);
-  rcDraft = { hours: 7.5, score: '', hrv: '' };
-  saveRecovery();
-  renderRecoveryCard();
+  rcDraft = { hours:7.5, score:'', hrv:'', restingHR:'' };
+  saveRecovery(); renderRecoveryCard();
   toast('Check-in saved ✓');
+}
+
+function rcAddScore() {
+  const score = parseInt(document.getElementById('rc-score')?.value) || null;
+  if (!score || score < 0 || score > 100) { toast('Enter a valid sleep score (0–100)'); return; }
+  const entry = getTodayEntry();
+  if (!entry) return;
+  entry.sleepScore = score;
+  saveRecovery(); renderRecoveryCard();
+  toast('Sleep score saved ✓');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4454,7 +4543,7 @@ function buildCoachSystemPrompt() {
   const todayRec  = getTodayEntry();
   const baseline  = recoveryBaseline();
   const recStr    = todayRec
-    ? `Today's recovery: ${todayRec.sleepHours}h sleep · score ${todayRec.sleepScore||'?'}/100${baseline?' (avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}`
+    ? `Today's recovery: ${todayRec.sleepHours}h sleep · score ${todayRec.sleepScore||'?'}/100${baseline?' (avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}${todayRec.restingHR?' · RHR '+todayRec.restingHR:''}`
     : 'Recovery: not logged today';
 
   return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal} at their race on June 20 2026.
