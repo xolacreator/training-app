@@ -490,6 +490,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Today's session</div>
     <div class="card" id="today-session" style="cursor:pointer;"></div>
     <div id="review-banner"></div>
+    <div id="recovery-card" style="margin-bottom:4px;"></div>
     <div class="sec-lbl">12-week progress</div>
     <div class="card" id="phase-bars"></div>
   </div>
@@ -1935,6 +1936,8 @@ let bldOptions = [{label:'Option A',blocks:[]}];
 let bldActiveOpt = 0;
 let charts = {};
 let hyroxPlan = null;
+let recoveryLog = [];
+let rcDraft = { hours: 7.5, score: '', hrv: '' };
 let coachProfile = null;
 let coachSetupStep = 0;
 let coachSetupAnswers = {};
@@ -2019,6 +2022,7 @@ function load() {
   } catch(e) {}
 
   try { pendingReview = JSON.parse(localStorage.getItem('ht-pending-review') || '[]'); } catch(e) {}
+  try { recoveryLog   = JSON.parse(localStorage.getItem('ht-recovery')       || '[]'); } catch(e) {}
 
   renderAll();
 }
@@ -2166,6 +2170,7 @@ function parseDist(d) {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderAll() {
   renderToday();
+  renderRecoveryCard();
   renderRecentLog();
   renderPlan(currentPlanWeek);
   renderPlanTabs();
@@ -3955,6 +3960,134 @@ function renderStravaCard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MORNING CHECK-IN / RECOVERY
+// ═══════════════════════════════════════════════════════════════════════════
+function todayISO() {
+  const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function saveRecovery() {
+  try { localStorage.setItem('ht-recovery', JSON.stringify(recoveryLog)); } catch(e) {}
+}
+function getTodayEntry() {
+  return recoveryLog.find(r => r.date === todayISO());
+}
+function recoveryBaseline() {
+  if (recoveryLog.length < 5) return null;
+  const scores = recoveryLog.filter(r => r.sleepScore).map(r => r.sleepScore);
+  if (scores.length < 5) return null;
+  return Math.round(scores.reduce((a,b)=>a+b,0) / scores.length);
+}
+function scoreColor(score, baseline) {
+  if (!score) return 'var(--text3)';
+  if (baseline) {
+    const d = score - baseline;
+    if (d >= 5)  return 'var(--green)';
+    if (d <= -5) return 'var(--red)';
+  }
+  if (score >= 80) return 'var(--green)';
+  if (score >= 60) return 'var(--accent)';
+  return 'var(--red)';
+}
+
+function renderRecoveryCard() {
+  const el = document.getElementById('recovery-card');
+  if (!el) return;
+  const entry    = getTodayEntry();
+  const baseline = recoveryBaseline();
+
+  if (entry) {
+    // Collapsed / logged state
+    const diff   = baseline ? entry.sleepScore - baseline : null;
+    const diffTxt = diff != null ? ` (${diff>=0?'+':''}${diff} vs avg)` : '';
+    const sc     = scoreColor(entry.sleepScore, baseline);
+    el.innerHTML = `
+      <div class="card" onclick="rcOpenEdit()" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:18px;line-height:1;">🌙</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:700;color:var(--text);">
+              ${entry.sleepHours}h
+              ${entry.sleepScore?`· <span style="color:${sc};">${entry.sleepScore}/100${diffTxt}</span>`:''}
+              ${entry.hrv?`· HRV ${entry.hrv}`:''}
+            </div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Morning check-in · tap to edit</div>
+          </div>
+          <div style="font-size:14px;color:var(--green);">✓</div>
+        </div>
+      </div>`;
+  } else {
+    // Expanded / unlogged form
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+          <div style="font-size:18px;line-height:1;">🌙</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;">Morning Check-in</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">How did you sleep?</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Sleep</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <button onclick="rcAdjHours(-0.5)" style="width:28px;height:28px;border-radius:6px;border:.5px solid var(--border);background:var(--bg3);color:var(--text);font-size:16px;line-height:1;cursor:pointer;">−</button>
+              <span id="rc-hours-val" style="font-family:var(--mono);font-size:16px;font-weight:700;flex:1;text-align:center;">${rcDraft.hours}h</span>
+              <button onclick="rcAdjHours(0.5)"  style="width:28px;height:28px;border-radius:6px;border:.5px solid var(--border);background:var(--bg3);color:var(--text);font-size:16px;line-height:1;cursor:pointer;">+</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Sleep Score</div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input id="rc-score" type="number" min="0" max="100" placeholder="—" value="${rcDraft.score}"
+                style="width:100%;font-family:var(--mono);font-size:16px;font-weight:700;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:4px 6px;color:var(--text);text-align:center;-moz-appearance:textfield;">
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">/100</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">HRV <span style="font-size:8px;">(optional)</span></div>
+          <input id="rc-hrv" type="number" min="0" max="200" placeholder="from your watch" value="${rcDraft.hrv}"
+            style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);-moz-appearance:textfield;">
+        </div>
+
+        <button class="btn btn-accent" style="width:100%;" onclick="rcLog()">Log check-in</button>
+        ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-top:8px;">Your avg sleep score: ${baseline}/100</div>` : ''}
+      </div>`;
+  }
+}
+
+function rcAdjHours(delta) {
+  rcDraft.hours = Math.min(12, Math.max(3, Math.round((rcDraft.hours + delta) * 2) / 2));
+  const el = document.getElementById('rc-hours-val');
+  if (el) el.textContent = rcDraft.hours + 'h';
+}
+
+function rcOpenEdit() {
+  const entry = getTodayEntry();
+  if (entry) {
+    rcDraft = { hours: entry.sleepHours, score: entry.sleepScore||'', hrv: entry.hrv||'' };
+    recoveryLog = recoveryLog.filter(r => r.date !== todayISO());
+    saveRecovery();
+  }
+  renderRecoveryCard();
+}
+
+function rcLog() {
+  const score = parseInt(document.getElementById('rc-score')?.value) || null;
+  const hrv   = parseInt(document.getElementById('rc-hrv')?.value)   || null;
+  if (score && (score < 0 || score > 100)) { toast('Sleep score must be 0–100'); return; }
+  const entry = { date: todayISO(), sleepHours: rcDraft.hours, sleepScore: score, hrv, ts: Date.now() };
+  recoveryLog = recoveryLog.filter(r => r.date !== entry.date);
+  recoveryLog.unshift(entry);
+  rcDraft = { hours: 7.5, score: '', hrv: '' };
+  saveRecovery();
+  renderRecoveryCard();
+  toast('Check-in saved ✓');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // HYROX RACE CALCULATOR
 // ═══════════════════════════════════════════════════════════════════════════
 function hxFmt(s){const m=Math.floor(s/60),ss=s%60;return m+':'+String(ss).padStart(2,'0');}
@@ -4318,6 +4451,11 @@ function buildCoachSystemPrompt() {
   const bestTempo = sessions.filter(s=>s.pace&&/(tempo)/i.test(s.session||'')).sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
   const bestPace  = bestTempo ? (bestTempo.best_pace||bestTempo.pace) : null;
   const hxGoal    = hyroxPlan ? `HYROX race plan: ${hxFmtLong(hyroxPlan.goalSecs)} target` : '';
+  const todayRec  = getTodayEntry();
+  const baseline  = recoveryBaseline();
+  const recStr    = todayRec
+    ? `Today's recovery: ${todayRec.sleepHours}h sleep · score ${todayRec.sleepScore||'?'}/100${baseline?' (avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}`
+    : 'Recovery: not logged today';
 
   return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal} at their race on June 20 2026.
 
@@ -4328,6 +4466,7 @@ ATHLETE DATA (current):
 Current plan week: ${currentPlanWeek} of 12
 ${hxGoal}
 Best tempo pace: ${bestPace||'not yet logged'}
+${recStr}
 Recent sessions:
 ${recent||'  No sessions logged yet'}
 
