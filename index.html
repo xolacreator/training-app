@@ -3581,11 +3581,10 @@ async function syncFromStrava(silent = false) {
   stravaState = 'syncing'; renderStravaCard();
 
   try {
-    // Extend window to cover full plan + 30 days before
-    const planStart = new Date('2026-03-01').getTime() / 1000;
-    const since = Math.floor(Math.min(planStart, (Date.now() - 180 * 86400000) / 1000));
+    // Fetch from start of plan Week 1 only — earlier dates fill the page limit with pre-plan activities
+    const since = Math.floor(new Date(WMAP[0][1]).getTime() / 1000);
     const resp = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=100`,
+      `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=200`,
       { headers: { Authorization: `Bearer ${tok}` } }
     );
     if (resp.status === 401) {
