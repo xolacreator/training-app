@@ -3720,6 +3720,12 @@ async function syncFromStrava(silent = false) {
       }
       try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
       saveData(); renderAll();
+      // Background: fetch km splits for qualifying sessions to power HYROX calculator
+      const qualGids = newGids.filter(gid => {
+        const s = sessions.find(s => s.gid === gid);
+        return s && isQualityRun(s.session, s.notes, s.intensity);
+      });
+      if (qualGids.length) fetchStravaDetail(qualGids, tok).then(changed => { if (changed) saveData(); });
     }
     stravaState = 'idle';
     try { localStorage.setItem('ht-strava-sync', new Date().toISOString()); } catch(e) {}
@@ -3889,6 +3895,44 @@ function hxParse(str){
 function hxTotal(){return HYROX_SEGMENTS.reduce((s,seg)=>s+(hyroxPlan.splits[seg.id]||0),0);}
 function saveHyrox(){try{localStorage.setItem('ht-hyrox',JSON.stringify(hyroxPlan));}catch(e){}}
 
+function isQualityRun(sessionName, notes, intensity) {
+  if (intensity === 'hard') return true;
+  const actName = (notes||'').startsWith('Strava: ') ? notes.slice(8) : (notes||'');
+  const nm = ((sessionName||'')+' '+actName).toLowerCase();
+  return /tempo|track|interval|compromi|fartlek|threshold|race.sim|rep|workout/.test(nm);
+}
+
+function extractBestPace(splits) {
+  if (!splits || splits.length < 3) return null;
+  const full = splits.filter(s => s.distance >= 800 && s.average_speed > 0);
+  if (full.length < 2) return null;
+  // Pace in sec/km, sorted fastest first
+  const paces = full.map(s => Math.round(1000 / s.average_speed)).sort((a,b) => a-b);
+  // Take fastest 40% — excludes warmup/cooldown dilution
+  const take = Math.max(1, Math.floor(paces.length * 0.4));
+  const working = paces.slice(0, take);
+  const med = working[Math.floor(working.length / 2)];
+  return Math.floor(med/60) + ':' + String(med%60).padStart(2,'0');
+}
+
+async function fetchStravaDetail(gids, tok) {
+  let changed = false;
+  await Promise.all(gids.slice(0,10).map(async gid => {
+    try {
+      const resp = await fetch(`https://www.strava.com/api/v3/activities/${gid.replace('strava-','')}`,
+        { headers: { Authorization: `Bearer ${tok}` } });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const bp = extractBestPace(data.splits_metric);
+      if (bp) {
+        const sess = sessions.find(s => s.gid === gid);
+        if (sess) { sess.best_pace = bp; changed = true; }
+      }
+    } catch(e) {}
+  }));
+  return changed;
+}
+
 function openHyroxCalc(){
   try{const sv=JSON.parse(localStorage.getItem('ht-hyrox')||'null');if(sv&&sv.splits)hyroxPlan=sv;}catch(e){}
   if(!hyroxPlan)hyroxPlan={goalSecs:5400,splits:{...HYROX_BASE}};
@@ -3952,20 +3996,56 @@ function hxEditSplit(id,val){
   if(s&&s>0){hyroxPlan.splits[id]=s;saveHyrox();renderHyroxCalc();}
 }
 
-function hyroxPullTraining(){
+async function hyroxPullTraining(){
   function pSecs(p){if(!p)return null;const pts=p.split(':').map(Number);return pts.length===2?pts[0]*60+pts[1]:null;}
-  const runs=sessions.filter(s=>s.pace&&s.dist&&parseFloat(s.dist)>=3&&/(run|tempo|track|zone|interval)/i.test(s.session||''))
-    .sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,10);
-  if(!runs.length){toast('No run data in log yet');return;}
-  const paces=runs.map(s=>pSecs(s.pace)).filter(Boolean);
+
+  // Priority 1: quality sessions (tempo/track/compromised run/hard intensity)
+  const qualRuns=sessions.filter(s=>
+    (s.pace||s.best_pace) && s.dist && parseFloat(s.dist)>=3 &&
+    isQualityRun(s.session, s.notes, s.intensity)
+  ).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,10);
+
+  // No quality sessions — fall back to all runs with a nudge
+  if(!qualRuns.length){
+    const allRuns=sessions.filter(s=>s.pace&&s.dist&&parseFloat(s.dist)>=3&&
+      /(run|tempo|track|zone|interval)/i.test(s.session||''))
+      .sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,10);
+    if(!allRuns.length){toast('No run data in log yet');return;}
+    const paces=allRuns.map(s=>pSecs(s.pace)).filter(Boolean);
+    const avg=Math.round(paces.reduce((a,b)=>a+b,0)/paces.length);
+    const fat=[0.93,0.97,1.01,1.05,1.10,1.15,1.21,1.27];
+    ['run1','run2','run3','run4','run5','run6','run7','run8'].forEach((id,i)=>{hyroxPlan.splits[id]=Math.round(avg*fat[i]);});
+    saveHyrox();renderHyroxCalc();
+    toast('Using all runs — log tempo/track sessions for better accuracy');
+    return;
+  }
+
+  // For Strava sessions missing km-split data, fetch it now
+  const needsFetch=qualRuns.filter(s=>!s.best_pace&&s.gid?.startsWith('strava-'));
+  if(needsFetch.length){
+    toast(`Fetching splits for ${needsFetch.length} session${needsFetch.length>1?'s':''}…`);
+    const tok=await stravaGetToken();
+    if(tok){
+      const changed=await fetchStravaDetail(needsFetch.map(s=>s.gid),tok);
+      if(changed)saveData();
+    }
+  }
+
+  // Use best_pace (actual working km splits) over diluted session average
+  const paces=qualRuns.map(s=>pSecs(s.best_pace||s.pace)).filter(Boolean);
+  if(!paces.length){toast('No pace data found');return;}
   const avg=Math.round(paces.reduce((a,b)=>a+b,0)/paces.length);
-  // Progressive fatigue: each run gets slower as stations accumulate
+
+  // Progressive fatigue across the 8 race runs (station accumulation effect)
   const fat=[0.93,0.97,1.01,1.05,1.10,1.15,1.21,1.27];
   ['run1','run2','run3','run4','run5','run6','run7','run8'].forEach((id,i)=>{
     hyroxPlan.splits[id]=Math.round(avg*fat[i]);
   });
   saveHyrox();renderHyroxCalc();
-  toast('Runs updated · avg '+hxFmt(avg)+'/km from '+paces.length+' session'+(paces.length>1?'s':''));
+
+  const withSplits=qualRuns.filter(s=>s.best_pace).length;
+  const src=withSplits?`${withSplits} with km splits`:`${qualRuns.length} sessions (avg pace)`;
+  toast(`Runs set · base ${hxFmt(avg)}/km · from ${src}`);
 }
 
 // INIT
