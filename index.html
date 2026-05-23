@@ -2732,7 +2732,7 @@ let driveAutoTimer = null;
 let driveState    = 'idle'; // 'idle' | 'syncing' | 'error'
 
 function initDrive() {
-  driveClientId = localStorage.getItem('ht-drive-cid') || '';
+  driveClientId = localStorage.getItem('ht-drive-cid') || '142460075810-9bqcia989sgo4ajojoaeforvpr39gll8.apps.googleusercontent.com';
   // Handle redirect-back from Google OAuth (token in URL hash)
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const tok = hash.get('access_token');
