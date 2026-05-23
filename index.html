@@ -6,21 +6,21 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Training">
-<meta name="theme-color" content="#091525">
-<title>Hybrid Training</title>
+<meta name="theme-color" content="#1E0A4A">
+<title>Rev3</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* Dark (default) — deep navy · blue + orange accent */
-  --bg:#091525; --bg2:#0e2040; --bg3:#152a55; --bg4:#1d3568;
+  /* Dark (default) — deep purple · gold accent */
+  --bg:#0C0820; --bg2:#160D35; --bg3:#1E1445; --bg4:#2A1C5A;
   --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
-  --text:#e8f0ff; --text2:#7a9cc8; --text3:#2e4d7a;
-  --accent:#FF6B35; --accent-dim:rgba(255,107,53,0.14);
+  --text:#F0EBF8; --text2:#C4B8D8; --text3:#6B5B8A;
+  --accent:#D4AF37; --accent-dim:rgba(212,175,55,0.15);
   --green:#34d399; --green-dim:rgba(52,211,153,0.11);
-  --blue:#4D9EFF; --blue-dim:rgba(77,158,255,0.13);
+  --blue:#A78BFA; --blue-dim:rgba(167,139,250,0.14);
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
-  --purple:#a78bfa; --purple-dim:rgba(167,139,250,0.11);
-  --shadow:rgba(0,0,0,0.5);
+  --purple:#A78BFA; --purple-dim:rgba(167,139,250,0.11);
+  --shadow:rgba(0,0,0,0.6);
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
@@ -33,36 +33,36 @@
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --bg:#EFF3FF; --bg2:#ffffff; --bg3:#DDE5FF; --bg4:#C8D5FF;
-    --border:rgba(21,80,180,0.08); --border2:rgba(21,80,180,0.14); --border3:rgba(21,80,180,0.28);
-    --text:#0a1e40; --text2:#3d6090; --text3:#8aadda;
-    --accent:#D94F00; --accent-dim:rgba(217,79,0,0.1);
+    --bg:#F5F0FF; --bg2:#EDE5FF; --bg3:#E0D4FF; --bg4:#CDBEFF;
+    --border:rgba(80,40,160,0.1); --border2:rgba(80,40,160,0.16); --border3:rgba(80,40,160,0.28);
+    --text:#1A0A2E; --text2:#3D2067; --text3:#8B7AAD;
+    --accent:#9A6E00; --accent-dim:rgba(154,110,0,0.12);
     --green:#059669; --green-dim:rgba(5,150,105,0.1);
-    --blue:#1558CC; --blue-dim:rgba(21,88,204,0.1);
+    --blue:#6D28D9; --blue-dim:rgba(109,40,217,0.1);
     --red:#dc2626; --red-dim:rgba(220,38,38,0.1);
-    --shadow:rgba(10,30,64,0.12);
+    --shadow:rgba(26,10,46,0.12);
   }
 }
 /* Manual override classes */
 body.force-dark {
-  --bg:#091525; --bg2:#0e2040; --bg3:#152a55; --bg4:#1d3568;
+  --bg:#0C0820; --bg2:#160D35; --bg3:#1E1445; --bg4:#2A1C5A;
   --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
-  --text:#e8f0ff; --text2:#7a9cc8; --text3:#2e4d7a;
-  --accent:#FF6B35; --accent-dim:rgba(255,107,53,0.14);
+  --text:#F0EBF8; --text2:#C4B8D8; --text3:#6B5B8A;
+  --accent:#D4AF37; --accent-dim:rgba(212,175,55,0.15);
   --green:#34d399; --green-dim:rgba(52,211,153,0.11);
-  --blue:#4D9EFF; --blue-dim:rgba(77,158,255,0.13);
+  --blue:#A78BFA; --blue-dim:rgba(167,139,250,0.14);
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
-  --shadow:rgba(0,0,0,0.5);
+  --shadow:rgba(0,0,0,0.6);
 }
 body.force-light {
-  --bg:#EFF3FF; --bg2:#ffffff; --bg3:#DDE5FF; --bg4:#C8D5FF;
-  --border:rgba(21,80,180,0.08); --border2:rgba(21,80,180,0.14); --border3:rgba(21,80,180,0.28);
-  --text:#0a1e40; --text2:#3d6090; --text3:#8aadda;
-  --accent:#D94F00; --accent-dim:rgba(217,79,0,0.1);
+  --bg:#F5F0FF; --bg2:#EDE5FF; --bg3:#E0D4FF; --bg4:#CDBEFF;
+  --border:rgba(80,40,160,0.1); --border2:rgba(80,40,160,0.16); --border3:rgba(80,40,160,0.28);
+  --text:#1A0A2E; --text2:#3D2067; --text3:#8B7AAD;
+  --accent:#9A6E00; --accent-dim:rgba(154,110,0,0.12);
   --green:#059669; --green-dim:rgba(5,150,105,0.1);
-  --blue:#1558CC; --blue-dim:rgba(21,88,204,0.1);
+  --blue:#6D28D9; --blue-dim:rgba(109,40,217,0.1);
   --red:#dc2626; --red-dim:rgba(220,38,38,0.1);
-  --shadow:rgba(10,30,64,0.12);
+  --shadow:rgba(26,10,46,0.12);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html{height:100%;background:var(--bg);}
@@ -1876,7 +1876,7 @@ function exportData() {
     const blob = new Blob([JSON.stringify({
       version: '4',
       exportedAt: new Date().toISOString(),
-      appName: 'Hybrid Training',
+      appName: 'Rev3',
       sessions,
       custom: JSON.parse(localStorage.getItem('ht-custom') || '{}'),
       templates: JSON.parse(localStorage.getItem('ht-tmpl') || '[]'),
@@ -3378,7 +3378,7 @@ if('serviceWorker'in navigator){
   const blob=new Blob([sw],{type:'application/javascript'});
   navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
 }
-const mf={name:'Hybrid Training',short_name:'Training',start_url:'.',display:'standalone',background_color:'#091525',theme_color:'#091525',icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23FF6B35"/><path d="M24 72L38 28L50 55L62 38L76 72" stroke="%23000" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="76" cy="28" r="7" fill="%23000"/></svg>',sizes:'any',type:'image/svg+xml'}]};
+const mf={name:'Rev3',short_name:'Rev3',start_url:'.',display:'standalone',background_color:'#0C0820',theme_color:'#1E0A4A',icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%231E0A4A"/><path d="M50 8L60 36L90 37L66 55L75 84L50 67L25 84L34 55L10 37L40 36Z" fill="none" stroke="%23D4AF37" stroke-width="2.8" stroke-linejoin="round"/><text x="50" y="67" font-family="Georgia,serif" font-size="42" font-weight="700" text-anchor="middle" fill="%23D4AF37">R</text></svg>',sizes:'any',type:'image/svg+xml'}]};
 const mb=new Blob([JSON.stringify(mf)],{type:'application/json'});
 document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.createObjectURL(mb)}">`);
 
