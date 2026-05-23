@@ -1351,6 +1351,31 @@ const LIB = {
   ]},
 },
 '11':{
+  'Wed':{options:[
+    {label:'Option A — Race Pace: 4×1000m',subtitle:'@ 3:40–3:48/km · sharpening before race sim',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy jog',detail:'1.5 km',cue:'RPE 5. Long warm-up before race pace work.'},
+        {name:'Dynamic drills + build strides',detail:'2 × 20m drills / 4 × 100m',cue:'65/75/85/92%. Full walk-back.'},
+        {name:'Standing rest',detail:'3–4 min',cue:'Non-negotiable before race pace.'},
+      ]},
+      {type:'main',title:'Main Set — 4×1000m',items:[
+        {name:'Rep 1',detail:'1000m',cue:'3:45–3:50/km / RPE 8.5. Conservative entry.'},
+        {name:'Rep 2',detail:'1000m',cue:'3:42–3:47/km / RPE 9. Find race rhythm.'},
+        {name:'Rep 3',detail:'1000m',cue:'3:40–3:45/km / RPE 9. Stimulus rep. Hold form.'},
+        {name:'Rep 4',detail:'1000m',cue:'Match rep 1. Controlled finish — Saturday is the peak session.'},
+        {name:'Rest between reps',detail:'3 min full walk',cue:'Full recovery. Do not shorten.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy jog + stretch',detail:'800m + 10 min',cue:'Hip flexor priority.'},
+      ]},
+    ],notes:['💡 Protect your legs for Saturday\'s Race Simulation. Hit the paces but don\'t dig a hole.'],warnings:['⚠ Left knee: high cadence is protective at race pace']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Active recovery option',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'35–40 min',cue:'RPE 5–6. Save energy for Saturday.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Controlled float. Walk-back.'},
+      ]},
+    ],notes:['💡 Take Option B if fatigued. Saturday\'s race sim is the priority session.']},
+  ]},
   'Sat':{options:[
     {label:'Option A — Full Race Simulation',subtitle:'THE rehearsal · peak session of Phase 2',intensity:'Hard',blocks:[
       {type:'main',title:'Race Simulation — Full HYROX Format',items:[
@@ -1618,6 +1643,111 @@ const LIB = {
 },
 };
 
+// Generic session breakdowns — used when no specific LIB week+day entry exists.
+// Covers recurring session types so every day in every week has a breakdown.
+const GENERIC = {
+  perform: {options:[
+    {label:'Fitstop PERFORM',subtitle:'Team WFT format · 45–55 min',intensity:'Hard',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Starter 6 min',detail:'Pull Ups / SkiErg / Bike Erg',cue:'Hard effort. Find a hard set of 5.'},
+        {name:'Hip activation',detail:'Glute bridge 2×12, hip circles 10 each',cue:'Left hip priority. Drive through heels.'},
+      ]},
+      {type:'main',title:'Main Session',items:[
+        {name:'Team WFT',detail:'35–40 min',cue:'Log machine distances. Record peak loads. Moderate throughout.'},
+        {name:'Build to Heavy (optional)',detail:'Hang Clean / Power Squat / High Pull',cue:'Record peak load. Power focus.'},
+        {name:'Accessory block (optional)',detail:'2–3 rounds',cue:'Pendlay Row / Fast Box Step Up.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy row or bike',detail:'3–5 min',cue:'RPE 3. HR under 110.'},
+        {name:'Hip flexor lunge',detail:'45 sec each side',cue:'Left hip priority.'},
+      ]},
+    ],notes:['💡 Log all machine distances and peak loads every session.'],warnings:['⚠ Right wrist: straps on all pulling / loaded movements']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic alternative · 40–45 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'40–45 min',cue:'RPE 5–6 / 5:10–5:45/km.'},
+        {name:'Aerobic strides',detail:'4 × 80m',cue:'85–90% float. Walk-back recovery.'},
+      ]},
+    ],notes:['💡 Take Option B if gym not available or body needs low impact.']},
+  ]},
+  lift: {options:[
+    {label:'Fitstop LIFT',subtitle:'Strength session · 45–55 min',intensity:'Moderate',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Bike or Row',detail:'5 min',cue:'RPE 4. General warm-up.'},
+        {name:'Hip activation',detail:'Glute bridge 2×12, hip circles',cue:'Left hip priority.'},
+        {name:'Shoulder CARs',detail:'5 each direction',cue:'Slow and controlled.'},
+      ]},
+      {type:'main',title:'Main Lifts',items:[
+        {name:'Primary compound lift',detail:'4 sets × 5–6 reps',cue:'Squat or hinge pattern. Log loads. Progressive overload.'},
+        {name:'Horizontal push/pull superset',detail:'3 sets × 8–10 reps',cue:'Bench / DB Row or Press / Lat Pull. Log loads.'},
+        {name:'Single-leg accessory',detail:'3 sets × 10 each',cue:'Bulgarian Split Squat or Step Up. Left knee: track over toes.'},
+        {name:'Core stability',detail:'3 sets',cue:'Dead bug or Pallof press. No crunches.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Hip flexor + hamstring',detail:'60 sec each side',cue:'Priority areas.'},
+        {name:'Thoracic opener',detail:'45 sec',cue:'Foam roller or doorframe.'},
+      ]},
+    ],notes:['💡 Log loads every session. Progressive overload is the goal.'],warnings:['⚠ Right wrist: straps on pulling movements','⚠ Left knee: control on all single-leg work']},
+    {label:'Option B — Zone 2 + Strides',subtitle:'Aerobic alternative',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'40 min',cue:'RPE 5–6.'},
+        {name:'Strides',detail:'4 × 80m',cue:'Controlled float. Walk-back recovery.'},
+      ]},
+    ]},
+    {label:'Option C — Rest',subtitle:'Full rest day',intensity:'Easy',blocks:[
+      {type:'main',title:'Rest',items:[
+        {name:'Full rest or gentle walk',detail:'20 min optional',cue:'Active recovery only — no training load.'},
+      ]},
+    ]},
+  ]},
+  zone2: {options:[
+    {label:'Zone 2 Run',subtitle:'Easy aerobic · conversational',intensity:'Easy',blocks:[
+      {type:'warmup',title:'Warm-Up',items:[
+        {name:'Easy walk',detail:'3–5 min',cue:'RPE 3.'},
+        {name:'Leg swings + hip circles',detail:'10 each',cue:''},
+      ]},
+      {type:'main',title:'Main Set',items:[
+        {name:'Zone 2 steady run',detail:'40–50 min',cue:'RPE 5–6 / 5:10–5:45/km. Conversational. If HR drifts above 150 — slow down.'},
+        {name:'Cadence check',detail:'170–175 BPM',cue:'Short, light steps. Cadence is protective.'},
+      ]},
+      {type:'cooldown',title:'Cool-Down',items:[
+        {name:'Easy walk',detail:'3–5 min',cue:'HR below 110.'},
+        {name:'Hip flexor + calf',detail:'45 sec each side',cue:''},
+      ]},
+    ],notes:['💡 Zone 2 is the foundation of your aerobic base. Easy and consistent beats hard and sporadic.']},
+    {label:'Option B — Easy Bike',subtitle:'Low-impact aerobic · 40–50 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Main Set',items:[
+        {name:'Easy bike / spin',detail:'40–50 min',cue:'RPE 5. Legs spinning, not grinding. Zone 2 equivalent.'},
+      ]},
+    ]},
+  ]},
+  recovery: {options:[
+    {label:'Recovery + Mobility',subtitle:'Active recovery · 30–45 min',intensity:'Easy',blocks:[
+      {type:'main',title:'Mobility Flow',items:[
+        {name:'Easy walk or gentle jog',detail:'10 min',cue:'RPE 3–4 max. Blood flow only.'},
+        {name:'Hip flexor lunge stretch',detail:'60 sec each side',cue:'Left hip priority. Anterior tilt cue.'},
+        {name:'Supine figure-four (piriformis)',detail:'60 sec each side',cue:'Right side priority.'},
+        {name:'Glute bridge',detail:'2 × 12',cue:'Activate without straining. 1 sec hold at top.'},
+        {name:'Seated hamstring',detail:'45 sec each side',cue:'Straight spine. Foot flexed.'},
+        {name:"Child's pose",detail:'60 sec',cue:'Low back decompression.'},
+        {name:'Thoracic rotation',detail:'10 each side',cue:'Seated or quadruped.'},
+        {name:'4-7-8 breathing',detail:'5 rounds',cue:'Parasympathetic reset. Especially important after hard weeks.'},
+      ]},
+    ],notes:["💡 Recovery sessions are training. Don't skip them — this is when adaptation happens."]},
+  ]},
+  bike: {options:[
+    {label:'Easy Bike or Rest',subtitle:'Low-impact aerobic or full rest',intensity:'Easy',blocks:[
+      {type:'main',title:'Option A — Easy Bike',items:[
+        {name:'Easy bike / spin',detail:'30–45 min',cue:'RPE 4–5. Legs spinning easily. No grinding.'},
+        {name:'Cadence',detail:'80–90 RPM',cue:'Light effort. Active recovery. Legs should feel better after than before.'},
+      ]},
+      {type:'main',title:'Option B — Rest',items:[
+        {name:'Full rest',detail:'',cue:'Take it if the body needs it. No guilt.'},
+        {name:'Light walk (optional)',detail:'15–20 min',cue:'Keep circulation moving without adding load.'},
+      ]},
+    ],notes:['💡 Thu is a buffer day. Protect the quality of Saturday\'s session — do not go hard today.']},
+  ]},
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA — SEED SESSIONS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1696,7 +1826,8 @@ function load() {
 
   // Auto-detect current plan week from WMAP
   try {
-    const todayISO = new Date().toISOString().slice(0,10);
+    const _tn = new Date();
+    const todayISO = `${_tn.getFullYear()}-${String(_tn.getMonth()+1).padStart(2,'0')}-${String(_tn.getDate()).padStart(2,'0')}`;
     for (const [w, ws, we] of WMAP) {
       if (todayISO >= ws && todayISO <= we) { currentPlanWeek = parseInt(w); break; }
     }
@@ -2309,13 +2440,27 @@ function openLogOverlay(idx){
 // ═══════════════════════════════════════════════════════════════════════════
 // BREAKDOWN ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
+function resolveGeneric(st){
+  st=(st||'').toLowerCase();
+  if(st.includes('perform'))return GENERIC.perform;
+  if(st.includes('lift'))return GENERIC.lift;
+  if(st.includes('zone 2')||st.includes('z2'))return GENERIC.zone2;
+  if(st.includes('recovery')||st.includes('mobility'))return GENERIC.recovery;
+  if(st.includes('bike')||st.includes('rest'))return GENERIC.bike;
+  return null;
+}
+
 function getBreakdown(week,day,sessionType){
   const wl=LIB[String(week)];
-  if(!wl)return noBreakdown(week,day);
-  // Try exact day match first, then 3-char prefix
-  const dl=wl[day]||wl[day?.slice(0,3)]||Object.values(wl).find(_=>_);
-  if(!dl||!dl.options?.length)return noBreakdown(week,day);
+  const dl=wl?.[day]||wl?.[day?.slice(0,3)];
+  if(!dl||!dl.options?.length){
+    const gen=resolveGeneric(sessionType);
+    return gen ? renderBkHtml(week,day,sessionType,gen) : noBreakdown(week,day);
+  }
+  return renderBkHtml(week,day,sessionType,dl);
+}
 
+function renderBkHtml(week,day,sessionType,dl){
   let matched=dl.options[0];
   if(dl.options.length>1){
     const st=(sessionType||'').toLowerCase();
@@ -2334,7 +2479,6 @@ function getBreakdown(week,day,sessionType){
   const bkId=`bk-${week}-${day||'x'}`.replace(/\s/g,'');
   let html='';
 
-  // Option tabs
   if(dl.options.length>1){
     html+=`<div class="opt-tabs" id="ot-${bkId}">`;
     dl.options.forEach((o,i)=>{
