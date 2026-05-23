@@ -3395,7 +3395,7 @@ function initStrava() {
     if (saved) {
       stravaAccess  = saved.access_token;
       stravaRefresh = saved.refresh_token;
-      stravaExpiry  = saved.expires_at * 1000; // Strava gives epoch seconds
+      stravaExpiry  = saved.expires_at * 1000;
       stravaAthlete = saved.athlete || '';
     }
   } catch(e) {}
@@ -3404,8 +3404,14 @@ function initStrava() {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const stravaHash = hash.get('strava');
   if (stravaHash === 'error') {
+    const reason = hash.get('reason') || '';
     stravaState = 'error';
     window.history.replaceState({}, '', window.location.pathname);
+    // Navigate to More tab so user can see error state + reconnect
+    setTimeout(() => {
+      nav('more', document.querySelectorAll('.nb')[4]);
+      toast('Strava connection failed' + (reason ? ': ' + reason : '') + ' — try again');
+    }, 200);
   } else if (stravaHash) {
     try {
       const p = new URLSearchParams(decodeURIComponent(stravaHash));
@@ -3420,10 +3426,21 @@ function initStrava() {
         athlete:       stravaAthlete,
       }));
       window.history.replaceState({}, '', window.location.pathname);
-      setTimeout(() => syncFromStrava(false), 600);
-    } catch(e) { stravaState = 'error'; }
+      // Navigate to More tab so user can see connected state, then sync
+      setTimeout(() => {
+        nav('more', document.querySelectorAll('.nb')[4]);
+        toast('Strava connected' + (stravaAthlete ? ' · ' + stravaAthlete : '') + ' — syncing…');
+        syncFromStrava(false);
+      }, 200);
+    } catch(e) {
+      stravaState = 'error';
+      setTimeout(() => {
+        nav('more', document.querySelectorAll('.nb')[4]);
+        toast('Strava auth failed — try again');
+      }, 200);
+    }
   } else if (stravaAccess) {
-    // Auto-sync on open if connected and token not expired
+    // Auto-sync silently on open if already connected
     setTimeout(() => syncFromStrava(true), 1200);
   }
   renderStravaCard();
