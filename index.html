@@ -3121,7 +3121,7 @@ let stravaWorker  = '';
 let stravaState   = 'idle'; // 'idle' | 'syncing' | 'error'
 
 function initDrive() {
-  driveClientId = localStorage.getItem('ht-drive-cid') || '142460075810-9bqcia989sgo4ajojoaeforvpr39gll8.apps.googleusercontent.com';
+  driveClientId = localStorage.getItem('ht-drive-cid') || '479339090650-il0un5msincdmjcfp4dmeu45jg6p5p0j.apps.googleusercontent.com';
   // Handle redirect-back from Google OAuth (token in URL hash)
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const tok = hash.get('access_token');
@@ -3151,7 +3151,7 @@ function connectDrive() {
   localStorage.setItem('ht-drive-cid', cid);
   driveClientId = cid;
   // Redirect-based implicit flow — works in standalone PWA mode on iOS
-  const redirect = window.location.origin + window.location.pathname;
+  const redirect = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', cid);
   url.searchParams.set('redirect_uri', redirect);
@@ -3527,7 +3527,9 @@ async function syncFromStrava(silent = false) {
   stravaState = 'syncing'; renderStravaCard();
 
   try {
-    const since = Math.floor((Date.now() - 90 * 86400000) / 1000);
+    // Extend window to cover full plan + 30 days before
+    const planStart = new Date('2026-03-01').getTime() / 1000;
+    const since = Math.floor(Math.min(planStart, (Date.now() - 180 * 86400000) / 1000));
     const resp = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=100`,
       { headers: { Authorization: `Bearer ${tok}` } }
@@ -3539,17 +3541,24 @@ async function syncFromStrava(silent = false) {
       if (!silent) toast('Strava session expired — reconnect');
       return;
     }
-    const activities = await resp.json();
-    let imported = 0;
+    const body = await resp.json();
+
+    // Validate response is an array
+    if (!Array.isArray(body)) {
+      throw new Error(body?.message || body?.errors?.[0]?.field || 'unexpected API response');
+    }
+
+    const activities = body;
+    let imported = 0, skippedDup = 0, skippedRange = 0;
 
     for (const act of activities) {
       const gid = `strava-${act.id}`;
-      if (sessions.find(s => s.gid === gid)) continue; // already logged
+      if (sessions.find(s => s.gid === gid)) { skippedDup++; continue; }
 
       const localDate = (act.start_date_local || act.start_date || '').slice(0, 10);
       if (!localDate) continue;
       const week = weekFor(localDate);
-      if (!week) continue;
+      if (!week) { skippedRange++; continue; }
 
       const d = new Date(localDate + 'T12:00:00');
       const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
@@ -3573,10 +3582,19 @@ async function syncFromStrava(silent = false) {
     stravaState = 'idle';
     try { localStorage.setItem('ht-strava-sync', new Date().toISOString()); } catch(e) {}
     renderStravaCard();
-    if (!silent) toast(imported > 0 ? `Synced ${imported} activities from Strava` : 'Strava up to date');
+
+    if (!silent) {
+      if (imported > 0) {
+        toast(`Strava: imported ${imported} new session${imported > 1 ? 's' : ''} ✓`);
+      } else if (activities.length === 0) {
+        toast('Strava: no activities found in the date range');
+      } else {
+        toast(`Strava: ${activities.length} fetched · ${skippedDup} already logged · ${skippedRange} outside plan dates`);
+      }
+    }
   } catch(e) {
     stravaState = 'error'; renderStravaCard();
-    if (!silent) toast('Strava sync failed — check connection');
+    if (!silent) toast(`Strava sync error: ${e.message}`);
   }
 }
 
