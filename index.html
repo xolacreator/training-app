@@ -3442,7 +3442,7 @@ document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.c
 // ═══════════════════════════════════════════════════════════════════════════
 
 function initStrava() {
-  stravaWorker = localStorage.getItem('ht-strava-worker') || '';
+  stravaWorker = localStorage.getItem('ht-strava-worker') || 'https://training-app-strava.brucesarmento.workers.dev';
   try {
     const saved = JSON.parse(localStorage.getItem('ht-strava-tok') || 'null');
     if (saved) {
