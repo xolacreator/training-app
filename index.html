@@ -635,11 +635,12 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-accent" onclick="openAI()">Build with AI →</button>
     </div>
     <div class="card" style="opacity:.45;margin-top:-2px;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">⌚ Garmin live sync</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Direct Connect API — coming in v3</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">⌚ Garmin → Strava → App</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Enable Strava sync below · Garmin auto-pushes to Strava</div>
     </div>
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
+    <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
@@ -3115,6 +3116,13 @@ let driveClientId = '';
 let driveAutoTimer = null;
 let driveState    = 'idle'; // 'idle' | 'syncing' | 'error'
 
+let stravaAccess  = null;
+let stravaRefresh = null;
+let stravaExpiry  = 0;
+let stravaAthlete = '';
+let stravaWorker  = '';
+let stravaState   = 'idle'; // 'idle' | 'syncing' | 'error'
+
 function initDrive() {
   driveClientId = localStorage.getItem('ht-drive-cid') || '142460075810-9bqcia989sgo4ajojoaeforvpr39gll8.apps.googleusercontent.com';
   // Handle redirect-back from Google OAuth (token in URL hash)
@@ -3375,11 +3383,235 @@ const mb=new Blob([JSON.stringify(mf)],{type:'application/json'});
 document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.createObjectURL(mb)}">`);
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// STRAVA SYNC
+// ═══════════════════════════════════════════════════════════════════════════
+
+function initStrava() {
+  stravaWorker = localStorage.getItem('ht-strava-worker') || '';
+  try {
+    const saved = JSON.parse(localStorage.getItem('ht-strava-tok') || 'null');
+    if (saved) {
+      stravaAccess  = saved.access_token;
+      stravaRefresh = saved.refresh_token;
+      stravaExpiry  = saved.expires_at * 1000; // Strava gives epoch seconds
+      stravaAthlete = saved.athlete || '';
+    }
+  } catch(e) {}
+
+  // Handle redirect-back from Strava via worker (tokens in URL hash)
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const stravaHash = hash.get('strava');
+  if (stravaHash === 'error') {
+    stravaState = 'error';
+    window.history.replaceState({}, '', window.location.pathname);
+  } else if (stravaHash) {
+    try {
+      const p = new URLSearchParams(decodeURIComponent(stravaHash));
+      stravaAccess  = p.get('access_token');
+      stravaRefresh = p.get('refresh_token');
+      stravaExpiry  = parseInt(p.get('expires_at') || '0') * 1000;
+      stravaAthlete = p.get('athlete') || '';
+      localStorage.setItem('ht-strava-tok', JSON.stringify({
+        access_token:  stravaAccess,
+        refresh_token: stravaRefresh,
+        expires_at:    parseInt(p.get('expires_at') || '0'),
+        athlete:       stravaAthlete,
+      }));
+      window.history.replaceState({}, '', window.location.pathname);
+      setTimeout(() => syncFromStrava(false), 600);
+    } catch(e) { stravaState = 'error'; }
+  } else if (stravaAccess) {
+    // Auto-sync on open if connected and token not expired
+    setTimeout(() => syncFromStrava(true), 1200);
+  }
+  renderStravaCard();
+}
+
+function connectStrava() {
+  const w = (document.getElementById('strava-worker-input')?.value || '').trim();
+  if (!w) { toast('Paste your Strava worker URL first'); return; }
+  stravaWorker = w.replace(/\/$/, '');
+  localStorage.setItem('ht-strava-worker', stravaWorker);
+  const appUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  window.location.href = `${stravaWorker}/auth?app_url=${appUrl}`;
+}
+
+function disconnectStrava() {
+  stravaAccess = stravaRefresh = null;
+  stravaExpiry = 0; stravaAthlete = ''; stravaState = 'idle';
+  try { localStorage.removeItem('ht-strava-tok'); } catch(e) {}
+  renderStravaCard();
+  toast('Disconnected from Strava');
+}
+
+async function stravaGetToken() {
+  if (!stravaAccess) return null;
+  if (Date.now() < stravaExpiry - 60000) return stravaAccess; // still valid
+  if (!stravaRefresh || !stravaWorker) return null;
+  try {
+    const resp = await fetch(`${stravaWorker}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: stravaRefresh }),
+    });
+    const data = await resp.json();
+    if (!data.access_token) throw new Error('refresh failed');
+    stravaAccess = data.access_token;
+    stravaExpiry = data.expires_at * 1000;
+    localStorage.setItem('ht-strava-tok', JSON.stringify({
+      access_token:  stravaAccess,
+      refresh_token: stravaRefresh,
+      expires_at:    data.expires_at,
+      athlete:       stravaAthlete,
+    }));
+    return stravaAccess;
+  } catch(e) {
+    stravaState = 'error'; renderStravaCard(); return null;
+  }
+}
+
+function stravaClassify(act) {
+  const type = (act.sport_type || act.type || '').toLowerCase();
+  if (type.includes('weight') || type.includes('strength')) return 'Fitstop LIFT';
+  if (type === 'workout') return 'Fitstop PERFORM';
+  if (type === 'ride' || type === 'virtualride' || type === 'ebikeride') return 'Easy Bike';
+  if (type === 'run' || type === 'virtualrun' || type === 'treadmill') {
+    const paceMin = act.average_speed > 0 ? 1000 / act.average_speed / 60 : 99;
+    const hr = act.average_heartrate || 0;
+    if (paceMin < 4.3) return 'Track – Intervals';
+    if (paceMin < 5.0 && hr > 155) return 'Tempo Run';
+    return 'Zone 2 Run';
+  }
+  return act.name || 'Session';
+}
+
+function stravaIntensity(act) {
+  const hr = act.average_heartrate || 0;
+  const type = (act.sport_type || '').toLowerCase();
+  if (type.includes('weight') || type.includes('strength')) return 'moderate';
+  if (hr > 165) return 'hard';
+  if (hr > 148) return 'moderate';
+  return 'easy';
+}
+
+function mpsToMinKm(mps) {
+  if (!mps || mps <= 0) return '';
+  const mpk = 1000 / mps / 60;
+  const m = Math.floor(mpk);
+  const s = Math.round((mpk - m) * 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+async function syncFromStrava(silent = false) {
+  const tok = await stravaGetToken();
+  if (!tok) { if (!silent) toast('Reconnect Strava first'); return; }
+  stravaState = 'syncing'; renderStravaCard();
+
+  try {
+    const since = Math.floor((Date.now() - 90 * 86400000) / 1000);
+    const resp = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=100`,
+      { headers: { Authorization: `Bearer ${tok}` } }
+    );
+    if (resp.status === 401) {
+      stravaAccess = null;
+      try { localStorage.removeItem('ht-strava-tok'); } catch(e) {}
+      stravaState = 'error'; renderStravaCard();
+      if (!silent) toast('Strava session expired — reconnect');
+      return;
+    }
+    const activities = await resp.json();
+    let imported = 0;
+
+    for (const act of activities) {
+      const gid = `strava-${act.id}`;
+      if (sessions.find(s => s.gid === gid)) continue; // already logged
+
+      const localDate = (act.start_date_local || act.start_date || '').slice(0, 10);
+      if (!localDate) continue;
+      const week = weekFor(localDate);
+      if (!week) continue;
+
+      const d = new Date(localDate + 'T12:00:00');
+      const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+
+      sessions.unshift({
+        week, day: dow,
+        session:   stravaClassify(act),
+        intensity: stravaIntensity(act),
+        pace:      mpsToMinKm(act.average_speed),
+        dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
+        hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
+        dur:       act.elapsed_time      ? String(Math.round(act.elapsed_time / 60)) : '',
+        feel: '', notes: `Strava: ${act.name}`,
+        ts: new Date(act.start_date).getTime(),
+        gid,
+      });
+      imported++;
+    }
+
+    if (imported > 0) { saveData(); renderAll(); }
+    stravaState = 'idle';
+    try { localStorage.setItem('ht-strava-sync', new Date().toISOString()); } catch(e) {}
+    renderStravaCard();
+    if (!silent) toast(imported > 0 ? `Synced ${imported} activities from Strava` : 'Strava up to date');
+  } catch(e) {
+    stravaState = 'error'; renderStravaCard();
+    if (!silent) toast('Strava sync failed — check connection');
+  }
+}
+
+function renderStravaCard() {
+  const card = document.getElementById('strava-card');
+  if (!card) return;
+  const connected = !!stravaAccess;
+  const lastSync = localStorage.getItem('ht-strava-sync');
+  const lastStr  = lastSync ? new Date(lastSync).toLocaleString('en-AU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
+
+  if (!connected) {
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="var(--accent)" stroke-width="2">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Strava Sync</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-import activities · last 90 days</div>
+        </div>
+      </div>
+      <input id="strava-worker-input" type="url" placeholder="https://training-app-strava.<you>.workers.dev"
+        value="${stravaWorker}"
+        style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);font-family:var(--mono);margin-bottom:8px;">
+      <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;">Connect Strava</button>`;
+  } else {
+    const syncing = stravaState === 'syncing';
+    const errored = stravaState === 'error';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="var(--accent)" stroke-width="2">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
+            ${errored ? '⚠ Sync error' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromStrava(false)" ${syncing?'disabled':''}>Sync now</button>
+        <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
+      </div>`;
+  }
+}
+
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 load();
 initTheme();
 initDrive();
+initStrava();
 setCat('run',document.querySelector('.cat-tab.run'));
 renderPlanTabs();
 </script>
