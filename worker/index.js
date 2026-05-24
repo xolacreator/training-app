@@ -16,12 +16,16 @@ export default {
 
     // Redirect user to Strava's OAuth consent screen
     if (path === '/auth') {
+      // Store app_url in state param so callback knows where to return
+      const appUrl = url.searchParams.get('app_url') || env.APP_URL;
+      const state  = encodeURIComponent(appUrl);
       const params = new URLSearchParams({
         client_id:       env.STRAVA_CLIENT_ID,
         redirect_uri:    `${url.origin}/callback`,
         response_type:   'code',
         approval_prompt: 'force',
         scope:           'activity:read_all',
+        state,
       });
       return Response.redirect(`${STRAVA_AUTH_URL}?${params}`, 302);
     }
@@ -30,7 +34,9 @@ export default {
     if (path === '/callback') {
       const code  = url.searchParams.get('code');
       const error = url.searchParams.get('error');
-      const appUrl = env.APP_URL;
+      // Prefer app_url echoed back via state param; fall back to env var
+      const stateParam = url.searchParams.get('state');
+      const appUrl = (stateParam ? decodeURIComponent(stateParam) : null) || env.APP_URL;
 
       if (error || !code) {
         return Response.redirect(`${appUrl}#strava=error&reason=${encodeURIComponent(error||'cancelled')}`, 302);

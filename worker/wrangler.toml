@@ -3,4 +3,4 @@ main = "index.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-APP_URL = "https://bruces6.github.io/training-app"
+APP_URL = "https://bruces6.github.io/training-app/"

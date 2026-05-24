@@ -2111,7 +2111,7 @@ function load() {
   try { pendingReview = JSON.parse(localStorage.getItem('ht-pending-review') || '[]'); } catch(e) {}
   try { recoveryLog   = JSON.parse(localStorage.getItem('ht-recovery')       || '[]'); } catch(e) {}
 
-  renderAll();
+  try { renderAll(); } catch(e) { console.error('renderAll failed on load:', e); }
 }
 
 function saveData() {
@@ -2122,6 +2122,7 @@ function saveData() {
 // Normalise a session object from any prior schema to the current one
 function normaliseSessions(arr) {
   return arr.map(s => ({
+    ...s,
     week:      s.week      ?? s.w         ?? '',
     day:       s.day       ?? s.d         ?? '',
     session:   s.session   ?? s.name      ?? s.type ?? 'Session',
@@ -4822,13 +4823,13 @@ Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
 
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
-load();
-initTheme();
-initDrive();
-initStrava();
-loadCoach();
-setCat('run',document.querySelector('.cat-tab.run'));
-renderPlanTabs();
+try { load(); }      catch(e) { console.error('load() failed:', e); try { renderAll(); } catch(_) {} }
+try { initTheme(); } catch(e) {}
+try { initDrive(); } catch(e) {}
+try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
+try { loadCoach(); } catch(e) {}
+try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
+try { renderPlanTabs(); } catch(e) {}
 </script>
 </body>
 </html>
