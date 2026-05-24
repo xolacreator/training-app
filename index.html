@@ -1948,29 +1948,31 @@ let coachMessages = [];
 let coachTyping = false;
 
 const COACH_SETUP_STEPS = [
-  {id:'name',  q:"What should your coach go by?",         sub:"They'll introduce themselves with this name",    type:'text',   placeholder:'e.g. Coach Sam, The Hammer, Coach Mia…'},
-  {id:'style', q:"What coaching style fits you?",         sub:"Shapes the tone of every conversation",         type:'choice', options:[
+  {id:'name',     q:"What should your coach go by?",              sub:"They'll introduce themselves with this name",       type:'text',   placeholder:'e.g. Coach Sam, The Hammer, Coach Mia…'},
+  {id:'style',    q:"What coaching style fits you?",              sub:"Shapes the tone of every conversation",            type:'choice', options:[
     {val:'direct',       label:'Direct & Challenging', icon:'💪', desc:'Hard truths, no sugar-coating'},
     {val:'motivational', label:'Motivational',          icon:'🔥', desc:'Energy and belief-focused'},
     {val:'technical',    label:'Technical',             icon:'📊', desc:'Data-driven and analytical'},
     {val:'balanced',     label:'Balanced',              icon:'⚖️', desc:'Mix of all three'},
   ]},
-  {id:'goal',  q:"What's your HYROX target?",             sub:"Sets the performance benchmark",                type:'choice', options:[
+  {id:'goal',     q:"What's your HYROX target?",                  sub:"Sets the performance benchmark",                   type:'choice', options:[
     {val:'sub60',  label:'Sub-60 min',         icon:'🏆', desc:'Elite level'},
     {val:'sub75',  label:'Sub-75 min',         icon:'🥇', desc:'Competitive'},
     {val:'sub90',  label:'Sub-90 min',         icon:'🥈', desc:'Strong amateur'},
     {val:'finish', label:'First HYROX finish', icon:'🏅', desc:'Strong and smart race'},
   ]},
-  {id:'focus', q:"Where do you need the most coaching?",  sub:"Your coach will emphasise this area",           type:'choice', options:[
+  {id:'raceDate', q:"When is your race?",                         sub:"Your coach will count down and plan around this",  type:'text',   placeholder:'e.g. 20 Jun 2026, or HYROX Sydney Nov 2026'},
+  {id:'focus',    q:"Where do you need the most coaching?",       sub:"Your coach will emphasise this area",              type:'choice', options:[
     {val:'running',  label:'Running pace',   icon:'🏃', desc:'Speed and endurance development'},
     {val:'stations', label:'Station work',   icon:'🏋️', desc:'Technique and transition efficiency'},
     {val:'strategy', label:'Race strategy',  icon:'🧠', desc:'Pacing and race execution'},
     {val:'all',      label:'Full package',   icon:'💯', desc:'All areas equally'},
   ]},
-  {id:'detail',q:"How do you prefer your feedback?",      sub:"Sets response length and depth",                type:'choice', options:[
+  {id:'detail',   q:"How do you prefer your feedback?",           sub:"Sets response length and depth",                   type:'choice', options:[
     {val:'short',    label:'Short & sharp',   icon:'⚡', desc:'Bullet points, no fluff'},
     {val:'detailed', label:'Full breakdown',  icon:'📋', desc:'Deep analysis and reasoning'},
   ]},
+  {id:'priority', q:"What are you currently working toward?",     sub:"Your coach uses this to open every conversation",  type:'text',   placeholder:'e.g. Building my running base before the quality phase kicks in. Weak on SkiErg and need to fix my sled push technique.'},
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4382,8 +4384,9 @@ function renderCoachCard() {
   if (!name || !sub) return;
   if (coachProfile) {
     const goalLabel = {sub60:'Sub-60',sub75:'Sub-75',sub90:'Sub-90',finish:'First finish'}[coachProfile.goal] || '';
+    const dateLabel = coachProfile.raceDate ? ' · ' + coachProfile.raceDate : '';
     name.textContent = coachProfile.name;
-    sub.textContent  = goalLabel + ' · ' + coachProfile.style + ' style · tap to chat';
+    sub.textContent  = goalLabel + dateLabel + ' · tap to chat';
   } else {
     name.textContent = 'Set up your coach';
     sub.textContent  = 'Personalised AI coaching powered by Claude';
@@ -4404,8 +4407,10 @@ function openCoach() {
 
 function coachIntro() {
   const p = coachProfile;
-  const goalStr = {sub60:'sub 60 minutes',sub75:'sub 75 minutes',sub90:'sub 90 minutes',finish:'your first HYROX finish'}[p.goal] || p.goal;
-  return `Hey — I'm ${p.name}. I'll be coaching you toward ${goalStr} on June 20, 2026. Ask me anything about your training, your plan, or your race prep.`;
+  const goalStr = {sub60:'a sub-60',sub75:'a sub-75',sub90:'a sub-90',finish:'your first'}[p.goal] || '';
+  const dateStr = p.raceDate ? ` on ${p.raceDate}` : '';
+  const priorityLine = p.priority ? ` You've told me you're focused on: ${p.priority}.` : '';
+  return `Hey — I'm ${p.name}. We're building toward ${goalStr} HYROX finish${dateStr}.${priorityLine} What do you want to work on today?`;
 }
 
 function openCoachSetup() {
@@ -4568,10 +4573,14 @@ function buildCoachSystemPrompt() {
     ? `Today's recovery: ${todayRec.sleepHours}h sleep · score ${todayRec.sleepScore||'?'}/100${baseline?' (avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}${todayRec.restingHR?' · RHR '+todayRec.restingHR:''}`
     : 'Recovery: not logged today';
 
-  return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal} at their race on June 20 2026.
+  const raceDate  = p.raceDate || 'date not set';
+  const priority  = p.priority ? `Athlete's stated priority: "${p.priority}"` : '';
+
+  return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal}. Their race is: ${raceDate}.
 
 ${styleMap[p.style]} Focus especially on ${focusMap[p.focus]}.
 ${detailMap[p.detail]}
+${priority}
 
 ATHLETE DATA (current):
 Current plan week: ${currentPlanWeek} of 12
