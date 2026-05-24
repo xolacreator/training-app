@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#1E0A4A">
 <link rel="apple-touch-icon" href="R%20Star%20App%20Icon.png">
 <title>Rev3</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   /* Dark (default) — deep purple · gold accent */
@@ -22,7 +22,7 @@
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
   --purple:#A78BFA; --purple-dim:rgba(167,139,250,0.11);
   --shadow:rgba(0,0,0,0.6);
-  --font:'Inter',system-ui,-apple-system,sans-serif;
+  --font:'Saira Semi Condensed',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
   /* Safe areas — critical for Face ID */
@@ -298,10 +298,11 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 
 /* ── FEEL BUTTONS ── */
 .feel-row{display:flex;gap:5px;}
-.feel-btn{flex:1;aspect-ratio:1;border-radius:8px;border:.5px solid var(--border);
-  background:var(--bg2);font-size:18px;cursor:pointer;display:flex;align-items:center;
-  justify-content:center;transition:border-color .15s,background .15s;}
-.feel-btn.sel{border-color:var(--border3);background:var(--bg3);}
+.feel-btn{flex:1;height:44px;border-radius:8px;border:.5px solid var(--border);
+  background:var(--bg2);font-family:var(--mono);font-size:12px;font-weight:700;
+  color:var(--text3);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:border-color .15s,background .15s,color .15s;}
+.feel-btn.sel{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
 
 /* ── BREAKDOWN ── */
 .bk-block{margin-bottom:18px;}
@@ -452,12 +453,15 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 
 /* ── TYPOGRAPHY REFINEMENTS ── */
 body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-.screen-title{font-size:28px;font-weight:700;letter-spacing:-0.4px;line-height:1.1;}
-.overlay-title{font-size:26px;font-weight:700;letter-spacing:-0.3px;}
-.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:0.06em;color:var(--text3);text-transform:uppercase;margin-bottom:4px;}
-.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
-.mval{font-size:28px;font-weight:700;line-height:1;letter-spacing:-0.5px;}
+.screen-title{font-size:32px;font-weight:800;letter-spacing:0.01em;line-height:1.05;}
+.overlay-title{font-size:28px;font-weight:800;letter-spacing:0.01em;}
+.eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:4px;}
+.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
+.mval{font-size:30px;font-weight:800;line-height:1;letter-spacing:0.01em;}
 .badge{font-family:var(--mono);font-size:9px;letter-spacing:0.04em;}
+.srow-name{font-size:14px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:2px;}
+.bk-name{font-size:14px;font-weight:700;color:var(--text);flex:1;line-height:1.3;}
+.lrow-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.3;}
 
 /* ── LOGO ── */
 .logo-row{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
@@ -482,7 +486,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
           <div class="eyebrow" id="today-date" style="margin-top:1px;"></div>
         </div>
       </div>
-      <button onclick="toggleTheme()" style="font-size:18px;background:none;border:none;cursor:pointer;padding:4px;" id="theme-btn">☀️</button>
+      <button onclick="toggleTheme()" style="width:34px;height:34px;background:var(--bg2);border:.5px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;" id="theme-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     </div>
     <div class="mg" id="today-metrics"></div>
     <div class="sec-lbl">This week</div>
@@ -542,11 +546,11 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div id="metric-area"></div>
       <div class="fg"><label class="flbl">How did it feel?</label>
         <div class="feel-row">
-          <button class="feel-btn" onclick="setFeel(1,this)">😩</button>
-          <button class="feel-btn" onclick="setFeel(2,this)">😤</button>
-          <button class="feel-btn" onclick="setFeel(3,this)">😐</button>
-          <button class="feel-btn" onclick="setFeel(4,this)">😊</button>
-          <button class="feel-btn" onclick="setFeel(5,this)">🔥</button>
+          <button class="feel-btn" onclick="setFeel(1,this)">Low</button>
+          <button class="feel-btn" onclick="setFeel(2,this)">Tough</button>
+          <button class="feel-btn" onclick="setFeel(3,this)">OK</button>
+          <button class="feel-btn" onclick="setFeel(4,this)">Good</button>
+          <button class="feel-btn" onclick="setFeel(5,this)">Great</button>
         </div>
       </div>
       <div class="fg"><label class="flbl">Notes</label>
@@ -577,7 +581,9 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div class="eyebrow" style="margin-bottom:6px;">Race tools</div>
       <div class="card" onclick="openHyroxCalc()" style="cursor:pointer;">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="font-size:28px;line-height:1;">🏅</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--accent-dim);border:.5px solid rgba(212,175,55,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5v2.5"/></svg>
+          </div>
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:700;">HYROX Race Calculator</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Build your race plan · 8 runs + 8 stations</div>
@@ -619,7 +625,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Import from Garmin</div>
     <div class="card">
       <div class="drop-zone" onclick="document.getElementById('csv-input').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
-        <div style="font-size:28px;margin-bottom:8px;">📂</div>
+        <div style="margin-bottom:10px;color:var(--text3);"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
         <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Upload Activities.csv</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Garmin Connect → Activities → Export CSV</div>
       </div>
@@ -638,7 +644,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">AI Training</div>
     <div class="card" style="background:linear-gradient(135deg,rgba(77,158,255,0.08),rgba(255,107,53,0.08));border-color:rgba(77,158,255,0.2);">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <div style="width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:19px;">🤖</div>
+        <div style="width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#000;letter-spacing:-.02em;">AI</span></div>
         <div>
           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;">AI Session Builder</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Generate sessions · extend your plan · build from scratch</div>
@@ -649,7 +655,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Personal Coach</div>
     <div class="card" id="coach-card" onclick="openCoach()" style="cursor:pointer;background:linear-gradient(135deg,rgba(212,175,55,0.08),rgba(167,139,250,0.08));border-color:rgba(212,175,55,0.2);">
       <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:19px;">🎯</div>
+        <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
         <div style="flex:1;">
           <div id="coach-card-name" style="font-size:14px;font-weight:700;">Set up your coach</div>
           <div id="coach-card-sub" style="font-family:var(--mono);font-size:9px;color:var(--text3);">Personalised AI coaching powered by Claude</div>
@@ -658,7 +664,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </div>
     </div>
     <div class="card" style="opacity:.45;margin-top:-2px;">
-      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">⌚ Garmin → Strava → App</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">Garmin → Strava → App</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Enable Strava sync below · Garmin auto-pushes to Strava</div>
     </div>
     <div class="sec-lbl">Cloud Sync</div>
@@ -807,10 +813,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-sm" onclick="addBldBlock('cooldown')" style="color:var(--green);border-color:rgba(62,207,142,.3);">+ Cool-Down</button>
     </div>
     <div class="fg"><label class="flbl">Coaching notes (one per line)</label>
-      <textarea id="bld-notes" placeholder="💡 Key coaching points…" style="min-height:52px;"></textarea>
+      <textarea id="bld-notes" placeholder="Key coaching points…" style="min-height:52px;"></textarea>
     </div>
     <div class="fg"><label class="flbl">Injury flags (one per line)</label>
-      <textarea id="bld-warnings" placeholder="⚠ Left knee: hip ER cue…" style="min-height:40px;"></textarea>
+      <textarea id="bld-warnings" placeholder="Left knee: hip ER cue…" style="min-height:40px;"></textarea>
     </div>
     <div class="card" style="margin-bottom:8px;">
       <div class="flbl" style="margin-bottom:8px;">Save to</div>
@@ -951,7 +957,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
       <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="flex-shrink:0;width:44px;height:44px;padding:0;font-size:20px;line-height:1;border-radius:var(--r);">↑</button>
     </div>
-    <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">⚙ Reconfigure coach</button>
+    <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Reconfigure coach</button>
   </div>
 </div>
 
@@ -2135,8 +2141,7 @@ function importDataFile(file) {
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const FEEL_EMOJI = ['','😩','😤','😐','😊','🔥'];
-const FEEL_LABEL = ['','Terrible','Tough','OK','Good','Great'];
+const FEEL_LABEL = ['','Low','Tough','OK','Good','Great'];
 
 function ibadge(i) {
   const m = {easy:'bd-easy',moderate:'bd-mod',hard:'bd-hard',mixed:'bd-mixed'};
@@ -2255,7 +2260,7 @@ function renderToday() {
       banner.innerHTML = `
         <div class="card" style="cursor:pointer;margin-top:8px;background:linear-gradient(135deg,rgba(212,175,55,0.10),rgba(167,139,250,0.07));border-color:rgba(212,175,55,0.35);" onclick="openReviewFlow()">
           <div style="display:flex;align-items:center;gap:12px;">
-            <div style="font-size:26px;line-height:1;">⭐</div>
+            <div style="width:34px;height:34px;border-radius:8px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
             <div>
               <div style="font-size:14px;font-weight:700;color:var(--text);">Rate ${toReview.length} new import${toReview.length>1?'s':''}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Add your feel rating to Strava sessions</div>
@@ -2515,7 +2520,7 @@ function saveSession(){
     cat,splits:[...splits],exercises:JSON.parse(JSON.stringify(exercises)),
     stations:JSON.parse(JSON.stringify(stations)),sUnit});
   saveData();clearForm();renderAll();
-  toast('Session saved 🔥');
+  toast('Session saved');
   nav('log',document.querySelectorAll('.nb')[1]);
 }
 
@@ -2536,7 +2541,7 @@ function renderRecentLog(){
     return `<div class="lrow" onclick="openLogOverlay(${idx})">
       <div class="lrow-top">
         <div><div class="lrow-title">${s.session} ${ibadge(s.intensity)}</div>
-          <div class="lrow-week">W${s.week} · ${s.day} · ${ds}${s.feel?' '+FEEL_EMOJI[s.feel]:''}</div></div>
+          <div class="lrow-week">W${s.week} · ${s.day} · ${ds}${s.feel?' · '+FEEL_LABEL[s.feel]:''}</div></div>
         <div class="chevron">›</div>
       </div>
       ${stats.length?`<div class="lrow-stats">${stats.map(x=>`<span class="lrow-stat">${x}</span>`).join('')}</div>`:''}
@@ -2633,9 +2638,9 @@ function openLogOverlay(idx){
     </div>`).join('');
 
   const feelEl=document.getElementById('lo-feel');
-  feelEl.innerHTML=s.feel?`<div style="text-align:center;padding:12px 0 14px;">
-    <div style="font-size:32px;margin-bottom:4px;">${FEEL_EMOJI[s.feel]}</div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${FEEL_LABEL[s.feel]}</div>
+  feelEl.innerHTML=s.feel?`<div style="text-align:center;padding:10px 0 14px;">
+    <div style="font-family:var(--mono);font-size:36px;font-weight:800;color:var(--accent);line-height:1;">${s.feel}</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;">${FEEL_LABEL[s.feel]}</div>
   </div>`:'';
 
   const nw=document.getElementById('lo-notes-wrap');
@@ -2721,10 +2726,10 @@ function renderBlocks(opt){
     });
     html+=`</div>`;
   });
-  if(opt.notes?.length)opt.notes.forEach(n=>{html+=`<div class="bk-note">${n}</div>`;});
+  if(opt.notes?.length)opt.notes.forEach(n=>{html+=`<div class="bk-note">${n.replace(/^[💡\s]+/u,'')}</div>`;});
   if(opt.warnings?.length){
     html+=`<div class="bk-warn">`;
-    opt.warnings.forEach(w=>{html+=`<div class="bk-warn-item">${w}</div>`;});
+    opt.warnings.forEach(w=>{html+=`<div class="bk-warn-item">${w.replace(/^[⚠\s]+/u,'')}</div>`;});
     html+=`</div>`;
   }
   return html;
@@ -3052,7 +3057,12 @@ function updateThemeBtn(){
   const sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark=saved==='dark'||(saved===null&&sysDark);
   const btn=document.getElementById('theme-btn');
-  if(btn)btn.textContent=isDark?'☀️':'🌙';
+  if(!btn)return;
+  if(isDark){
+    btn.innerHTML=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+  } else {
+    btn.innerHTML=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>`;
+  }
 }
 function initTheme(){
   const saved=localStorage.getItem('ht-theme');
@@ -3071,7 +3081,7 @@ function renderDataSummary(){
   const lines = [`${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.`];
   if (lastSync)   lines.push(`Drive sync: ${fmt(lastSync)}`);
   if (lastExport) lines.push(`File backup: ${fmt(lastExport)}`);
-  if (!lastSync && !lastExport) lines.push('⚠ No backup yet — export or connect Drive');
+  if (!lastSync && !lastExport) lines.push('No backup yet — export or connect Drive');
   document.getElementById('data-summary').innerHTML = lines.join('<br>');
 }
 function confirmClear(){
@@ -3130,7 +3140,7 @@ function renderAIContext() {
     </div>` : ''}
     <div style="border-top:.5px solid var(--border);padding-top:8px;">
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Injury Flags (always respected)</div>
-      <div style="font-size:11px;color:var(--red);line-height:1.8;">⚠ Left knee — medial sensitivity · high cadence protective<br>⚠ Right wrist — straps required on all pulling movements<br>⚠ Low back — brace before deadlifts, SkiErg, sled work</div>
+      <div style="font-size:11px;color:var(--red);line-height:1.8;">Left knee — medial sensitivity · high cadence protective<br>Right wrist — straps required on all pulling movements<br>Low back — brace before deadlifts, SkiErg, sled work</div>
     </div>
   </div>`;
 }
@@ -3223,7 +3233,7 @@ Session structure rules:
 - Always offer 2-3 options: A = target, B = modified/alternative, C = easy fallback.
 - Include RPE targets, pace targets, and rep distances/times in the "detail" field.
 - Coaching cues go in the "cue" field — technique, RPE, pacing strategy.
-- Notes = big-picture coaching points (💡 prefix). Warnings = injury flags (⚠ prefix).
+- Notes = big-picture coaching points. Warnings = injury flags and cautions.
 
 Return a JSON block inside \`\`\`json ... \`\`\` with EXACTLY this structure:
 {
@@ -3244,8 +3254,8 @@ Return a JSON block inside \`\`\`json ... \`\`\` with EXACTLY this structure:
         { "type": "main", "title": "Main Set", "items": [...] },
         { "type": "cooldown", "title": "Cool-Down", "items": [...] }
       ],
-      "notes": ["💡 Key coaching insight"],
-      "warnings": ["⚠ Injury flag or caution"]
+      "notes": ["Key coaching insight"],
+      "warnings": ["Injury flag or caution"]
     }
   ]
 }
@@ -3914,7 +3924,7 @@ function renderReviewStep() {
   ).join('');
 
   document.getElementById('rv-feel-btns').innerHTML = [1,2,3,4,5].map(f =>
-    `<button class="feel-btn" onclick="setReviewFeel(${f})" style="flex:1;min-width:0;">${FEEL_EMOJI[f]}</button>`
+    `<button class="feel-btn" onclick="setReviewFeel(${f})" style="flex:1;min-width:0;">${FEEL_LABEL[f]}</button>`
   ).join('');
   document.getElementById('rv-notes').value = '';
   document.getElementById('rv-save-btn').textContent = reviewIdx < reviewQueue.length - 1 ? 'Next →' : 'Done ✓';
@@ -4051,7 +4061,7 @@ function renderRecoveryCard() {
     el.innerHTML  = `
       <div class="card" onclick="rcOpenEdit()" style="cursor:pointer;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-size:18px;line-height:1;">🌙</div>
+          <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div style="flex:1;">
             <div style="font-size:12px;font-weight:700;">
               ${entry.sleepHours}h
@@ -4070,14 +4080,14 @@ function renderRecoveryCard() {
     el.innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-          <div style="font-size:18px;line-height:1;">🌙</div>
+          <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:700;">Morning Check-in</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Synced from Shortcut · one tap left</div>
           </div>
         </div>
         <div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:14px;">
-          <span>🛌 ${entry.sleepHours}h</span>
+          <span>Sleep ${entry.sleepHours}h</span>
           ${entry.hrv       ? `<span>HRV ${entry.hrv}</span>`      : ''}
           ${entry.restingHR ? `<span>RHR ${entry.restingHR}</span>` : ''}
         </div>
@@ -4104,7 +4114,7 @@ function renderRecoveryCard() {
     el.innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-          <div style="font-size:18px;line-height:1;">🌙</div>
+          <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div>
             <div style="font-size:13px;font-weight:700;">Morning Check-in</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">How did you sleep?</div>
@@ -4442,7 +4452,6 @@ function renderCoachSetupStep() {
       const sel = coachSetupAnswers[step.id] === o.val;
       return `<div class="card" onclick="coachSetupChoice('${o.val}')" style="cursor:pointer;margin-bottom:8px;${sel?'border-color:var(--accent);background:var(--accent-dim);':''}">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="font-size:22px;line-height:1;">${o.icon}</div>
           <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${o.label}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${o.desc}</div></div>
           <div style="font-size:16px;color:${sel?'var(--accent)':'var(--text3)'};">${sel?'✓':'›'}</div>
@@ -4500,7 +4509,7 @@ function renderCoachHeader() {
   const styleLabel = {direct:'Direct',motivational:'Motivational',technical:'Technical',balanced:'Balanced'}[coachProfile.style]||'';
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎯</div>
+      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
       <div>
         <div style="font-size:16px;font-weight:700;">${coachProfile.name}</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${goalLabel} · ${styleLabel}</div>
