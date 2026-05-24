@@ -4,7 +4,7 @@ const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Sync-Token',
 };
 
 export default {
@@ -89,6 +89,58 @@ export default {
         return new Response(JSON.stringify({ error: 'refresh_failed' }),
           { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
+    }
+
+    // Store a health check-in (called by iOS Shortcut)
+    if (path === '/health' && request.method === 'POST') {
+      const token = request.headers.get('X-Sync-Token') || '';
+      if (!token) {
+        return new Response(JSON.stringify({ ok: false, reason: 'missing_token' }),
+          { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      let body;
+      try { body = await request.json(); } catch(e) {
+        return new Response(JSON.stringify({ ok: false, reason: 'invalid_json' }),
+          { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { date, sleepHours, hrv, restingHR, vo2max, steps, bodyBattery, garminSyncTime } = body;
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return new Response(JSON.stringify({ ok: false, reason: 'invalid_date' }),
+          { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const payload = JSON.stringify({ date, sleepHours, hrv, restingHR, vo2max, steps, bodyBattery, garminSyncTime });
+      const ttl = 7776000; // 90 days in seconds
+      await env.HEALTH_DATA.put(`health:${token}:${date}`, payload, { expirationTtl: ttl });
+      await env.HEALTH_DATA.put(`health:${token}:latest`, date, { expirationTtl: ttl });
+      return new Response(JSON.stringify({ ok: true }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+
+    // Retrieve a health check-in
+    if (path === '/health' && request.method === 'GET') {
+      const token = request.headers.get('X-Sync-Token') || '';
+      if (!token) {
+        return new Response(JSON.stringify({ ok: false, reason: 'missing_token' }),
+          { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const wantLatest = url.searchParams.get('latest') === 'true';
+      let date = url.searchParams.get('date');
+      if (wantLatest || !date) {
+        // Look up the most recently stored date for this token
+        const latestDate = await env.HEALTH_DATA.get(`health:${token}:latest`);
+        if (!latestDate) {
+          return new Response(JSON.stringify({ ok: false, reason: 'not_found' }),
+            { headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
+        date = latestDate;
+      }
+      const raw = await env.HEALTH_DATA.get(`health:${token}:${date}`);
+      if (!raw) {
+        return new Response(JSON.stringify({ ok: false, reason: 'not_found' }),
+          { headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      return new Response(raw,
+        { headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
 
     return new Response('Not found', { status: 404 });

@@ -664,38 +664,63 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </div>
     </div>
     <div class="sec-lbl" style="margin-top:4px;">Garmin Sleep &amp; Wellness Sync</div>
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+    <div class="card" id="garmin-sync-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         <div style="width:38px;height:38px;border-radius:10px;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/><polyline points="12 8 12 12 14 14"/></svg>
         </div>
         <div style="flex:1;">
-          <div style="font-size:13px;font-weight:800;">iOS Shortcut → Google Drive → App</div>
+          <div style="font-size:13px;font-weight:800;">iOS Shortcut → Worker → App</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-fills HRV · RHR · Sleep · VO₂max · Steps each morning</div>
         </div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;margin-bottom:10px;">
-        Garmin pushes sleep stages, HRV, resting HR, VO₂max, and step count to Apple Health overnight.
-        An iOS Shortcut reads that data and writes it to Google Drive as <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">health-checkin.json</code>.
-        The app picks it up automatically when you return to it.
+
+      <!-- Sync token display -->
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;border:.5px solid rgba(167,139,250,.2);">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Your Sync Token</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="garmin-token-display" style="font-family:var(--mono);font-size:11px;color:var(--blue);flex:1;word-break:break-all;line-height:1.4;"></div>
+          <button class="btn" style="flex-shrink:0;font-size:10px;padding:5px 10px;color:var(--blue);border-color:rgba(167,139,250,.3);" onclick="navigator.clipboard.writeText(syncToken).then(()=>toast('Token copied ✓'))">Copy</button>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:5px;">Share with Shortcut to authenticate syncs</div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.9;">
+
+      <!-- Connection status -->
+      <div id="garmin-status" style="font-family:var(--mono);font-size:9px;border-radius:6px;padding:7px 10px;margin-bottom:12px;"></div>
+
+      <!-- What syncs info -->
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:12px;line-height:1.9;">
         <span style="color:var(--text2);font-weight:700;">What syncs automatically</span><br>
         Sleep hours · HRV · Resting HR · VO₂max · Steps (yesterday)<br>
         <span style="color:var(--text2);font-weight:700;">What you enter manually</span><br>
         Sleep score (0–100) · Body Battery (Garmin proprietary, not in HealthKit)
       </div>
+
+      <!-- Shortcut link or placeholder -->
+      <div style="margin-bottom:12px;" id="garmin-shortcut-link-wrap"></div>
+
+      <!-- Test sync button -->
+      <button class="btn" style="width:100%;color:var(--blue);border-color:rgba(167,139,250,.25);margin-bottom:12px;"
+        onclick="(async()=>{
+          const btn=this; btn.textContent='Testing…'; btn.disabled=true;
+          const d=await workerGetHealthFile();
+          btn.textContent='Test sync'; btn.disabled=false;
+          if(d) toast('Data found: sleep '+d.sleepHours+'h, HRV '+(d.hrv||'—'));
+          else toast('No data found — run the Shortcut first');
+        })()">Test sync</button>
+
+      <!-- Collapsed setup instructions -->
       <details style="margin-bottom:10px;">
         <summary style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);cursor:pointer;padding:2px 0;list-style:none;-webkit-details-marker:display:none;">
-          ▸ Setup instructions (one-time, ~15 min)
+          ▸ Shortcut setup instructions (one-time, ~15 min)
         </summary>
         <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2;">
           <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Prerequisites</div>
-          — Google Drive connected in this app (section below)<br>
-          — Google Drive app installed on your iPhone<br>
           — Garmin Connect app installed + watch synced<br>
-          <div style="color:var(--text2);font-weight:700;margin:8px 0 4px;">Step 1 — Build the "Health Sync" Shortcut</div>
-          Open <b>Shortcuts app → "+" → name it "Health Sync"</b>, then add these actions in order:<br><br>
+          — Your sync token copied from above<br>
+          — No Google Drive needed — data goes direct to the Worker<br>
+          <div style="color:var(--text2);font-weight:700;margin:8px 0 4px;">Build the "Health Sync" Shortcut</div>
+          Open <b>Shortcuts app → "+" → name it "Health Sync"</b>, then add these actions:<br><br>
           <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;">
             1. <b>Get Health Samples</b> · Sleep Analysis · Past 14h · Value: In Bed · Sort: Most Recent · Limit: 1<br>
             2. <b>Get Details of Health Sample</b> → Start Date → save as <i>BedStart</i><br>
@@ -709,35 +734,33 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
             10. <b>Get Health Samples</b> · VO2Max · Past 30 days · Most Recent · Limit: 1 → Get Value → save as <i>VO2</i><br>
             11. <b>Get Health Samples</b> · Step Count · Start: Yesterday 00:00 · End: Yesterday 23:59 · Statistics: Sum → save as <i>Steps</i><br>
             12. <b>Format Date</b> (Current Date) as <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code> → save as <i>Today</i><br>
-            13. <b>Format Date</b> (Current Date) as ISO 8601 → save as <i>SyncTime</i><br>
-            14. <b>Dictionary</b>: date=Today · sleepHours=SleepHrs · hrv=HRV · restingHR=RHR · vo2max=VO2 · steps=Steps · garminSyncTime=SyncTime<br>
-            15. <b>Get Text from Dictionary</b> (converts to JSON)<br>
-            16. <b>Make File from Text</b> → filename: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">health-checkin.json</code><br>
-            17. <b>Save File to Google Drive</b> · Folder: My Drive · Overwrite: ON
           </div>
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 2 — Set up two automations</div>
-          These fire at different times so at least one always catches Garmin's data window:<br><br>
-          <b>Automation A — "Sleep Focus Ends"</b> (Garmin usually synced overnight)<br>
-          Automation → + → Sleep → Ends → Run immediately → choose "Health Sync"<br><br>
-          <b>Automation B — "When Garmin Connect Opens"</b> (for manual morning syncs)<br>
+          <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;margin-top:6px;">
+            <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">POST to Worker (no Drive needed)</div>
+            <b>Dictionary</b>: date=Today · sleepHours=SleepHrs · hrv=HRV · restingHR=RHR · vo2max=VO2 · steps=Steps · garminSyncTime=(Format Date as ISO 8601)<br>
+            <b>Get Text from Dictionary</b> (converts to JSON)<br>
+            <b>Get Contents of URL</b>:<br>
+            &nbsp;&nbsp;URL: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">https://training-app-strava.brucesarmento.workers.dev/health</code><br>
+            &nbsp;&nbsp;Method: POST<br>
+            &nbsp;&nbsp;Headers: X-Sync-Token = <i>your token from above</i><br>
+            &nbsp;&nbsp;Request Body: JSON (paste Dictionary text)
+          </div>
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Set up two automations</div>
+          <b>Automation A — "Sleep Focus Ends"</b><br>
+          Automation → + → Sleep → Ends → Run immediately → Health Sync<br><br>
+          <b>Automation B — "When Garmin Connect Opens"</b><br>
           Automation → + → App → Garmin Connect → Is Opened → Run immediately<br>
-          Add one action before "Run Shortcut": <b>Wait · 90 seconds</b> (lets HealthKit update first)<br>
-          Then: Run Shortcut → Health Sync<br><br>
-          Both automations are safe to fire on the same morning — the Shortcut overwrites the file and the app ignores it if you've already manually entered data today.
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 3 — Test it</div>
-          Tap "Run" on the Shortcut. Then come back to this app and tap "↓ Sync from Drive" on the morning check-in card.
+          Add: <b>Wait · 90 seconds</b> before Run Shortcut → Health Sync<br><br>
+          Both automations are safe to fire on the same morning — the app ignores duplicate data if you've already entered today's check-in manually.
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Test it</div>
+          Tap "Run" on the Shortcut. Then use the "Test sync" button above.
           <div style="margin-top:8px;color:var(--text3);">
             Note: VO₂max is slow-changing — Garmin only updates it after tracked runs.<br>
             Steps reflects yesterday's total (today's may be incomplete when Shortcut runs).
           </div>
         </div>
       </details>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:8px;line-height:1.9;margin-bottom:8px;">
-        <span style="color:var(--text2);">JSON format the Shortcut writes:</span><br>
-        { "date":"YYYY-MM-DD", "sleepHours":7.5, "hrv":52,<br>
-        &nbsp;&nbsp;"restingHR":48, "vo2max":51.5, "steps":8420,<br>
-        &nbsp;&nbsp;"bodyBattery":72, "garminSyncTime":"ISO" }
-      </div>
+
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">
         Workout data (activities): Garmin → Strava → App via Cloud Sync below
       </div>
@@ -3433,6 +3456,19 @@ let stravaWorker  = '';
 let stravaState   = 'idle'; // 'idle' | 'syncing' | 'error'
 let pendingReview = []; // gids of Strava imports awaiting feel rating
 
+// ── Sync token (for Worker KV health endpoint) ────────────────────────────
+// Paste the iCloud Shortcut link below once you have it:
+const HEALTH_SHORTCUT_LINK = '';
+
+let syncToken = localStorage.getItem('ht-sync-token') || '';
+if (!syncToken) {
+  syncToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+  try { localStorage.setItem('ht-sync-token', syncToken); } catch(e) {}
+}
+
 function initDrive() {
   driveClientId = localStorage.getItem('ht-drive-cid') || '479339090650-il0un5msincdmjcfp4dmeu45jg6p5p0j.apps.googleusercontent.com';
   // Handle redirect-back from Google OAuth (token in URL hash)
@@ -3555,6 +3591,19 @@ async function driveGetHealthFile() {
     if (!r.ok) return null;
     return await r.json();
   } catch(e) { return null; } // silent — scope may not be granted until re-auth
+}
+
+async function workerGetHealthFile(date) {
+  try {
+    const d = date || todayISO();
+    const resp = await fetch(
+      `${stravaWorker}/health?date=${d}`,
+      { headers: { 'X-Sync-Token': syncToken } }
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.ok === false ? null : data;
+  } catch(e) { return null; }
 }
 
 function parseHealthFile(data) {
@@ -4118,20 +4167,26 @@ function saveRecovery() {
 }
 
 // Auto-pickup: silently check for new Garmin health data whenever app comes to foreground.
-// Throttled to once per 30 min so it doesn't hammer Drive on every tab switch.
+// Throttled to once per 30 min so it doesn't hammer endpoints on every tab switch.
 let _lastHealthCheck = 0;
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
-  if (!driveToken) return;
+  if (!stravaWorker && !driveToken) return;
   const now = Date.now();
   if (now - _lastHealthCheck < 30 * 60 * 1000) return;
   _lastHealthCheck = now;
-  driveGetHealthFile().then(data => {
-    if (data && parseHealthFile(data)) {
-      renderRecoveryCard();
-      toast('Garmin data updated ✓');
-    }
-  });
+  // Try Worker KV first, fall back to Google Drive
+  let data = null;
+  if (stravaWorker && syncToken) {
+    data = await workerGetHealthFile();
+  }
+  if (!data && driveToken) {
+    data = await driveGetHealthFile();
+  }
+  if (data && parseHealthFile(data)) {
+    renderRecoveryCard();
+    toast('Garmin data updated ✓');
+  }
 });
 function getTodayEntry() {
   return recoveryLog.find(r => r.date === todayISO());
@@ -4267,7 +4322,7 @@ function renderRecoveryCard() {
           </div>
         </div>
         <button class="btn btn-accent" style="width:100%;" onclick="rcLog()">Log check-in</button>
-        ${driveToken ? `<button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);" id="rc-sync-btn" onclick="rcSyncDrive()">↓ Sync from Drive</button>` : ''}
+        ${(driveToken || (stravaWorker && syncToken)) ? `<button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);" id="rc-sync-btn" onclick="rcSyncDrive()">↓ Re-sync</button>` : ''}
         ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-top:8px;">Your avg sleep score: ${baseline}/100</div>` : ''}
       </div>`;
   }
@@ -4314,18 +4369,53 @@ function rcAddScore() {
 }
 
 async function rcSyncDrive() {
-  if (!driveToken) { toast('Connect Google Drive first'); return; }
+  if (!stravaWorker && !driveToken) { toast('Set up the Worker or connect Google Drive first'); return; }
   const btn = document.getElementById('rc-sync-btn');
   if (btn) { btn.textContent = 'Syncing…'; btn.disabled = true; }
-  const data = await driveGetHealthFile();
+  // Try Worker KV first, fall back to Google Drive
+  let data = null;
+  if (stravaWorker && syncToken) {
+    data = await workerGetHealthFile();
+  }
+  if (!data && driveToken) {
+    data = await driveGetHealthFile();
+  }
   if (!data) {
-    if (btn) { btn.textContent = '↓ Sync from Drive'; btn.disabled = false; }
-    toast('No health file found — run the Shortcut first');
+    if (btn) { btn.textContent = '↓ Re-sync'; btn.disabled = false; }
+    toast('No health data found — run the Shortcut first');
     return;
   }
   const updated = parseHealthFile(data);
   renderRecoveryCard();
   toast(updated ? 'Recovery data synced ✓' : 'Already up to date');
+}
+
+// ── Garmin sync card renderer ────────────────────────────────────────────
+function renderGarminSyncCard() {
+  const tokenEl = document.getElementById('garmin-token-display');
+  if (tokenEl) tokenEl.textContent = syncToken;
+
+  const statusEl = document.getElementById('garmin-status');
+  if (statusEl) {
+    if (stravaWorker && syncToken) {
+      statusEl.style.background = 'var(--green-dim)';
+      statusEl.style.color = 'var(--green)';
+      statusEl.textContent = 'Ready — Shortcut will sync to worker';
+    } else {
+      statusEl.style.background = 'var(--bg3)';
+      statusEl.style.color = 'var(--text3)';
+      statusEl.textContent = 'Set up the Worker URL below, then copy your token into the Shortcut';
+    }
+  }
+
+  const linkWrap = document.getElementById('garmin-shortcut-link-wrap');
+  if (linkWrap) {
+    if (HEALTH_SHORTCUT_LINK) {
+      linkWrap.innerHTML = `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:9px;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);text-decoration:none;">Get iCloud Shortcut</a>`;
+    } else {
+      linkWrap.innerHTML = `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:7px 10px;">iCloud Shortcut link coming soon — use the manual steps below for now</div>`;
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4827,6 +4917,7 @@ try { load(); }      catch(e) { console.error('load() failed:', e); try { render
 try { initTheme(); } catch(e) {}
 try { initDrive(); } catch(e) {}
 try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
+try { renderGarminSyncCard(); } catch(e) {}
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
