@@ -663,9 +663,84 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <div style="font-size:18px;color:var(--text3);">›</div>
       </div>
     </div>
-    <div class="card" style="opacity:.45;margin-top:-2px;">
-      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">Garmin → Strava → App</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Enable Strava sync below · Garmin auto-pushes to Strava</div>
+    <div class="sec-lbl" style="margin-top:4px;">Garmin Sleep &amp; Wellness Sync</div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/><polyline points="12 8 12 12 14 14"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:800;">iOS Shortcut → Google Drive → App</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-fills HRV · RHR · Sleep · VO₂max · Steps each morning</div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;margin-bottom:10px;">
+        Garmin pushes sleep stages, HRV, resting HR, VO₂max, and step count to Apple Health overnight.
+        An iOS Shortcut reads that data and writes it to Google Drive as <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">health-checkin.json</code>.
+        The app picks it up automatically when you return to it.
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.9;">
+        <span style="color:var(--text2);font-weight:700;">What syncs automatically</span><br>
+        Sleep hours · HRV · Resting HR · VO₂max · Steps (yesterday)<br>
+        <span style="color:var(--text2);font-weight:700;">What you enter manually</span><br>
+        Sleep score (0–100) · Body Battery (Garmin proprietary, not in HealthKit)
+      </div>
+      <details style="margin-bottom:10px;">
+        <summary style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);cursor:pointer;padding:2px 0;list-style:none;-webkit-details-marker:display:none;">
+          ▸ Setup instructions (one-time, ~15 min)
+        </summary>
+        <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2;">
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Prerequisites</div>
+          — Google Drive connected in this app (section below)<br>
+          — Google Drive app installed on your iPhone<br>
+          — Garmin Connect app installed + watch synced<br>
+          <div style="color:var(--text2);font-weight:700;margin:8px 0 4px;">Step 1 — Build the "Health Sync" Shortcut</div>
+          Open <b>Shortcuts app → "+" → name it "Health Sync"</b>, then add these actions in order:<br><br>
+          <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;">
+            1. <b>Get Health Samples</b> · Sleep Analysis · Past 14h · Value: In Bed · Sort: Most Recent · Limit: 1<br>
+            2. <b>Get Details of Health Sample</b> → Start Date → save as <i>BedStart</i><br>
+            3. <b>Get Details of Health Sample</b> → End Date → save as <i>BedEnd</i><br>
+            4. <b>Number</b> from BedEnd → save as <i>EndEpoch</i><br>
+            5. <b>Number</b> from BedStart → save as <i>StartEpoch</i><br>
+            6. <b>Calculate</b>: EndEpoch − StartEpoch ÷ 3600 → round to 1 decimal → save as <i>SleepHrs</i><br>
+            7. <b>If</b> SleepHrs &lt; 1 → <b>Stop Shortcut</b> (Garmin hasn't synced yet)<br>
+            8. <b>Get Health Samples</b> · Heart Rate Variability · Past 14h · Most Recent · Limit: 1 → Get Value → save as <i>HRV</i><br>
+            9. <b>Get Health Samples</b> · Resting Heart Rate · Past 48h · Most Recent · Limit: 1 → Get Value → save as <i>RHR</i><br>
+            10. <b>Get Health Samples</b> · VO2Max · Past 30 days · Most Recent · Limit: 1 → Get Value → save as <i>VO2</i><br>
+            11. <b>Get Health Samples</b> · Step Count · Start: Yesterday 00:00 · End: Yesterday 23:59 · Statistics: Sum → save as <i>Steps</i><br>
+            12. <b>Format Date</b> (Current Date) as <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code> → save as <i>Today</i><br>
+            13. <b>Format Date</b> (Current Date) as ISO 8601 → save as <i>SyncTime</i><br>
+            14. <b>Dictionary</b>: date=Today · sleepHours=SleepHrs · hrv=HRV · restingHR=RHR · vo2max=VO2 · steps=Steps · garminSyncTime=SyncTime<br>
+            15. <b>Get Text from Dictionary</b> (converts to JSON)<br>
+            16. <b>Make File from Text</b> → filename: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">health-checkin.json</code><br>
+            17. <b>Save File to Google Drive</b> · Folder: My Drive · Overwrite: ON
+          </div>
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 2 — Set up two automations</div>
+          These fire at different times so at least one always catches Garmin's data window:<br><br>
+          <b>Automation A — "Sleep Focus Ends"</b> (Garmin usually synced overnight)<br>
+          Automation → + → Sleep → Ends → Run immediately → choose "Health Sync"<br><br>
+          <b>Automation B — "When Garmin Connect Opens"</b> (for manual morning syncs)<br>
+          Automation → + → App → Garmin Connect → Is Opened → Run immediately<br>
+          Add one action before "Run Shortcut": <b>Wait · 90 seconds</b> (lets HealthKit update first)<br>
+          Then: Run Shortcut → Health Sync<br><br>
+          Both automations are safe to fire on the same morning — the Shortcut overwrites the file and the app ignores it if you've already manually entered data today.
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 3 — Test it</div>
+          Tap "Run" on the Shortcut. Then come back to this app and tap "↓ Sync from Drive" on the morning check-in card.
+          <div style="margin-top:8px;color:var(--text3);">
+            Note: VO₂max is slow-changing — Garmin only updates it after tracked runs.<br>
+            Steps reflects yesterday's total (today's may be incomplete when Shortcut runs).
+          </div>
+        </div>
+      </details>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:8px;line-height:1.9;margin-bottom:8px;">
+        <span style="color:var(--text2);">JSON format the Shortcut writes:</span><br>
+        { "date":"YYYY-MM-DD", "sleepHours":7.5, "hrv":52,<br>
+        &nbsp;&nbsp;"restingHR":48, "vo2max":51.5, "steps":8420,<br>
+        &nbsp;&nbsp;"bodyBattery":72, "garminSyncTime":"ISO" }
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">
+        Workout data (activities): Garmin → Strava → App via Cloud Sync below
+      </div>
     </div>
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
@@ -1946,7 +2021,7 @@ let bldActiveOpt = 0;
 let charts = {};
 let hyroxPlan = null;
 let recoveryLog = [];
-let rcDraft = { hours: 7.5, score: '', hrv: '', restingHR: '' };
+let rcDraft = { hours: 7.5, score: '', hrv: '', restingHR: '', bodyBattery: '' };
 let coachProfile = null;
 let coachSetupStep = 0;
 let coachSetupAnswers = {};
@@ -3477,12 +3552,16 @@ function parseHealthFile(data) {
   if (existing && existing.source !== 'drive') return false;
   const entry = {
     ...(existing || {}),
-    date:       data.date,
-    sleepHours: Math.round((parseFloat(data.sleepHours)||existing?.sleepHours||0) * 2) / 2,
-    hrv:        parseInt(data.hrv)       || existing?.hrv       || null,
-    restingHR:  parseInt(data.restingHR) || existing?.restingHR || null,
-    source:     'drive',
-    ts:         existing?.ts || Date.now(),
+    date:          data.date,
+    sleepHours:    Math.round((parseFloat(data.sleepHours)||existing?.sleepHours||0) * 2) / 2,
+    hrv:           parseInt(data.hrv)         || existing?.hrv         || null,
+    restingHR:     parseInt(data.restingHR)   || existing?.restingHR   || null,
+    bodyBattery:   parseInt(data.bodyBattery) || existing?.bodyBattery || null,
+    vo2max:        parseFloat(data.vo2max)    || existing?.vo2max      || null,
+    steps:         parseInt(data.steps)       || existing?.steps       || null,
+    garminSyncTime: data.garminSyncTime       || existing?.garminSyncTime || null,
+    source:        'drive',
+    ts:            existing?.ts || Date.now(),
   };
   recoveryLog = recoveryLog.filter(r => r.date !== data.date);
   recoveryLog.unshift(entry);
@@ -4025,6 +4104,23 @@ function todayISO() {
 function saveRecovery() {
   try { localStorage.setItem('ht-recovery', JSON.stringify(recoveryLog)); } catch(e) {}
 }
+
+// Auto-pickup: silently check for new Garmin health data whenever app comes to foreground.
+// Throttled to once per 30 min so it doesn't hammer Drive on every tab switch.
+let _lastHealthCheck = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!driveToken) return;
+  const now = Date.now();
+  if (now - _lastHealthCheck < 30 * 60 * 1000) return;
+  _lastHealthCheck = now;
+  driveGetHealthFile().then(data => {
+    if (data && parseHealthFile(data)) {
+      renderRecoveryCard();
+      toast('Garmin data updated ✓');
+    }
+  });
+});
 function getTodayEntry() {
   return recoveryLog.find(r => r.date === todayISO());
 }
@@ -4057,17 +4153,16 @@ function renderRecoveryCard() {
     const diff    = baseline ? entry.sleepScore - baseline : null;
     const diffTxt = diff != null ? ` (${diff>=0?'+':''}${diff})` : '';
     const sc      = scoreColor(entry.sleepScore, baseline);
-    const src     = entry.source === 'drive' ? ' · via Shortcut' : '';
+    const src     = entry.source === 'drive' ? ' · Garmin' : '';
+    const stepsK  = entry.steps ? ` · ${(entry.steps/1000).toFixed(1)}k steps` : '';
+    const bbStr   = entry.bodyBattery ? ` · BB ${entry.bodyBattery}` : '';
     el.innerHTML  = `
       <div class="card" onclick="rcOpenEdit()" style="cursor:pointer;">
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div style="flex:1;">
             <div style="font-size:12px;font-weight:700;">
-              ${entry.sleepHours}h
-              · <span style="color:${sc};">${entry.sleepScore}/100${diffTxt}</span>
-              ${entry.hrv ? `· HRV ${entry.hrv}` : ''}
-              ${entry.restingHR ? `· RHR ${entry.restingHR}` : ''}
+              ${entry.sleepHours}h · <span style="color:${sc};">${entry.sleepScore}/100${diffTxt}</span>${entry.hrv ? ` · HRV ${entry.hrv}` : ''}${entry.restingHR ? ` · RHR ${entry.restingHR}` : ''}${bbStr}${stepsK}
             </div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Morning check-in${src} · tap to edit</div>
           </div>
@@ -4086,10 +4181,14 @@ function renderRecoveryCard() {
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Synced from Shortcut · one tap left</div>
           </div>
         </div>
-        <div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:14px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:14px;">
           <span>Sleep ${entry.sleepHours}h</span>
-          ${entry.hrv       ? `<span>HRV ${entry.hrv}</span>`      : ''}
-          ${entry.restingHR ? `<span>RHR ${entry.restingHR}</span>` : ''}
+          ${entry.hrv         ? `<span>HRV ${entry.hrv}</span>`               : ''}
+          ${entry.restingHR   ? `<span>RHR ${entry.restingHR}</span>`         : ''}
+          ${entry.bodyBattery ? `<span>BB ${entry.bodyBattery}%</span>`       : ''}
+          ${entry.steps       ? `<span>${Math.round(entry.steps/1000*10)/10}k steps</span>` : ''}
+          ${entry.vo2max      ? `<span>VO₂max ${entry.vo2max}</span>`         : ''}
+          ${entry.garminSyncTime ? `<span style="color:var(--text3);">synced ${new Date(entry.garminSyncTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="flex:1;">
@@ -4138,7 +4237,7 @@ function renderRecoveryCard() {
             </div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">HRV</div>
             <input id="rc-hrv" type="number" min="0" max="200" placeholder="—" value="${rcDraft.hrv}"
@@ -4147,6 +4246,11 @@ function renderRecoveryCard() {
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Resting HR</div>
             <input id="rc-rhr" type="number" min="0" max="120" placeholder="—" value="${rcDraft.restingHR}"
+              style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Body Bat.</div>
+            <input id="rc-bb" type="number" min="0" max="100" placeholder="—" value="${rcDraft.bodyBattery}"
               style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
           </div>
         </div>
@@ -4166,7 +4270,7 @@ function rcAdjHours(delta) {
 function rcOpenEdit() {
   const entry = getTodayEntry();
   if (entry) {
-    rcDraft = { hours: entry.sleepHours||7.5, score: entry.sleepScore||'', hrv: entry.hrv||'', restingHR: entry.restingHR||'' };
+    rcDraft = { hours: entry.sleepHours||7.5, score: entry.sleepScore||'', hrv: entry.hrv||'', restingHR: entry.restingHR||'', bodyBattery: entry.bodyBattery||'' };
     recoveryLog = recoveryLog.filter(r => r.date !== todayISO());
     saveRecovery();
   }
@@ -4174,14 +4278,15 @@ function rcOpenEdit() {
 }
 
 function rcLog() {
-  const score    = parseInt(document.getElementById('rc-score')?.value)  || null;
-  const hrv      = parseInt(document.getElementById('rc-hrv')?.value)    || null;
-  const restingHR= parseInt(document.getElementById('rc-rhr')?.value)    || null;
+  const score      = parseInt(document.getElementById('rc-score')?.value)  || null;
+  const hrv        = parseInt(document.getElementById('rc-hrv')?.value)    || null;
+  const restingHR  = parseInt(document.getElementById('rc-rhr')?.value)    || null;
+  const bodyBattery= parseInt(document.getElementById('rc-bb')?.value)     || null;
   if (score && (score < 0 || score > 100)) { toast('Sleep score must be 0–100'); return; }
-  const entry = { date:todayISO(), sleepHours:rcDraft.hours, sleepScore:score, hrv, restingHR, source:'manual', ts:Date.now() };
+  const entry = { date:todayISO(), sleepHours:rcDraft.hours, sleepScore:score, hrv, restingHR, bodyBattery, source:'manual', ts:Date.now() };
   recoveryLog = recoveryLog.filter(r => r.date !== entry.date);
   recoveryLog.unshift(entry);
-  rcDraft = { hours:7.5, score:'', hrv:'', restingHR:'' };
+  rcDraft = { hours:7.5, score:'', hrv:'', restingHR:'', bodyBattery:'' };
   saveRecovery(); renderRecoveryCard();
   toast('Check-in saved ✓');
 }
