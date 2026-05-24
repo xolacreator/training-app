@@ -933,22 +933,25 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 </div>
 
 <!-- COACH CHAT -->
-<div class="overlay" id="coach-overlay">
-  <div class="oi">
-    <button class="back-btn" onclick="closeOv('coach-overlay')">
+<div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
+  <!-- Header -->
+  <div style="flex-shrink:0;padding:calc(var(--sat) + 14px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
+    <button class="back-btn" onclick="closeOv('coach-overlay')" style="position:static;margin-bottom:4px;">
       <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
     </button>
     <div id="coach-chat-header"></div>
-    <div id="coach-messages" style="padding-bottom:8px;"></div>
-    <div style="position:sticky;bottom:0;background:var(--bg);padding:12px 0 20px;border-top:.5px solid var(--border);">
-      <div style="display:flex;gap:8px;align-items:flex-end;">
-        <textarea id="coach-input" rows="2" placeholder="Ask your coach anything…"
-          style="flex:1;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
-        <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="padding:11px 15px;font-size:18px;line-height:1;">↑</button>
-      </div>
-      <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">⚙ Reconfigure coach</button>
+  </div>
+  <!-- Messages — this is the only scrolling region -->
+  <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
+  <!-- Input bar — always pinned to bottom, full width -->
+  <div style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <textarea id="coach-input" rows="2" placeholder="Ask your coach anything…"
+        style="flex:1;min-width:0;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
+      <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="flex-shrink:0;width:44px;height:44px;padding:0;font-size:20px;line-height:1;border-radius:var(--r);">↑</button>
     </div>
+    <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">⚙ Reconfigure coach</button>
   </div>
 </div>
 
@@ -4509,8 +4512,7 @@ function renderCoachMessages() {
       <div style="max-width:84%;padding:10px 13px;border-radius:${isUser?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isUser?'var(--accent)':'var(--bg2)'};color:${isUser?'#000':'var(--text)'};border:${isUser?'none':'.5px solid var(--border)'};font-size:13px;line-height:1.55;white-space:pre-wrap;">${m.text}</div>
     </div>`;
   }).join('') + (coachTyping ? `<div style="display:flex;margin-bottom:10px;"><div style="padding:10px 14px;border-radius:14px 14px 14px 4px;background:var(--bg2);border:.5px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text3);">···</div></div>` : '');
-  const overlay = document.getElementById('coach-overlay');
-  if (overlay) setTimeout(() => { overlay.scrollTop = overlay.scrollHeight; }, 40);
+  setTimeout(() => { el.scrollTop = el.scrollHeight; }, 40);
 }
 
 async function sendCoachMessage() {
