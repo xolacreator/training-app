@@ -4087,6 +4087,10 @@ function renderRecoveryCard() {
           </div>
           <button class="btn btn-accent" style="margin-top:20px;padding:10px 16px;" onclick="rcAddScore()">Save →</button>
         </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn" style="flex:1;font-family:var(--mono);font-size:10px;color:var(--blue);border-color:rgba(167,139,250,.25);" id="rc-sync-btn" onclick="rcSyncDrive()">↓ Re-sync</button>
+          <button class="btn" style="flex:1;font-family:var(--mono);font-size:10px;" onclick="rcOpenEdit()">Edit manually</button>
+        </div>
         ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:8px;">Your avg: ${baseline}/100</div>` : ''}
       </div>`;
 
@@ -4132,6 +4136,7 @@ function renderRecoveryCard() {
           </div>
         </div>
         <button class="btn btn-accent" style="width:100%;" onclick="rcLog()">Log check-in</button>
+        ${driveToken ? `<button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);" id="rc-sync-btn" onclick="rcSyncDrive()">↓ Sync from Drive</button>` : ''}
         ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-top:8px;">Your avg sleep score: ${baseline}/100</div>` : ''}
       </div>`;
   }
@@ -4174,6 +4179,21 @@ function rcAddScore() {
   entry.sleepScore = score;
   saveRecovery(); renderRecoveryCard();
   toast('Sleep score saved ✓');
+}
+
+async function rcSyncDrive() {
+  if (!driveToken) { toast('Connect Google Drive first'); return; }
+  const btn = document.getElementById('rc-sync-btn');
+  if (btn) { btn.textContent = 'Syncing…'; btn.disabled = true; }
+  const data = await driveGetHealthFile();
+  if (!data) {
+    if (btn) { btn.textContent = '↓ Sync from Drive'; btn.disabled = false; }
+    toast('No health file found — run the Shortcut first');
+    return;
+  }
+  const updated = parseHealthFile(data);
+  renderRecoveryCard();
+  toast(updated ? 'Recovery data synced ✓' : 'Already up to date');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
