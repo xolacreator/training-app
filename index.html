@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#1E0A4A">
 <link rel="apple-touch-icon" href="R%20Star%20App%20Icon.png">
 <title>Rev3</title>
-<link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Coda:wght@400;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   /* Dark (default) — deep purple · gold accent */
@@ -22,7 +22,7 @@
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
   --purple:#A78BFA; --purple-dim:rgba(167,139,250,0.11);
   --shadow:rgba(0,0,0,0.6);
-  --font:'Saira Semi Condensed',system-ui,-apple-system,sans-serif;
+  --font:'Coda',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
   /* Safe areas — critical for Face ID */
@@ -119,8 +119,8 @@ body{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding-top:10px;padding-bottom:4px;
   gap:3px;border:none;background:none;cursor:pointer;
-  font-family:var(--mono);font-size:8px;font-weight:500;
-  letter-spacing:0.06em;text-transform:uppercase;
+  font-family:var(--mono);font-size:7.5px;font-weight:500;
+  letter-spacing:0.08em;text-transform:uppercase;
   color:var(--text3);transition:color .15s;
 }
 .nb svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
@@ -169,24 +169,24 @@ body{
 .overlay-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:20px;}
 
 /* ── CARDS ── */
-.card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r-lg);
-  padding:12px 14px;margin-bottom:8px;}
-.card-flush{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r-lg);
-  overflow:hidden;margin-bottom:8px;}
+.card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r-lg);
+  padding:11px 13px;margin-bottom:7px;}
+.card-flush{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r-lg);
+  overflow:hidden;margin-bottom:7px;}
 
 /* ── METRICS ── */
-.mg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
-.metric{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r);padding:11px 12px;}
-.metric.am{background:var(--accent-dim);border-color:rgba(255,107,53,.2);}
-.metric.gr{background:var(--green-dim);border-color:rgba(62,207,142,.2);}
-.metric.bl{background:var(--blue-dim);border-color:rgba(77,158,255,.2);}
-.mlbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:5px;}
-.mval{font-size:28px;font-weight:700;line-height:1;color:var(--text);letter-spacing:-.5px;}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
+.metric{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r);padding:10px 11px;}
+.metric.am{background:var(--accent-dim);border-color:rgba(212,175,55,.25);}
+.metric.gr{background:var(--green-dim);border-color:rgba(52,211,153,.2);}
+.metric.bl{background:var(--blue-dim);border-color:rgba(167,139,250,.2);}
+.mlbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;}
+.mval{font-size:26px;font-weight:800;line-height:1;color:var(--text);letter-spacing:-.02em;}
 .mval.am{color:var(--accent);}
 .mval.gr{color:var(--green);}
 .mval.bl{color:var(--blue);}
-.munit{font-size:12px;font-weight:500;color:var(--text2);}
-.msub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:3px;}
+.munit{font-size:11px;font-weight:500;color:var(--text2);}
+.msub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;}
 
 /* ── PHASE BAR ── */
 .pbar-wrap{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;}
@@ -453,15 +453,15 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 
 /* ── TYPOGRAPHY REFINEMENTS ── */
 body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-.screen-title{font-size:32px;font-weight:800;letter-spacing:0.01em;line-height:1.05;}
-.overlay-title{font-size:28px;font-weight:800;letter-spacing:0.01em;}
-.eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:4px;}
-.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
-.mval{font-size:30px;font-weight:800;line-height:1;letter-spacing:0.01em;}
+.screen-title{font-size:28px;font-weight:800;letter-spacing:-0.01em;line-height:1.05;}
+.overlay-title{font-size:24px;font-weight:800;letter-spacing:-0.01em;}
+.eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:3px;}
+.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.mval{font-size:26px;font-weight:800;line-height:1;letter-spacing:-0.02em;}
 .badge{font-family:var(--mono);font-size:9px;letter-spacing:0.04em;}
-.srow-name{font-size:14px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:2px;}
-.bk-name{font-size:14px;font-weight:700;color:var(--text);flex:1;line-height:1.3;}
-.lrow-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.3;}
+.srow-name{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:2px;}
+.bk-name{font-size:13px;font-weight:800;color:var(--text);flex:1;line-height:1.3;}
+.lrow-title{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;}
 
 /* ── LOGO ── */
 .logo-row{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
