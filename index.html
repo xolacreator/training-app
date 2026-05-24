@@ -816,6 +816,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);
         padding:12px;font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;" id="lo-notes"></div>
     </div>
+    <div id="lo-splits"></div>
     <div class="sec-lbl">Session breakdown</div>
     <div id="lo-breakdown"></div>
     <div style="margin-top:16px;">
@@ -2722,6 +2723,16 @@ function openLogOverlay(idx){
   if(s.notes){nw.style.display='block';document.getElementById('lo-notes').textContent=s.notes;}
   else{nw.style.display='none';}
 
+  const splitsHtml = renderStravaSplits(s);
+  const splitsEl = document.getElementById('lo-splits');
+  if (splitsHtml) {
+    splitsEl.innerHTML = splitsHtml;
+  } else if (s.gid?.startsWith('strava-') && s.pace) {
+    splitsEl.innerHTML = `<button class="btn" id="lo-fetch-splits-btn" style="width:100%;margin-bottom:10px;color:var(--blue);border-color:rgba(167,139,250,.25);" onclick="loFetchSplits(${idx})">↓ Fetch Strava splits</button>`;
+  } else {
+    splitsEl.innerHTML = '';
+  }
+
   document.getElementById('lo-breakdown').innerHTML=getBreakdown(s.week,s.day,s.session);
   document.getElementById('lo-del-btn').onclick=()=>{
     sessions.splice(detailIdx,1);saveData();renderAll();closeOv('log-overlay');toast('Session removed');
@@ -3936,12 +3947,12 @@ async function syncFromStrava(silent = false) {
       }
       try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
       saveData(); renderAll();
-      // Background: fetch km splits for qualifying sessions to power HYROX calculator
-      const qualGids = newGids.filter(gid => {
+      // Background: fetch per-km splits + laps for all run/ride sessions
+      const detailGids = newGids.filter(gid => {
         const s = sessions.find(s => s.gid === gid);
-        return s && isQualityRun(s.session, s.notes, s.intensity);
+        return s && (s.pace || s.dist); // any session with a pace or distance is worth fetching
       });
-      if (qualGids.length) fetchStravaDetail(qualGids, tok).then(changed => { if (changed) saveData(); });
+      if (detailGids.length) fetchStravaDetail(detailGids, tok).then(changed => { if (changed) saveData(); });
     }
     stravaState = 'idle';
     try { localStorage.setItem('ht-strava-sync', new Date().toISOString()); } catch(e) {}
@@ -4339,6 +4350,90 @@ function isQualityRun(sessionName, notes, intensity) {
   return /tempo|track|interval|compromi|fartlek|threshold|race.sim|rep|workout/.test(nm);
 }
 
+function fmtSecs(s) {
+  s = Math.round(s || 0);
+  const m = Math.floor(s / 60), ss = s % 60;
+  return `${m}:${String(ss).padStart(2,'0')}`;
+}
+
+function renderStravaSplits(s) {
+  const laps   = s.strava_laps;
+  const splits = s.strava_splits;
+  if (!laps && !splits) return '';
+
+  const paceStr = mps => mpsToMinKm(mps) || '—';
+  let html = '';
+
+  // Laps (interval reps / manual lap button)
+  if (laps && laps.length > 1) {
+    const hasHR  = laps.some(l => l.average_heartrate);
+    const hasCad = laps.some(l => l.average_cadence);
+    html += `<div class="sec-lbl" style="margin-top:14px;">Laps · ${laps.length} recorded</div>
+    <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
+      <table class="split-tbl"><thead><tr>
+        <th style="text-align:left;">#</th>
+        <th style="text-align:right;">Dist</th>
+        <th style="text-align:right;">Time</th>
+        <th style="text-align:right;">Pace</th>
+        ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
+        ${hasCad ? '<th style="text-align:right;">Cad</th>' : ''}
+      </tr></thead><tbody>`;
+    laps.forEach((lap, i) => {
+      const d   = lap.distance >= 1000 ? `${(lap.distance/1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`;
+      const t   = fmtSecs(lap.moving_time || lap.elapsed_time);
+      const p   = paceStr(lap.average_speed);
+      html += `<tr>
+        <td>${i+1}</td>
+        <td style="text-align:right;font-family:var(--mono);">${d}</td>
+        <td style="text-align:right;font-family:var(--mono);">${t}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${p}</td>
+        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
+        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${lap.average_cadence  ? Math.round(lap.average_cadence)  : '—'}</td>` : ''}
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Per-km splits
+  if (splits && splits.length > 0) {
+    const hasHR  = splits.some(sp => sp.average_heartrate);
+    const hasCad = splits.some(sp => sp.average_cadence);
+    html += `<div class="sec-lbl"${laps && laps.length > 1 ? '' : ' style="margin-top:14px;"'}>Per-km splits · ${splits.length} km</div>
+    <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
+      <table class="split-tbl"><thead><tr>
+        <th style="text-align:left;">km</th>
+        <th style="text-align:right;">Pace</th>
+        <th style="text-align:right;">Time</th>
+        ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
+        ${hasCad ? '<th style="text-align:right;">Cad</th>' : ''}
+      </tr></thead><tbody>`;
+    splits.forEach((sp, i) => {
+      html += `<tr>
+        <td>${i+1}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${paceStr(sp.average_speed)}</td>
+        <td style="text-align:right;font-family:var(--mono);">${fmtSecs(sp.moving_time || sp.elapsed_time)}</td>
+        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
+        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${sp.average_cadence  ? Math.round(sp.average_cadence)  : '—'}</td>` : ''}
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html;
+}
+
+async function loFetchSplits(idx) {
+  const s = sessions[idx];
+  if (!s?.gid?.startsWith('strava-')) return;
+  const btn = document.getElementById('lo-fetch-splits-btn');
+  if (btn) { btn.textContent = 'Fetching…'; btn.disabled = true; }
+  const tok = await stravaGetToken();
+  if (!tok) { if (btn) { btn.textContent = '↓ Fetch Strava splits'; btn.disabled = false; } toast('Reconnect Strava first'); return; }
+  const changed = await fetchStravaDetail([s.gid], tok);
+  if (changed) { saveData(); document.getElementById('lo-splits').innerHTML = renderStravaSplits(sessions[idx]); toast('Splits loaded ✓'); }
+  else { if (btn) { btn.textContent = '↓ Fetch Strava splits'; btn.disabled = false; } toast('No split data for this session'); }
+}
+
 function extractBestPace(splits) {
   if (!splits || splits.length < 3) return null;
   const full = splits.filter(s => s.distance >= 800 && s.average_speed > 0);
@@ -4354,19 +4449,37 @@ function extractBestPace(splits) {
 
 async function fetchStravaDetail(gids, tok) {
   let changed = false;
-  await Promise.all(gids.slice(0,10).map(async gid => {
-    try {
-      const resp = await fetch(`https://www.strava.com/api/v3/activities/${gid.replace('strava-','')}`,
-        { headers: { Authorization: `Bearer ${tok}` } });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const bp = extractBestPace(data.splits_metric);
-      if (bp) {
+  // Process in batches of 10 (2 API calls per activity: detail + laps)
+  for (let i = 0; i < gids.length; i += 10) {
+    await Promise.all(gids.slice(i, i + 10).map(async gid => {
+      try {
+        const actId = gid.replace('strava-', '');
+        const [detailResp, lapsResp] = await Promise.all([
+          fetch(`https://www.strava.com/api/v3/activities/${actId}`,        { headers: { Authorization: `Bearer ${tok}` } }),
+          fetch(`https://www.strava.com/api/v3/activities/${actId}/laps`,   { headers: { Authorization: `Bearer ${tok}` } }),
+        ]);
         const sess = sessions.find(s => s.gid === gid);
-        if (sess) { sess.best_pace = bp; changed = true; }
-      }
-    } catch(e) {}
-  }));
+        if (!sess) return;
+
+        if (detailResp.ok) {
+          const data = await detailResp.json();
+          const bp = extractBestPace(data.splits_metric);
+          if (bp) { sess.best_pace = bp; changed = true; }
+          if (Array.isArray(data.splits_metric) && data.splits_metric.length > 0) {
+            sess.strava_splits = data.splits_metric;
+            changed = true;
+          }
+        }
+        if (lapsResp.ok) {
+          const laps = await lapsResp.json();
+          if (Array.isArray(laps) && laps.length > 1) {
+            sess.strava_laps = laps;
+            changed = true;
+          }
+        }
+      } catch(e) {}
+    }));
+  }
   return changed;
 }
 
