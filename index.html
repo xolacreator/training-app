@@ -2351,18 +2351,20 @@ const COACH_SETUP_STEPS = [
     {val:'technical',    label:'Technical',             desc:'Data-driven and analytical'},
     {val:'balanced',     label:'Balanced',              desc:'Mix of all three'},
   ]},
-  {id:'goal',     q:"What's your HYROX target?",                  sub:"Sets the performance benchmark",                   type:'choice', options:[
-    {val:'sub60',  label:'Sub-60 min',         desc:'Elite level'},
-    {val:'sub75',  label:'Sub-75 min',         desc:'Competitive'},
-    {val:'sub90',  label:'Sub-90 min',         desc:'Strong amateur'},
+  {id:'goal',     q:"What's your primary race or fitness goal?",    sub:"Helps your coach calibrate everything",             type:'choice', options:[
+    {val:'sub60',  label:'Sub-60 min HYROX',   desc:'Elite level'},
+    {val:'sub75',  label:'Sub-75 min HYROX',   desc:'Competitive'},
+    {val:'sub90',  label:'Sub-90 min HYROX',   desc:'Strong amateur'},
     {val:'finish', label:'First HYROX finish', desc:'Strong and smart race'},
+    {val:'marathon',label:'Marathon / Half',   desc:'Road race performance'},
+    {val:'fitness', label:'General fitness',   desc:'Endurance + strength base'},
   ]},
-  {id:'raceDate', q:"When is your race?",                         sub:"Your coach will count down and plan around this",  type:'text',   placeholder:'e.g. 20 Jun 2026, or HYROX Sydney Nov 2026'},
-  {id:'focus',    q:"Where do you need the most coaching?",       sub:"Your coach will emphasise this area",              type:'choice', options:[
-    {val:'running',  label:'Running pace',   desc:'Speed and endurance development'},
-    {val:'stations', label:'Station work',   desc:'Technique and transition efficiency'},
-    {val:'strategy', label:'Race strategy',  desc:'Pacing and race execution'},
-    {val:'all',      label:'Full package',   desc:'All areas equally'},
+  {id:'raceDate', q:"When is your next race or key date?",          sub:"Your coach will count down and plan around this",  type:'text',   placeholder:'e.g. 20 Jun 2026, or HYROX Sydney Nov 2026'},
+  {id:'focus',    q:"Where do you need the most coaching?",         sub:"Your coach will emphasise this area",              type:'choice', options:[
+    {val:'running',  label:'Running pace',     desc:'Speed and endurance development'},
+    {val:'stations', label:'Station / strength',desc:'Technique and strength work'},
+    {val:'strategy', label:'Race strategy',    desc:'Pacing and race execution'},
+    {val:'all',      label:'Full package',     desc:'All areas equally'},
   ]},
   {id:'detail',   q:"How do you prefer your feedback?",           sub:"Sets response length and depth",                   type:'choice', options:[
     {val:'short',    label:'Short & sharp',   desc:'Bullet points, no fluff'},
@@ -3809,9 +3811,9 @@ async function runAI() {
 
 function buildAISystemPrompt() {
   const blCtx = getBaselineContext();
-  return `You are an expert HYROX and hybrid endurance-strength coach AI embedded in a personal training app.
+  return `You are an expert performance and endurance coach AI embedded in a personal training app (Rev3).
 
-The athlete is following a 12-week programme toward a HYROX race on June 20, 2026.
+The athlete is following a 12-week structured programme toward their goal race or fitness target.
 Phase 1 (W1-W6): Base building — Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
 Phase 2 (W7-W12): VO2max intervals, threshold work, race simulation, taper.
 ${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}
@@ -5369,10 +5371,10 @@ function openCoach() {
 
 function coachIntro() {
   const p = coachProfile;
-  const goalStr = {sub60:'a sub-60',sub75:'a sub-75',sub90:'a sub-90',finish:'your first'}[p.goal] || '';
-  const dateStr = p.raceDate ? ` on ${p.raceDate}` : '';
+  const goalStr = {sub60:'a sub-60 min HYROX',sub75:'a sub-75 min HYROX',sub90:'a sub-90 min HYROX',finish:'your first HYROX',marathon:'marathon performance',fitness:'your fitness goals'}[p.goal] || (p.goal ? p.goal : 'your goals');
+  const dateStr = p.raceDate ? ` — ${p.raceDate}` : '';
   const priorityLine = p.priority ? ` You've told me you're focused on: ${p.priority}.` : '';
-  return `Hey — I'm ${p.name}. We're building toward ${goalStr} HYROX finish${dateStr}.${priorityLine} What do you want to work on today?`;
+  return `Hey — I'm ${p.name}. We're working toward ${goalStr}${dateStr}.${priorityLine} What do you want to work on today?`;
 }
 
 function openCoachSetup() {
@@ -5518,14 +5520,18 @@ async function sendCoachMessage() {
 
 function buildCoachSystemPrompt() {
   const p = coachProfile;
-  const goalMap = {sub60:'finish sub 60 minutes (elite)',sub75:'finish sub 75 minutes (competitive)',sub90:'finish sub 90 minutes (strong amateur)',finish:'complete their first HYROX strongly'};
+  const goalMap = {
+    sub60:'finish HYROX sub 60 minutes (elite)',sub75:'finish HYROX sub 75 minutes (competitive)',
+    sub90:'finish HYROX sub 90 minutes (strong amateur)',finish:'complete their first HYROX strongly',
+    marathon:'run a strong marathon or half marathon',fitness:'build general endurance and strength fitness',
+  };
   const styleMap = {
     direct:'Be direct and demanding. Give hard truths without softening them. Push relentlessly.',
     motivational:'Be energetic and belief-focused. Build confidence while holding them accountable.',
     technical:'Be analytical. Reference numbers, paces and data whenever possible.',
     balanced:'Balance challenge, motivation and technical depth in every response.',
   };
-  const focusMap = {running:'running pace and endurance',stations:'station technique and transition efficiency',strategy:'race strategy and pacing execution',all:'all aspects of HYROX performance'};
+  const focusMap = {running:'running pace and endurance',stations:'station technique and strength work',strategy:'race strategy and pacing execution',all:'all aspects of performance'};
   const detailMap = {short:'Keep every reply under 120 words. Use bullet points. No padding.',detailed:'Give thorough replies with reasoning. Up to 280 words.'};
 
   const recent = sessions.slice(0,5).map(s=>`  W${s.week} ${s.day}: ${s.session}${s.pace?' · '+s.pace+'/km':''}${s.dist?' · '+s.dist+'km':''}${s.feel?' · feel '+s.feel+'/5':''}`).join('\n');
@@ -5542,7 +5548,7 @@ function buildCoachSystemPrompt() {
   const priority  = p.priority ? `Athlete's stated priority: "${p.priority}"` : '';
 
   const blCtx = getBaselineContext();
-  return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal}. Their race is: ${raceDate}.
+  return `You are ${p.name}, a personal performance coach. The athlete's goal is to ${goalMap[p.goal]||p.goal}. Their next race or key date: ${raceDate}.
 
 ${styleMap[p.style]} Focus especially on ${focusMap[p.focus]}.
 ${detailMap[p.detail]}
@@ -5592,7 +5598,7 @@ const CHANGELOG = [
     v: '2026-05-25',
     label: '25 May 2026',
     items: [
-      { tag: 'New',      text: 'Onboarding wizard — 5-step setup: plan type, HYROX goal, Strava, Garmin and AI coach' },
+      { tag: 'New',      text: 'Onboarding wizard — 5-step setup: training goal, Strava, Garmin and AI coach' },
       { tag: 'New',      text: 'Week 1 assessment tests — 20-min run TT, strength baseline and 2km row establish your personal pace zones and loading targets' },
       { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach — replaces generic paces with your real numbers' },
       { tag: 'Improved', text: 'Plan start date is fully configurable — any Monday, any user' },
@@ -5684,17 +5690,17 @@ function renderOnboardStep() {
   if (_obStep === 0) {
     body = `
       <div style="text-align:center;padding:8px 0 28px;">
-        <div style="font-size:44px;margin-bottom:14px;letter-spacing:-.01em;font-weight:800;color:var(--accent);">HYB</div>
+        <div style="font-size:44px;margin-bottom:14px;letter-spacing:-.01em;font-weight:800;color:var(--accent);">Rev3</div>
         <div style="font-size:24px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;">Training App</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.9;max-width:270px;margin:0 auto;">
-          Built for hybrid athletes training toward HYROX and beyond
+          Train with purpose. Every session tracked, every goal within reach.
         </div>
       </div>
       <div style="display:grid;gap:10px;margin-bottom:32px;">
         ${[
-          ['Plan','12-week hybrid programme with structured sessions for every day'],
+          ['Plan','Structured training plans tailored to your race or fitness goal'],
           ['Log','Record runs, strength, erg and mixed sessions with splits and data'],
-          ['Recover','Garmin sleep, HRV and wellness data synced each morning automatically'],
+          ['Recover','Sleep and resting HR synced each morning — Recovery Score calculated automatically'],
           ['AI','Session builder and personal coach powered by Claude AI'],
         ].map(([k,v])=>`
           <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
@@ -5705,46 +5711,161 @@ function renderOnboardStep() {
       <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;" onclick="_obStep=1;renderOnboardStep()">Get started →</button>`;
 
   } else if (_obStep === 1) {
-    const pt = _obAnswers.planType || '';
-    const ps = _obAnswers.planStart || '';
-    const gl = _obAnswers.goal || '';
-    body = `
-      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your training plan</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;">Choose a plan structure, set your HYROX goal, and pick your Week 1 start date</div>
+    const gc = _obAnswers.goalCategory || '';
+    const rt = _obAnswers.raceType     || '';
+    const gl = _obAnswers.goal         || '';
+    const pt = _obAnswers.planType     || '';
+    const ps = _obAnswers.planStart    || '';
 
-      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Plan type</div>
-      ${[
-        ['hybrid','12-Week Hybrid Programme','Pre-built HYROX training: runs, strength, erg, race prep — ready to go'],
-        ['custom','Build your own','Start with a blank slate and add sessions using the AI builder'],
-      ].map(([v,label,desc])=>`
-        <div class="card" onclick="_obAnswers.planType='${v}';renderOnboardStep();"
-             style="cursor:pointer;margin-bottom:8px;${pt===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:700;">${label}</div>
-              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
-            </div>
-            <div style="font-size:16px;color:${pt===v?'var(--accent)':'var(--text3)'};">${pt===v?'✓':'›'}</div>
+    // Goal category cards
+    const goalCategoryCards = [
+      ['race',     '🏁', 'Race Performance',       'Train toward a specific race with a target finish time'],
+      ['fitness',  '⚡', 'General Fitness',         'Build endurance, strength and conditioning'],
+      ['strength', '🏋️', 'Strength & Conditioning', 'Powerlifting base with aerobic capacity to match'],
+      ['custom',   '🛠', 'Custom Plan',             'Start blank — design sessions with the AI builder'],
+    ].map(([v,icon,label,desc]) => `
+      <div class="card" onclick="_obAnswers.goalCategory='${v}';if('${v}'!=='race'){_obAnswers.raceType='';_obAnswers.goal='';_obAnswers.planType='';}renderOnboardStep();"
+           style="cursor:pointer;margin-bottom:8px;${gc===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:20px;">${icon}</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">${label}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
           </div>
-        </div>`).join('')}
+          <div style="font-size:16px;color:${gc===v?'var(--accent)':'var(--text3)'};">${gc===v?'✓':'›'}</div>
+        </div>
+      </div>`).join('');
 
-      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:20px 0 8px;">HYROX goal</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
-        ${[['sub60','Sub 60 min','Elite'],['sub75','Sub 75 min','Competitive'],['sub90','Sub 90 min','Strong amateur'],['finish','First finish','Complete it']].map(([v,label,desc])=>`
-          <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
-               style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
-            <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
-          </div>`).join('')}
-      </div>
+    // Race type sub-selection (shown when category = race)
+    let raceTypeCards = '';
+    if (gc === 'race') {
+      raceTypeCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Race type</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+          ${[
+            ['hyrox',    'HYROX',          '8km run + 8 workout stations'],
+            ['marathon', 'Marathon',        '42.2km road race'],
+            ['half',     'Half Marathon',   '21.1km road race'],
+            ['5k10k',    '5K / 10K',        'Speed and threshold focus'],
+            ['triathlon','Triathlon',        'Swim · bike · run'],
+            ['other',    'Other Event',     'Adventure, OCR, multisport…'],
+          ].map(([v,label,desc]) => `
+            <div onclick="_obAnswers.raceType='${v}';_obAnswers.goal='';renderOnboardStep();"
+                 style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${rt===v?'var(--accent)':'var(--border)'};cursor:pointer;${rt===v?'background:var(--accent-dim);':''}">
+              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+            </div>`).join('')}
+        </div>`;
+    }
 
-      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">
-        Week 1 start <span style="font-weight:400;">(pick a Monday)</span>
-      </div>
-      <input type="date" id="ob-ps" value="${ps}"
-        style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:6px;"
-        onchange="_obAnswers.planStart=this.value;document.getElementById('ob-date-hint').textContent=obDateHint(this.value);">
-      <div id="ob-date-hint" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;min-height:14px;">${ps?obDateHint(ps):''}</div>
+    // Goal / target sub-selection (depends on race type)
+    let goalCards = '';
+    if (rt === 'hyrox') {
+      goalCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Target time</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+          ${[['sub60','Sub 60 min','Elite'],['sub75','Sub 75 min','Competitive'],['sub90','Sub 90 min','Strong amateur'],['finish','First finish','Complete it']].map(([v,label,desc])=>`
+            <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
+                 style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
+              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+            </div>`).join('')}
+        </div>`;
+    } else if (rt === 'marathon') {
+      goalCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Marathon target</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+          ${[['marathon-sub3','Sub 3:00','Elite qualifier'],['marathon-sub3h30','Sub 3:30','Competitive amateur'],['marathon-sub4','Sub 4:00','Strong finisher'],['marathon-finish','First finish','Complete it']].map(([v,label,desc])=>`
+            <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
+                 style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
+              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+            </div>`).join('')}
+        </div>`;
+    } else if (rt === 'half') {
+      goalCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Half marathon target</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+          ${[['half-sub90','Sub 1:30','Fast amateur'],['half-sub105','Sub 1:45','Strong runner'],['half-sub120','Sub 2:00','Solid finisher'],['half-finish','First finish','Complete it']].map(([v,label,desc])=>`
+            <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
+                 style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
+              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+            </div>`).join('')}
+        </div>`;
+    } else if (rt === '5k10k') {
+      goalCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Distance &amp; target</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+          ${[['5k-sub20','5K sub 20:00','Elite local'],['5k-sub25','5K sub 25:00','Competitive'],['10k-sub45','10K sub 45:00','Strong runner'],['10k-sub55','10K sub 55:00','Solid finisher']].map(([v,label,desc])=>`
+            <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
+                 style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
+              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+            </div>`).join('')}
+        </div>`;
+    } else if (rt === 'triathlon') {
+      goalCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Triathlon distance</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+          ${[['tri-sprint','Sprint','750m / 20km / 5km'],['tri-olympic','Olympic','1.5km / 40km / 10km'],['tri-703','Half Iron 70.3','1.9km / 90km / 21km'],['tri-finish','First triathlon','Any distance']].map(([v,label,desc])=>`
+            <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
+                 style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
+              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+            </div>`).join('')}
+        </div>`;
+    } else if (rt === 'other') {
+      goalCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Describe your event</div>
+        <input type="text" placeholder="e.g. Spartan Beast, 10km row, Masters rowing…"
+          value="${gl.startsWith('other:')?gl.slice(6):''}"
+          style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:8px;"
+          oninput="_obAnswers.goal='other:'+this.value;">`;
+    }
+
+    // Plan structure (shown for HYROX only; all others default to custom)
+    let planTypeCards = '';
+    if (rt === 'hyrox') {
+      planTypeCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Plan structure</div>
+        ${[
+          ['hybrid','12-Week Guided Plan','Structured sessions every day — runs, strength, erg, race prep'],
+          ['custom','Build your own','Blank slate — design sessions using the AI builder'],
+        ].map(([v,label,desc])=>`
+          <div class="card" onclick="_obAnswers.planType='${v}';renderOnboardStep();"
+               style="cursor:pointer;margin-bottom:8px;${pt===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:700;">${label}</div>
+                <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
+              </div>
+              <div style="font-size:16px;color:${pt===v?'var(--accent)':'var(--text3)'};">${pt===v?'✓':'›'}</div>
+            </div>
+          </div>`).join('')}`;
+    }
+
+    // Only show start date once a goal category is chosen
+    const showDate = !!gc;
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your training goal</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">What are you training for?</div>
+
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Goal type</div>
+      ${goalCategoryCards}
+      ${raceTypeCards}
+      ${goalCards}
+      ${planTypeCards}
+
+      ${showDate ? `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:20px 0 8px;">
+          Week 1 start <span style="font-weight:400;">(pick a Monday)</span>
+        </div>
+        <input type="date" id="ob-ps" value="${ps}"
+          style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:6px;"
+          onchange="_obAnswers.planStart=this.value;document.getElementById('ob-date-hint').textContent=obDateHint(this.value);">
+        <div id="ob-date-hint" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;min-height:14px;">${ps?obDateHint(ps):''}</div>
+      ` : '<div style="height:20px;"></div>'}
 
       <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="obSavePlan()">Next →</button>
       <button class="btn" style="width:100%;" onclick="_obStep=0;renderOnboardStep()">← Back</button>`;
@@ -5857,15 +5978,31 @@ function obDateHint(iso) {
 }
 
 function obSavePlan() {
-  if (!_obAnswers.planType) { toast('Pick a plan type to continue'); return; }
-  if (!_obAnswers.goal)     { toast('Pick your HYROX goal to continue'); return; }
+  const gc = _obAnswers.goalCategory || '';
+  const rt = _obAnswers.raceType || '';
+  if (!gc) { toast('Select a goal type to continue'); return; }
+  if (gc === 'race' && !rt) { toast('Select your race type to continue'); return; }
+  // Require a specific goal for race types that have time targets
+  const needsGoal = ['hyrox','marathon','half','5k10k','triathlon'].includes(rt);
+  if (needsGoal && !_obAnswers.goal) { toast('Pick your target to continue'); return; }
   if (!_obAnswers.planStart) { toast('Set your Week 1 start date to continue'); return; }
   const d = new Date(_obAnswers.planStart + 'T12:00:00');
   if (d.getDay() !== 1) { toast('Please pick a Monday for Week 1'); return; }
+
+  // Infer plan type: HYROX users choose; everyone else defaults to custom
+  if (!_obAnswers.planType) {
+    _obAnswers.planType = (rt === 'hyrox') ? 'hybrid' : 'custom';
+  }
+
+  // Build a goal string compatible with coach prompt system
+  const goalStr = _obAnswers.goal || rt || gc || 'custom';
+
   localStorage.setItem('ht-plan-start', _obAnswers.planStart);
   localStorage.setItem('ht-plan-type', _obAnswers.planType);
-  localStorage.setItem('ht-goal', _obAnswers.goal);
-  trainGoal = _obAnswers.goal;
+  localStorage.setItem('ht-goal', goalStr);
+  localStorage.setItem('ht-goal-category', gc);
+  localStorage.setItem('ht-goal-race-type', rt);
+  trainGoal = goalStr;
   WMAP = computeWMAP(_obAnswers.planStart);
   if (_obAnswers.planType === 'custom') { sessions = []; saveData(); }
   _obStep = 2;
