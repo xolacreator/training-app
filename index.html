@@ -714,52 +714,95 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <!-- Collapsed setup instructions -->
       <details style="margin-bottom:10px;">
         <summary style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);cursor:pointer;padding:2px 0;list-style:none;-webkit-details-marker:display:none;">
-          ▸ Shortcut setup instructions (one-time, ~15 min)
+          &#9658; iOS Shortcut setup (one-time, ~20 min)
         </summary>
-        <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2;">
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Prerequisites</div>
-          — Garmin Connect app installed + watch synced<br>
-          — Your sync token copied from above<br>
-          — No Google Drive needed — data goes direct to the Worker<br>
-          <div style="color:var(--text2);font-weight:700;margin:8px 0 4px;">Build the "Health Sync" Shortcut</div>
-          Open <b>Shortcuts app → "+" → name it "Health Sync"</b>, then add these actions:<br><br>
-          <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;">
-            1. <b>Get Health Samples</b> · Sleep Analysis · Past 14h · Value: In Bed · Sort: Most Recent · Limit: 1<br>
-            2. <b>Get Details of Health Sample</b> → Start Date → save as <i>BedStart</i><br>
-            3. <b>Get Details of Health Sample</b> → End Date → save as <i>BedEnd</i><br>
-            4. <b>Number</b> from BedEnd → save as <i>EndEpoch</i><br>
-            5. <b>Number</b> from BedStart → save as <i>StartEpoch</i><br>
-            6. <b>Calculate</b>: EndEpoch − StartEpoch ÷ 3600 → round to 1 decimal → save as <i>SleepHrs</i><br>
-            7. <b>If</b> SleepHrs &lt; 1 → <b>Stop Shortcut</b> (Garmin hasn't synced yet)<br>
-            8. <b>Get Health Samples</b> · Heart Rate Variability · Past 14h · Most Recent · Limit: 1 → Get Value → save as <i>HRV</i><br>
-            9. <b>Get Health Samples</b> · Resting Heart Rate · Past 48h · Most Recent · Limit: 1 → Get Value → save as <i>RHR</i><br>
-            10. <b>Get Health Samples</b> · VO2Max · Past 30 days · Most Recent · Limit: 1 → Get Value → save as <i>VO2</i><br>
-            11. <b>Get Health Samples</b> · Step Count · Start: Yesterday 00:00 · End: Yesterday 23:59 · Statistics: Sum → save as <i>Steps</i><br>
-            12. <b>Format Date</b> (Current Date) as <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code> → save as <i>Today</i><br>
+        <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;">
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Before you start</div>
+          &mdash; Garmin Connect app installed and watch synced at least once<br>
+          &mdash; Copy your sync token from above<br>
+          &mdash; Worker URL saved in Cloud Sync &rarr; Strava section below<br>
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Create the shortcut</div>
+          Shortcuts app &rarr; tap <b>+</b> (top right) &rarr; tap the title &rarr; name it <b>Health Sync</b><br>
+          Tap <b>Add Action</b> and build the following in order:<br><br>
+
+          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
+            <b style="color:var(--text2);">&mdash; Sleep duration &mdash;</b><br>
+            1. Search for and add: <b>Find Health Samples</b><br>
+            &nbsp;&nbsp;&rarr; tap the Type field &rarr; search and select <b>Sleep</b><br>
+            &nbsp;&nbsp;&rarr; Sort by: <b>Newest First</b> &middot; toggle Limit on &rarr; <b>1</b><br>
+            2. <b>Get Details of Health Sample</b> &rarr; Detail: <b>Start Date</b><br>
+            &nbsp;&nbsp;&rarr; tap the magic variable output &rarr; rename it <b>BedStart</b><br>
+            3. <b>Get Details of Health Sample</b> &rarr; Detail: <b>End Date</b><br>
+            &nbsp;&nbsp;&rarr; rename output <b>BedEnd</b><br>
+            4. <b>Number</b> &rarr; tap the input field &rarr; select BedEnd &rarr; rename output <b>EndEpoch</b><br>
+            5. <b>Number</b> &rarr; input: BedStart &rarr; rename output <b>StartEpoch</b><br>
+            6. <b>Calculate</b> &rarr; set to: EndEpoch <b>&minus;</b> StartEpoch <b>&divide;</b> 3600<br>
+            &nbsp;&nbsp;&rarr; Rounding: 1 decimal place &rarr; rename output <b>SleepHrs</b><br>
+            7. <b>If</b> &rarr; input: SleepHrs &rarr; Condition: <b>is less than</b> &rarr; value: 1<br>
+            &nbsp;&nbsp;&rarr; inside the If block add: <b>Stop and Output</b> "no sleep data yet"<br>
+            &nbsp;&nbsp;(stops early if Garmin has not synced this morning)<br><br>
+
+            <b style="color:var(--text2);">&mdash; Heart metrics &mdash;</b><br>
+            8. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; below it add <b>Get Details of Health Sample</b> &rarr; Value<br>
+            &nbsp;&nbsp;&rarr; rename output <b>HRV</b><br>
+            9. <b>Find Health Samples</b> &rarr; Type: <b>Resting Heart Rate</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>RHR</b><br>
+            10. <b>Find Health Samples</b> &rarr; Type: search <b>Cardio Fitness</b> (or VO2)<br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>VO2</b><br><br>
+
+            <b style="color:var(--text2);">&mdash; Steps &mdash;</b><br>
+            11. <b>Find Health Samples</b> &rarr; Type: search <b>Steps</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>Steps</b><br><br>
+
+            <b style="color:var(--text2);">&mdash; Date &mdash;</b><br>
+            12. <b>Format Date</b> &rarr; Current Date &rarr; Format: Custom<br>
+            &nbsp;&nbsp;&rarr; type exactly: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code><br>
+            &nbsp;&nbsp;&rarr; rename output <b>Today</b>
           </div>
-          <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;margin-top:6px;">
-            <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">POST to Worker (no Drive needed)</div>
-            <b>Dictionary</b>: date=Today · sleepHours=SleepHrs · hrv=HRV · restingHR=RHR · vo2max=VO2 · steps=Steps · garminSyncTime=(Format Date as ISO 8601)<br>
-            <b>Get Text from Dictionary</b> (converts to JSON)<br>
-            <b>Get Contents of URL</b>:<br>
-            &nbsp;&nbsp;URL: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">https://training-app-strava.brucesarmento.workers.dev/health</code><br>
-            &nbsp;&nbsp;Method: POST<br>
-            &nbsp;&nbsp;Headers: X-Sync-Token = <i>your token from above</i><br>
-            &nbsp;&nbsp;Request Body: JSON (paste Dictionary text)
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Send data to the Worker</div>
+          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
+            13. <b>Dictionary</b> &rarr; tap + to add each key/value pair:<br>
+            &nbsp;&nbsp;date &rarr; Today<br>
+            &nbsp;&nbsp;sleepHours &rarr; SleepHrs<br>
+            &nbsp;&nbsp;hrv &rarr; HRV<br>
+            &nbsp;&nbsp;restingHR &rarr; RHR<br>
+            &nbsp;&nbsp;vo2max &rarr; VO2<br>
+            &nbsp;&nbsp;steps &rarr; Steps<br>
+            &nbsp;&nbsp;garminSyncTime &rarr; (add <b>Format Date</b> &rarr; ISO 8601)<br>
+            14. <b>Get Text from Dictionary</b> (converts the above to JSON)<br>
+            15. <b>Get Contents of URL</b>:<br>
+            &nbsp;&nbsp;URL: <span id="garmin-health-url-instr" style="color:var(--blue);word-break:break-all;">your-worker.workers.dev/health</span><br>
+            &nbsp;&nbsp;Method: <b>POST</b><br>
+            &nbsp;&nbsp;Headers: tap + &rarr; Key: <b>X-Sync-Token</b> &middot; Value: <i>your sync token from above</i><br>
+            &nbsp;&nbsp;Request Body: <b>JSON</b> &rarr; set to the output of step 14
           </div>
+
           <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Set up two automations</div>
-          <b>Automation A — "Sleep Focus Ends"</b><br>
-          Automation → + → Sleep → Ends → Run immediately → Health Sync<br><br>
-          <b>Automation B — "When Garmin Connect Opens"</b><br>
-          Automation → + → App → Garmin Connect → Is Opened → Run immediately<br>
-          Add: <b>Wait · 90 seconds</b> before Run Shortcut → Health Sync<br><br>
-          Both automations are safe to fire on the same morning — the app ignores duplicate data if you've already entered today's check-in manually.
+          <b>Automation A &mdash; runs when Sleep Focus ends each morning</b><br>
+          Shortcuts &rarr; Automation tab &rarr; + &rarr; Personal Automation<br>
+          &rarr; Sleep &rarr; <b>Sleep Focus Ends</b><br>
+          &rarr; Run <b>Immediately</b> (not "Ask Before Running")<br>
+          &rarr; Add action: <b>Run Shortcut</b> &rarr; Health Sync &rarr; Done<br><br>
+          <b>Automation B &mdash; runs when Garmin syncs to your phone</b><br>
+          + &rarr; Personal Automation &rarr; App &rarr; select <b>Garmin Connect</b> &rarr; Is Opened<br>
+          &rarr; Run Immediately &rarr; Add action: <b>Wait</b> &rarr; 90 seconds<br>
+          &rarr; Add action: <b>Run Shortcut</b> &rarr; Health Sync &rarr; Done<br><br>
+          Both automations can fire on the same morning &mdash; duplicate data is safely ignored.
+
           <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Test it</div>
-          Tap "Run" on the Shortcut. Then use the "Test sync" button above.
-          <div style="margin-top:8px;color:var(--text3);">
-            Note: VO₂max is slow-changing — Garmin only updates it after tracked runs.<br>
-            Steps reflects yesterday's total (today's may be incomplete when Shortcut runs).
-          </div>
+          Open the Shortcut &rarr; tap <b>Run &#9654;</b>. Then tap <b>Test sync</b> above.<br>
+          If it shows your sleep hours and HRV the pipeline is working.<br><br>
+          <span style="color:var(--text3);">
+            VO&#8322;max updates slowly &mdash; Garmin only recalculates it after outdoor tracked runs.<br>
+            Steps show yesterday&apos;s total (today&apos;s is incomplete when the Shortcut runs at wake-up).
+          </span>
         </div>
       </details>
 
@@ -4789,8 +4832,14 @@ function renderGarminSyncCard() {
     } else {
       statusEl.style.background = 'var(--bg3)';
       statusEl.style.color = 'var(--text3)';
-      statusEl.textContent = 'Set up the Worker URL below, then copy your token into the Shortcut';
+      statusEl.textContent = stravaWorker ? 'Copy your token into the Shortcut' : 'Save Worker URL in Strava Sync below first';
     }
+  }
+
+  // Fill the health endpoint URL into the instructions dynamically
+  const urlInstr = document.getElementById('garmin-health-url-instr');
+  if (urlInstr) {
+    urlInstr.textContent = stravaWorker ? `${stravaWorker}/health` : 'https://your-worker.workers.dev/health';
   }
 
   const linkWrap = document.getElementById('garmin-shortcut-link-wrap');
