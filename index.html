@@ -141,6 +141,15 @@ body{
   will-change:transform;
 }
 .overlay.open{transform:translateY(0);}
+/* What's-new bottom sheet */
+.wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
+.wnbackdrop.open{opacity:1;pointer-events:auto;}
+.wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg);z-index:299;border-radius:16px 16px 0 0;border-top:.5px solid var(--border);max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;}
+.wnsheet.open{transform:translateY(0);}
+.wntag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-right:6px;flex-shrink:0;}
+.wntag-new{background:var(--accent-dim);color:var(--accent);}
+.wntag-fix{background:rgba(77,158,255,.12);color:var(--blue);}
+.wntag-improved{background:rgba(52,199,89,.12);color:var(--green,#34c759);}
 .oi{
   /* Top padding: safe area + back button space */
   padding-top:calc(var(--sat) + 16px);
@@ -494,6 +503,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Today's session</div>
     <div class="card" id="today-session" style="cursor:pointer;"></div>
     <div id="review-banner"></div>
+    <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
     <div id="recovery-card" style="margin-bottom:4px;"></div>
     <div class="sec-lbl">12-week progress</div>
     <div class="card" id="phase-bars"></div>
@@ -575,6 +585,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <div class="ptabs" id="plan-tabs"></div>
     <div class="sec-lbl" id="plan-vol"></div>
+    <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div class="card" id="plan-days"></div>
     <button class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
     <div style="margin-top:16px;">
@@ -712,52 +723,95 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <!-- Collapsed setup instructions -->
       <details style="margin-bottom:10px;">
         <summary style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);cursor:pointer;padding:2px 0;list-style:none;-webkit-details-marker:display:none;">
-          ▸ Shortcut setup instructions (one-time, ~15 min)
+          &#9658; iOS Shortcut setup (one-time, ~20 min)
         </summary>
-        <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2;">
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Prerequisites</div>
-          — Garmin Connect app installed + watch synced<br>
-          — Your sync token copied from above<br>
-          — No Google Drive needed — data goes direct to the Worker<br>
-          <div style="color:var(--text2);font-weight:700;margin:8px 0 4px;">Build the "Health Sync" Shortcut</div>
-          Open <b>Shortcuts app → "+" → name it "Health Sync"</b>, then add these actions:<br><br>
-          <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;">
-            1. <b>Get Health Samples</b> · Sleep Analysis · Past 14h · Value: In Bed · Sort: Most Recent · Limit: 1<br>
-            2. <b>Get Details of Health Sample</b> → Start Date → save as <i>BedStart</i><br>
-            3. <b>Get Details of Health Sample</b> → End Date → save as <i>BedEnd</i><br>
-            4. <b>Number</b> from BedEnd → save as <i>EndEpoch</i><br>
-            5. <b>Number</b> from BedStart → save as <i>StartEpoch</i><br>
-            6. <b>Calculate</b>: EndEpoch − StartEpoch ÷ 3600 → round to 1 decimal → save as <i>SleepHrs</i><br>
-            7. <b>If</b> SleepHrs &lt; 1 → <b>Stop Shortcut</b> (Garmin hasn't synced yet)<br>
-            8. <b>Get Health Samples</b> · Heart Rate Variability · Past 14h · Most Recent · Limit: 1 → Get Value → save as <i>HRV</i><br>
-            9. <b>Get Health Samples</b> · Resting Heart Rate · Past 48h · Most Recent · Limit: 1 → Get Value → save as <i>RHR</i><br>
-            10. <b>Get Health Samples</b> · VO2Max · Past 30 days · Most Recent · Limit: 1 → Get Value → save as <i>VO2</i><br>
-            11. <b>Get Health Samples</b> · Step Count · Start: Yesterday 00:00 · End: Yesterday 23:59 · Statistics: Sum → save as <i>Steps</i><br>
-            12. <b>Format Date</b> (Current Date) as <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code> → save as <i>Today</i><br>
+        <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;">
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Before you start</div>
+          &mdash; Garmin Connect app installed and watch synced at least once<br>
+          &mdash; Copy your sync token from above<br>
+          &mdash; Worker URL saved in Cloud Sync &rarr; Strava section below<br>
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Create the shortcut</div>
+          Shortcuts app &rarr; tap <b>+</b> (top right) &rarr; tap the title &rarr; name it <b>Health Sync</b><br>
+          Tap <b>Add Action</b> and build the following in order:<br><br>
+
+          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
+            <b style="color:var(--text2);">&mdash; Sleep duration &mdash;</b><br>
+            1. Search for and add: <b>Find Health Samples</b><br>
+            &nbsp;&nbsp;&rarr; tap the Type field &rarr; search and select <b>Sleep</b><br>
+            &nbsp;&nbsp;&rarr; Sort by: <b>Newest First</b> &middot; toggle Limit on &rarr; <b>1</b><br>
+            2. <b>Get Details of Health Sample</b> &rarr; Detail: <b>Start Date</b><br>
+            &nbsp;&nbsp;&rarr; tap the magic variable output &rarr; rename it <b>BedStart</b><br>
+            3. <b>Get Details of Health Sample</b> &rarr; Detail: <b>End Date</b><br>
+            &nbsp;&nbsp;&rarr; rename output <b>BedEnd</b><br>
+            4. <b>Number</b> &rarr; tap the input field &rarr; select BedEnd &rarr; rename output <b>EndEpoch</b><br>
+            5. <b>Number</b> &rarr; input: BedStart &rarr; rename output <b>StartEpoch</b><br>
+            6. <b>Calculate</b> &rarr; set to: EndEpoch <b>&minus;</b> StartEpoch <b>&divide;</b> 3600<br>
+            &nbsp;&nbsp;&rarr; Rounding: 1 decimal place &rarr; rename output <b>SleepHrs</b><br>
+            7. <b>If</b> &rarr; input: SleepHrs &rarr; Condition: <b>is less than</b> &rarr; value: 1<br>
+            &nbsp;&nbsp;&rarr; inside the If block add: <b>Stop and Output</b> "no sleep data yet"<br>
+            &nbsp;&nbsp;(stops early if Garmin has not synced this morning)<br><br>
+
+            <b style="color:var(--text2);">&mdash; Heart metrics &mdash;</b><br>
+            8. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; below it add <b>Get Details of Health Sample</b> &rarr; Value<br>
+            &nbsp;&nbsp;&rarr; rename output <b>HRV</b><br>
+            9. <b>Find Health Samples</b> &rarr; Type: <b>Resting Heart Rate</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>RHR</b><br>
+            10. <b>Find Health Samples</b> &rarr; Type: search <b>Cardio Fitness</b> (or VO2)<br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>VO2</b><br><br>
+
+            <b style="color:var(--text2);">&mdash; Steps &mdash;</b><br>
+            11. <b>Find Health Samples</b> &rarr; Type: search <b>Steps</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>Steps</b><br><br>
+
+            <b style="color:var(--text2);">&mdash; Date &mdash;</b><br>
+            12. <b>Format Date</b> &rarr; Current Date &rarr; Format: Custom<br>
+            &nbsp;&nbsp;&rarr; type exactly: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code><br>
+            &nbsp;&nbsp;&rarr; rename output <b>Today</b>
           </div>
-          <div style="background:var(--bg4);border-radius:6px;padding:8px 10px;line-height:2;margin-top:6px;">
-            <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">POST to Worker (no Drive needed)</div>
-            <b>Dictionary</b>: date=Today · sleepHours=SleepHrs · hrv=HRV · restingHR=RHR · vo2max=VO2 · steps=Steps · garminSyncTime=(Format Date as ISO 8601)<br>
-            <b>Get Text from Dictionary</b> (converts to JSON)<br>
-            <b>Get Contents of URL</b>:<br>
-            &nbsp;&nbsp;URL: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">https://training-app-strava.brucesarmento.workers.dev/health</code><br>
-            &nbsp;&nbsp;Method: POST<br>
-            &nbsp;&nbsp;Headers: X-Sync-Token = <i>your token from above</i><br>
-            &nbsp;&nbsp;Request Body: JSON (paste Dictionary text)
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Send data to the Worker</div>
+          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
+            13. <b>Dictionary</b> &rarr; tap + to add each key/value pair:<br>
+            &nbsp;&nbsp;date &rarr; Today<br>
+            &nbsp;&nbsp;sleepHours &rarr; SleepHrs<br>
+            &nbsp;&nbsp;hrv &rarr; HRV<br>
+            &nbsp;&nbsp;restingHR &rarr; RHR<br>
+            &nbsp;&nbsp;vo2max &rarr; VO2<br>
+            &nbsp;&nbsp;steps &rarr; Steps<br>
+            &nbsp;&nbsp;garminSyncTime &rarr; (add <b>Format Date</b> &rarr; ISO 8601)<br>
+            14. <b>Get Text from Dictionary</b> (converts the above to JSON)<br>
+            15. <b>Get Contents of URL</b>:<br>
+            &nbsp;&nbsp;URL: <span id="garmin-health-url-instr" style="color:var(--blue);word-break:break-all;">your-worker.workers.dev/health</span><br>
+            &nbsp;&nbsp;Method: <b>POST</b><br>
+            &nbsp;&nbsp;Headers: tap + &rarr; Key: <b>X-Sync-Token</b> &middot; Value: <i>your sync token from above</i><br>
+            &nbsp;&nbsp;Request Body: <b>JSON</b> &rarr; set to the output of step 14
           </div>
+
           <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Set up two automations</div>
-          <b>Automation A — "Sleep Focus Ends"</b><br>
-          Automation → + → Sleep → Ends → Run immediately → Health Sync<br><br>
-          <b>Automation B — "When Garmin Connect Opens"</b><br>
-          Automation → + → App → Garmin Connect → Is Opened → Run immediately<br>
-          Add: <b>Wait · 90 seconds</b> before Run Shortcut → Health Sync<br><br>
-          Both automations are safe to fire on the same morning — the app ignores duplicate data if you've already entered today's check-in manually.
+          <b>Automation A &mdash; runs when Sleep Focus ends each morning</b><br>
+          Shortcuts &rarr; Automation tab &rarr; + &rarr; Personal Automation<br>
+          &rarr; Sleep &rarr; <b>Sleep Focus Ends</b><br>
+          &rarr; Run <b>Immediately</b> (not "Ask Before Running")<br>
+          &rarr; Add action: <b>Run Shortcut</b> &rarr; Health Sync &rarr; Done<br><br>
+          <b>Automation B &mdash; runs when Garmin syncs to your phone</b><br>
+          + &rarr; Personal Automation &rarr; App &rarr; select <b>Garmin Connect</b> &rarr; Is Opened<br>
+          &rarr; Run Immediately &rarr; Add action: <b>Wait</b> &rarr; 90 seconds<br>
+          &rarr; Add action: <b>Run Shortcut</b> &rarr; Health Sync &rarr; Done<br><br>
+          Both automations can fire on the same morning &mdash; duplicate data is safely ignored.
+
           <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Test it</div>
-          Tap "Run" on the Shortcut. Then use the "Test sync" button above.
-          <div style="margin-top:8px;color:var(--text3);">
-            Note: VO₂max is slow-changing — Garmin only updates it after tracked runs.<br>
-            Steps reflects yesterday's total (today's may be incomplete when Shortcut runs).
-          </div>
+          Open the Shortcut &rarr; tap <b>Run &#9654;</b>. Then tap <b>Test sync</b> above.<br>
+          If it shows your sleep hours and HRV the pipeline is working.<br><br>
+          <span style="color:var(--text3);">
+            VO&#8322;max updates slowly &mdash; Garmin only recalculates it after outdoor tracked runs.<br>
+            Steps show yesterday&apos;s total (today&apos;s is incomplete when the Shortcut runs at wake-up).
+          </span>
         </div>
       </details>
 
@@ -768,6 +822,16 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">App Setup</div>
+    <div class="card">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
+        Re-run the setup guide or reset the app to a clean slate for a new user.
+      </div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="openOnboarding()">Setup guide</button>
+        <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmFactoryReset()">Factory reset</button>
+      </div>
+    </div>
     <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
@@ -805,6 +869,24 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>More
   </button>
 </nav>
+
+<!-- WHAT'S NEW SHEET -->
+<div class="wnbackdrop" id="wn-backdrop" onclick="dismissUpdates()"></div>
+<div class="wnsheet" id="wn-sheet">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);" id="wn-content"></div>
+</div>
+
+<!-- ONBOARDING OVERLAY -->
+<div class="overlay" id="onboard-overlay" style="background:var(--bg);z-index:200;display:flex;flex-direction:column;">
+  <div style="flex:1;overflow-y:auto;" id="onboard-scroll">
+    <div style="padding:max(env(safe-area-inset-top),24px) 24px 40px;" id="onboard-content"></div>
+  </div>
+</div>
+
+<!-- ASSESSMENT OVERLAY -->
+<div class="overlay" id="assessment-overlay">
+  <div class="oi" id="assessment-oi"></div>
+</div>
 
 <!-- PLAN SESSION DETAIL OVERLAY -->
 <div class="overlay" id="plan-overlay">
@@ -2028,6 +2110,129 @@ const HYROX_BASE = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ASSESSMENT SESSIONS — Week 1 performance tests that set training targets
+// ═══════════════════════════════════════════════════════════════════════════
+const ASSESSMENT_SESSIONS = [
+  {
+    id: 'run-tt',
+    name: '20-Min Running Time Trial',
+    subtitle: 'Establishes pace zones',
+    category: 'Run',
+    intensity: 'hard',
+    duration: '35 min',
+    what: 'Run as far as possible in exactly 20 minutes at maximum sustainable effort — the highest pace you can hold without slowing.',
+    instructions: [
+      'Warm up 10 min easy (Zone 1 jog)',
+      'Flat course: track, treadmill, or flat road',
+      'Start GPS and run hard for exactly 20:00',
+      'Record the total distance covered',
+    ],
+    tip: 'Average pace = threshold pace. Zone 2 ceiling ≈ threshold + 50s/km. VO₂max intervals ≈ threshold − 22s/km.',
+    fields: [
+      { id: 'run_tt_dist', label: 'Distance covered', unit: 'km', placeholder: 'e.g. 3.85', type: 'number', step: '0.01' },
+    ],
+  },
+  {
+    id: 'strength-base',
+    name: 'Strength Baseline',
+    subtitle: 'Sets squat & bench targets',
+    category: 'Strength',
+    intensity: 'moderate',
+    duration: '50 min',
+    what: 'Find your 5-rep maximum for the two key lifts used throughout the programme. This sets all subsequent loading targets.',
+    instructions: [
+      '15 min warm-up: hip mobility + light barbell',
+      'Back squat: build to a challenging 5-rep set (could do 6 but not 7)',
+      'Rest 5 min',
+      'Bench press: build to a challenging 5-rep set',
+      'Record the weight for each lift',
+    ],
+    tip: 'Estimated 1RM = 5RM × 1.15. Programme uses 70% for volume work and 80% for strength sets.',
+    fields: [
+      { id: 'squat_5rm_kg', label: 'Back squat — 5RM weight', unit: 'kg', placeholder: 'e.g. 80', type: 'number', step: '1' },
+      { id: 'bench_5rm_kg', label: 'Bench press — 5RM weight', unit: 'kg', placeholder: 'e.g. 65', type: 'number', step: '1' },
+    ],
+  },
+  {
+    id: 'row-tt',
+    name: '2km Row Time Trial',
+    subtitle: 'Sets erg split targets',
+    category: 'Erg',
+    intensity: 'hard',
+    duration: '20 min',
+    what: 'Row 2000m at maximum effort. The HYROX row station is 1km — this gives a reliable baseline for race pacing and training splits.',
+    instructions: [
+      'Warm up 5 min easy row',
+      'Set the erg display to 2000m',
+      'Row as hard as possible for 2000m',
+      'Record your total finish time',
+    ],
+    tip: '500m race split = 2km time ÷ 4. Training sessions target 5s/split slower than race pace.',
+    fields: [
+      { id: 'row_2km_mmss', label: '2km time', unit: '', placeholder: 'e.g. 7:24', type: 'text' },
+    ],
+  },
+];
+
+function parseMMSS(str) {
+  const parts = String(str||'').trim().split(':');
+  return parts.length===2 ? parseInt(parts[0])*60+parseFloat(parts[1]) : parseFloat(str)||0;
+}
+function fmtPaceSecs(secs) {
+  const m=Math.floor(secs/60), s=Math.round(secs%60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function deriveBaselines(id, vals) {
+  const d = {...vals};
+  if (id==='run-tt') {
+    const dist = parseFloat(vals.run_tt_dist);
+    if (dist>0) {
+      const th=1200/dist;
+      d.run_threshold_secs = Math.round(th);
+      d.run_threshold_pace = fmtPaceSecs(th);
+      d.run_zone2_hi_pace  = fmtPaceSecs(th+50);
+      d.run_zone2_lo_pace  = fmtPaceSecs(th+85);
+      d.run_vo2max_pace    = fmtPaceSecs(th-22);
+    }
+  }
+  if (id==='strength-base') {
+    const sq=parseFloat(vals.squat_5rm_kg), bn=parseFloat(vals.bench_5rm_kg);
+    if (sq>0) { d.squat_1rm_est=Math.round(sq*1.15); d.squat_70=Math.round(sq*1.15*.7); d.squat_80=Math.round(sq*1.15*.8); }
+    if (bn>0) { d.bench_1rm_est=Math.round(bn*1.15); d.bench_70=Math.round(bn*1.15*.7); d.bench_80=Math.round(bn*1.15*.8); }
+  }
+  if (id==='row-tt') {
+    const secs=parseMMSS(vals.row_2km_mmss);
+    if (secs>0) {
+      d.row_2km_secs=secs;
+      d.row_500m_race_split=fmtPaceSecs(secs/4);
+      d.row_500m_train_split=fmtPaceSecs(secs/4+5);
+    }
+  }
+  return d;
+}
+function getBaselineContext() {
+  const bl = baselines; if (!bl||!Object.keys(bl).length) return '';
+  const lines = ['TRAINING BASELINES (from Week 1 assessment):'];
+  const r=bl['run-tt'], st=bl['strength-base'], rw=bl['row-tt'];
+  if (r?.run_threshold_pace) lines.push(
+    `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max=${r.run_vo2max_pace}/km`);
+  if (st?.squat_1rm_est) lines.push(
+    `  Squat: est. 1RM=${st.squat_1rm_est}kg (70%=${st.squat_70}kg, 80%=${st.squat_80}kg)`);
+  if (st?.bench_1rm_est) lines.push(
+    `  Bench: est. 1RM=${st.bench_1rm_est}kg (70%=${st.bench_70}kg, 80%=${st.bench_80}kg)`);
+  if (rw?.row_500m_race_split) lines.push(
+    `  Row: race split=${rw.row_500m_race_split}/500m · training split=${rw.row_500m_train_split}/500m`);
+  return lines.join('\n');
+}
+function saveBaselines() {
+  try { localStorage.setItem('ht-baselines', JSON.stringify(baselines)); } catch(e) {}
+}
+function loadBaselines() {
+  try { baselines = JSON.parse(localStorage.getItem('ht-baselines')||'{}'); } catch(e) {}
+  try { trainGoal = localStorage.getItem('ht-goal')||''; } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════
 let sessions = [];
@@ -2051,6 +2256,8 @@ let coachSetupStep = 0;
 let coachSetupAnswers = {};
 let coachMessages = [];
 let coachTyping = false;
+let baselines = {};
+let trainGoal = '';
 
 const COACH_SETUP_STEPS = [
   {id:'name',     q:"What should your coach go by?",              sub:"They'll introduce themselves with this name",       type:'text',   placeholder:'e.g. Coach Sam, The Hammer, Coach Mia…'},
@@ -2111,6 +2318,9 @@ function load() {
     }
   } catch(e) { sessions = [...SEED]; }
 
+  // Recompute WMAP if user has a custom plan start date
+  try { const ps=localStorage.getItem('ht-plan-start'); if(ps) WMAP=computeWMAP(ps); } catch(e) {}
+
   // Auto-detect current plan week from WMAP
   try {
     const _tn = new Date();
@@ -2133,6 +2343,7 @@ function load() {
 
   try { pendingReview = JSON.parse(localStorage.getItem('ht-pending-review') || '[]'); } catch(e) {}
   try { recoveryLog   = JSON.parse(localStorage.getItem('ht-recovery')       || '[]'); } catch(e) {}
+  try { loadBaselines(); } catch(e) {}
 
   try { renderAll(); } catch(e) { console.error('renderAll failed on load:', e); }
 }
@@ -2280,6 +2491,7 @@ function parseDist(d) {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderAll() {
   renderToday();
+  renderBaselinesCard();
   renderRecoveryCard();
   renderRecentLog();
   renderPlan(currentPlanWeek);
@@ -2667,6 +2879,8 @@ function renderPlan(w){
   const pw=PLAN[w];
   const loggedDays=sessions.filter(s=>s.week===String(w)).map(s=>s.day);
   document.getElementById('plan-vol').textContent=`${pw.range} · ${pw.vol}`;
+  const ab=document.getElementById('assessment-banner');
+  if (ab) { if(parseInt(w)===1){renderAssessmentBanner();}else{ab.style.display='none';} }
   const ph=pw.ph===2?'Phase 2 · ':'Phase 1 · ';
   document.getElementById('plan-days').innerHTML=pw.sessions.map(p=>{
     const done=loggedDays.some(d=>d===p.day||d.slice(0,3)===p.day.slice(0,3));
@@ -2716,6 +2930,174 @@ function openPlanOverlay(week,day,sessionType,sessionName,sub){
     openBuilder(week,day,existing||null);
   };
   openOv('plan-overlay');
+}
+
+// ── Assessment sessions (Week 1 testing) ─────────────────────────────────────
+function renderAssessmentBanner() {
+  const el = document.getElementById('assessment-banner');
+  if (!el) return;
+  const allDone = ASSESSMENT_SESSIONS.every(a => baselines[a.id]);
+  const doneCnt = ASSESSMENT_SESSIONS.filter(a => baselines[a.id]).length;
+
+  el.style.display = '';
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,rgba(212,175,55,.08),rgba(77,158,255,.06));border:.5px solid rgba(212,175,55,.25);border-radius:10px;padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--accent);">Week 1 — Assessment</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">
+            ${allDone ? 'All tests complete — baselines set' : `${doneCnt}/${ASSESSMENT_SESSIONS.length} tests complete`}
+          </div>
+        </div>
+        ${allDone ? '<div style="font-size:18px;color:var(--accent);">✓</div>' : ''}
+      </div>
+      ${ASSESSMENT_SESSIONS.map(a=>{
+        const done = !!baselines[a.id];
+        const catColor = a.category==='Run'?'var(--accent)':a.category==='Strength'?'var(--blue)':'var(--orange,#f56e2e)';
+        return `<div onclick="openAssessmentOverlay('${a.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--bg2);border-radius:7px;margin-bottom:6px;cursor:pointer;border:.5px solid ${done?'rgba(212,175,55,.3)':'var(--border)'};">
+          <div style="width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:700;">${a.name}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${a.category} · ${a.duration}</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;${done?'color:var(--accent);font-weight:700;':'color:var(--text3);'}">
+            ${done ? '✓ done' : '›'}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function openAssessmentOverlay(id) {
+  const a = ASSESSMENT_SESSIONS.find(x=>x.id===id); if (!a) return;
+  const done = !!baselines[a.id];
+  const saved = baselines[a.id] || {};
+  const catColor = a.category==='Run'?'var(--accent)':a.category==='Strength'?'var(--blue)':'var(--orange,#f56e2e)';
+
+  const fieldHtml = a.fields.map(f=>`
+    <div class="fg" style="margin-bottom:10px;">
+      <label class="flbl">${f.label}${f.unit?' ('+f.unit+')':''}</label>
+      <input type="${f.type}" step="${f.step||'any'}" id="af-${f.id}" placeholder="${f.placeholder}"
+        value="${saved[f.id]||''}"
+        style="background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:13px;width:100%;box-sizing:border-box;">
+    </div>`).join('');
+
+  const resultHtml = done ? buildAssessmentResultHtml(id, saved) : '';
+
+  document.getElementById('assessment-oi').innerHTML = `
+    <button class="back-btn" onclick="closeOv('assessment-overlay')">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+    </button>
+    <div class="eyebrow" style="color:${catColor};">${a.category} · Assessment</div>
+    <div class="overlay-title">${a.name}</div>
+    <div class="overlay-sub">${a.subtitle} · ${a.duration}</div>
+
+    <div style="background:var(--bg2);border-radius:8px;padding:12px;margin:14px 0;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;">What to do</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">${a.what}</div>
+    </div>
+
+    <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Instructions</div>
+    ${a.instructions.map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:7px;">
+      <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${catColor};flex-shrink:0;width:16px;">${i+1}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${s}</div>
+    </div>`).join('')}
+
+    <div style="background:rgba(212,175,55,.08);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin:14px 0;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.8;"><b style="color:var(--accent);">What this derives</b><br>${a.tip}</div>
+    </div>
+
+    <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">
+      ${done ? 'Update result' : 'Log result'}
+    </div>
+    ${fieldHtml}
+    <button class="btn btn-accent" style="width:100%;margin-bottom:8px;font-size:13px;padding:13px;" onclick="saveAssessmentResult('${id}')">
+      ${done ? 'Update targets →' : 'Save & derive targets →'}
+    </button>
+    <button class="btn" style="width:100%;" onclick="assLogSession('${id}')">Log as training session →</button>
+
+    ${resultHtml ? `<div style="margin-top:16px;">${resultHtml}</div>` : ''}`;
+
+  openOv('assessment-overlay');
+}
+
+function saveAssessmentResult(id) {
+  const a = ASSESSMENT_SESSIONS.find(x=>x.id===id); if (!a) return;
+  const vals = {};
+  for (const f of a.fields) {
+    const el = document.getElementById('af-'+f.id);
+    if (!el || !el.value.trim()) { toast(`Enter ${f.label} to continue`); return; }
+    vals[f.id] = el.value.trim();
+  }
+  const derived = deriveBaselines(id, vals);
+  baselines[id] = derived;
+  saveBaselines();
+  toast('Targets set ✓');
+  closeOv('assessment-overlay');
+  try { renderBaselinesCard(); } catch(e) {}
+  try { renderAIContext(); } catch(e) {}
+  if (currentPlanWeek===1) renderAssessmentBanner();
+}
+
+function buildAssessmentResultHtml(id, saved) {
+  const rows = [];
+  if (id==='run-tt') {
+    if (saved.run_threshold_pace) rows.push(['Threshold pace', saved.run_threshold_pace+'/km']);
+    if (saved.run_zone2_hi_pace)  rows.push(['Zone 2 range', saved.run_zone2_lo_pace+'–'+saved.run_zone2_hi_pace+'/km']);
+    if (saved.run_vo2max_pace)    rows.push(['VO₂max pace', saved.run_vo2max_pace+'/km']);
+  }
+  if (id==='strength-base') {
+    if (saved.squat_1rm_est) rows.push(['Squat est. 1RM', saved.squat_1rm_est+'kg'],['Squat 70/80%', saved.squat_70+'kg / '+saved.squat_80+'kg']);
+    if (saved.bench_1rm_est) rows.push(['Bench est. 1RM', saved.bench_1rm_est+'kg'],['Bench 70/80%', saved.bench_70+'kg / '+saved.bench_80+'kg']);
+  }
+  if (id==='row-tt') {
+    if (saved.row_500m_race_split) rows.push(['Race 500m split', saved.row_500m_race_split],['Training split', saved.row_500m_train_split]);
+  }
+  if (!rows.length) return '';
+  return `<div style="background:rgba(212,175,55,.06);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:12px;">
+    <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px;">Derived targets</div>
+    ${rows.map(([l,v])=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text3);">${l}</span>
+      <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text);">${v}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+function assLogSession(id) {
+  const a = ASSESSMENT_SESSIONS.find(x=>x.id===id); if (!a) return;
+  closeOv('assessment-overlay');
+  document.getElementById('f-week').value = '1';
+  document.getElementById('f-intensity').value = a.intensity;
+  const sEl = document.getElementById('f-session');
+  if (sEl) {
+    const opt = [...sEl.options].find(o => o.text.toLowerCase().includes('test') || o.value === a.name);
+    if (!opt) { const o=new Option(a.name,a.name); sEl.insertBefore(o,sEl.firstChild); }
+    sEl.value = a.name;
+  }
+  nav('log', document.querySelectorAll('.nb')[1]);
+}
+
+function renderBaselinesCard() {
+  const el = document.getElementById('baselines-card'); if (!el) return;
+  const hasAny = ASSESSMENT_SESSIONS.some(a=>baselines[a.id]);
+  if (!hasAny) { el.style.display='none'; return; }
+  el.style.display='';
+  const r=baselines['run-tt'], st=baselines['strength-base'], rw=baselines['row-tt'];
+  const rows=[];
+  if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'–'+r.run_zone2_hi_pace,c:''});
+  if (st?.squat_1rm_est)     rows.push({l:'Squat 1RM',v:'~'+st.squat_1rm_est+'kg',c:'bl'});
+  if (st?.bench_1rm_est)     rows.push({l:'Bench 1RM',v:'~'+st.bench_1rm_est+'kg',c:'bl'});
+  if (rw?.row_500m_race_split) rows.push({l:'Row split',v:rw.row_500m_race_split+'/500',c:''});
+  el.innerHTML=`
+    <div style="margin-bottom:4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="sec-lbl" style="margin:0;">Your baselines</div>
+        <button class="btn" style="font-size:9px;padding:3px 8px;" onclick="nav('plan',document.querySelectorAll('.nb')[2]);renderPlan(1)">Update →</button>
+      </div>
+      <div class="mg">
+        ${rows.map(x=>`<div class="metric ${x.c}"><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div></div>`).join('')}
+      </div>
+    </div>`;
 }
 
 // Log detail overlay
@@ -3036,10 +3418,18 @@ function drawChart(id,labels,data,type,color,spanGaps=false){
 // ═══════════════════════════════════════════════════════════════════════════
 // IMPORT
 // ═══════════════════════════════════════════════════════════════════════════
-const WMAP=[['1','2026-03-30','2026-04-05'],['2','2026-04-06','2026-04-12'],['3','2026-04-13','2026-04-19'],
+let WMAP=[['1','2026-03-30','2026-04-05'],['2','2026-04-06','2026-04-12'],['3','2026-04-13','2026-04-19'],
   ['4','2026-04-20','2026-04-26'],['5','2026-04-27','2026-05-03'],['6','2026-05-04','2026-05-10'],
   ['7','2026-05-11','2026-05-17'],['8','2026-05-18','2026-05-24'],['9','2026-05-25','2026-05-31'],
   ['10','2026-06-01','2026-06-07'],['11','2026-06-08','2026-06-14'],['12','2026-06-15','2026-06-21']];
+function computeWMAP(startISO) {
+  const d = new Date(startISO + 'T12:00:00');
+  return Array.from({length:12},(_,i)=>{
+    const ws=new Date(d); ws.setDate(ws.getDate()+i*7);
+    const we=new Date(ws); we.setDate(we.getDate()+6);
+    return [String(i+1), ws.toISOString().slice(0,10), we.toISOString().slice(0,10)];
+  });
+}
 function weekFor(d){for(const[w,ws,we]of WMAP)if(ws<=d&&d<=we)return w;return null;}
 function dayShort(d){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];}
 function classifyCSV(row){
@@ -3326,12 +3716,13 @@ async function runAI() {
 }
 
 function buildAISystemPrompt() {
+  const blCtx = getBaselineContext();
   return `You are an expert HYROX and hybrid endurance-strength coach AI embedded in a personal training app.
 
 The athlete is following a 12-week programme toward a HYROX race on June 20, 2026.
 Phase 1 (W1-W6): Base building — Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
 Phase 2 (W7-W12): VO2max intervals, threshold work, race simulation, taper.
-Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.
+${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}
 
 INJURY FLAGS — always respect these:
 - Left knee: medial sensitivity. High cadence (170-172 BPM) protective. Avoid 180+ BPM. Bike as Zone 2 alternative on flare-up days.
@@ -3796,7 +4187,7 @@ document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.c
 // ═══════════════════════════════════════════════════════════════════════════
 
 function initStrava() {
-  stravaWorker = localStorage.getItem('ht-strava-worker') || 'https://training-app-strava.brucesarmento.workers.dev';
+  stravaWorker = localStorage.getItem('ht-strava-worker') || '';
   try {
     const saved = JSON.parse(localStorage.getItem('ht-strava-tok') || 'null');
     if (saved) {
@@ -4104,55 +4495,107 @@ function closeReviewFlow() {
 }
 
 function reconnectStrava() {
-  if (!stravaWorker) { toast('Disconnect first, then re-enter the worker URL'); return; }
-  window.location.href = `${stravaWorker}/auth`;
+  if (!stravaWorker) { toast('Disconnect first, then re-enter your worker URL'); return; }
+  const appUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  window.location.href = `${stravaWorker}/auth?app_url=${appUrl}`;
 }
 
 function renderStravaCard() {
   const card = document.getElementById('strava-card');
   if (!card) return;
   const connected = !!stravaAccess;
-  const lastSync = localStorage.getItem('ht-strava-sync');
-  const lastStr  = lastSync ? new Date(lastSync).toLocaleString('en-AU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
+  const lastSync  = localStorage.getItem('ht-strava-sync');
+  const lastStr   = lastSync ? new Date(lastSync).toLocaleString('en-AU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
+  const savedWorker = stravaWorker || '';
+
+  const stravaIcon = `<svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="COLOUR" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
 
   if (!connected) {
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="var(--accent)" stroke-width="2">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        ${stravaIcon.replace('COLOUR','var(--accent)')}
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">Strava Sync</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-import activities · last 90 days</div>
+          <div style="font-size:14px;font-weight:700;">Strava Sync</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-import runs, rides &amp; strength sessions</div>
         </div>
       </div>
-      <input id="strava-worker-input" type="url" placeholder="https://training-app-strava.<you>.workers.dev"
-        value="${stravaWorker}"
-        style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);font-family:var(--mono);margin-bottom:8px;">
-      <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;">Connect Strava</button>`;
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Your Cloudflare Worker URL</label>
+        <input id="strava-worker-input" type="url"
+          placeholder="https://your-worker.workers.dev"
+          value="${savedWorker}"
+          style="font-size:12px;font-family:var(--mono);">
+      </div>
+      <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;margin-bottom:10px;">Connect Strava →</button>
+      <details>
+        <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:2px 0;">
+          ▸ First time? Worker setup guide (~20 min)
+        </summary>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;margin-top:10px;">
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Step 1 — Strava API credentials</div>
+          1. Go to <b>strava.com/settings/api</b> (sign in to Strava)<br>
+          2. Create an app — name and website can be anything<br>
+          3. Set <b>Authorization Callback Domain</b> to: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
+          4. Note your <b>Client ID</b> and <b>Client Secret</b>
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 2 — Deploy the Cloudflare Worker</div>
+          1. Go to <b>dash.cloudflare.com</b> → Workers &amp; Pages → Create<br>
+          2. Choose <b>Create Worker</b> → Deploy → then <b>Edit code</b><br>
+          3. Delete the default code, paste in the contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the repo<br>
+          4. Click <b>Deploy</b> — note your Worker URL (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 3 — Set environment variables</div>
+          In your Worker → Settings → Variables → Add these:
+          <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:6px 0;line-height:2.2;">
+            <b>STRAVA_CLIENT_ID</b> — from Step 1<br>
+            <b>STRAVA_CLIENT_SECRET</b> — from Step 1<br>
+            <b>APP_URL</b> — the full URL of this app (e.g. <span id="strava-app-url-hint" style="color:var(--blue);"></span>)
+          </div>
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 4 — Create the KV namespace</div>
+          1. Cloudflare Dashboard → Workers &amp; Pages → <b>KV</b><br>
+          2. Create a namespace named exactly: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code><br>
+          3. Go back to your Worker → Settings → <b>Bindings</b> → Add → KV Namespace<br>
+          4. Variable name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> · Namespace: the one you just created
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 5 — Update Strava callback</div>
+          Back on <b>strava.com/settings/api</b>, update <b>Authorization Callback Domain</b> to your exact worker URL<br>
+          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 6 — Connect</div>
+          Paste your Worker URL above and tap <b>Connect Strava</b>
+        </div>
+      </details>`;
+    // Inject current app URL hint
+    try {
+      const el = document.getElementById('strava-app-url-hint');
+      if (el) el.textContent = window.location.origin + window.location.pathname;
+    } catch(e) {}
   } else {
     const syncing = stravaState === 'syncing';
     const errored = stravaState === 'error';
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="${errored?'var(--red)':'var(--accent)'}" stroke-width="2">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        ${stravaIcon.replace('COLOUR', errored?'var(--red)':'var(--accent)')}
         <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;color:var(--text);">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
+          <div style="font-size:14px;font-weight:700;">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
           <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
-            ${errored ? '⚠ Token expired or sync failed' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
+            ${errored ? '⚠ Access token expired — reconnect to resume' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
           </div>
         </div>
       </div>
       ${errored ? `
-      <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava</button>
-      <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:rgba(240,101,101,.08);border:.5px solid rgba(240,101,101,.2);border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.8;">
+          Strava access tokens expire every 6 hours. Tap Reconnect — it re-runs the same OAuth flow and refreshes your token automatically.
+        </div>
+        <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava →</button>
+        <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
       ` : `
-      <div class="btn-row">
-        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromStrava(false)" ${syncing?'disabled':''}>Sync now</button>
-        <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
-      </div>`}`;
+        <div class="btn-row">
+          <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromStrava(false)" ${syncing?'disabled':''}>Sync now</button>
+          <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
+        </div>
+      `}`;
   }
 }
 
@@ -4404,8 +4847,14 @@ function renderGarminSyncCard() {
     } else {
       statusEl.style.background = 'var(--bg3)';
       statusEl.style.color = 'var(--text3)';
-      statusEl.textContent = 'Set up the Worker URL below, then copy your token into the Shortcut';
+      statusEl.textContent = stravaWorker ? 'Copy your token into the Shortcut' : 'Save Worker URL in Strava Sync below first';
     }
+  }
+
+  // Fill the health endpoint URL into the instructions dynamically
+  const urlInstr = document.getElementById('garmin-health-url-instr');
+  if (urlInstr) {
+    urlInstr.textContent = stravaWorker ? `${stravaWorker}/health` : 'https://your-worker.workers.dev/health';
   }
 
   const linkWrap = document.getElementById('garmin-shortcut-link-wrap');
@@ -4801,6 +5250,10 @@ function coachSetupNext() {
     renderCoachCard();
     coachMessages = [{role:'assistant', text:coachIntro()}];
     closeOv('coach-setup-overlay');
+    // If coach setup was launched from onboarding, return to onboarding step 4
+    if (localStorage.getItem('ht-onboarded') === 'pending') {
+      _obStep = 4; renderOnboardStep(); openOv('onboard-overlay'); return;
+    }
     renderCoachHeader();
     renderCoachMessages();
     openOv('coach-overlay');
@@ -4894,6 +5347,7 @@ function buildCoachSystemPrompt() {
   const raceDate  = p.raceDate || 'date not set';
   const priority  = p.priority ? `Athlete's stated priority: "${p.priority}"` : '';
 
+  const blCtx = getBaselineContext();
   return `You are ${p.name}, a personal HYROX coach. The athlete wants to ${goalMap[p.goal]||p.goal}. Their race is: ${raceDate}.
 
 ${styleMap[p.style]} Focus especially on ${focusMap[p.focus]}.
@@ -4901,6 +5355,7 @@ ${detailMap[p.detail]}
 ${priority}
 
 ATHLETE DATA (current):
+${blCtx}
 Current plan week: ${currentPlanWeek} of 12
 ${hxGoal}
 Best tempo pace: ${bestPace||'not yet logged'}
@@ -4909,6 +5364,320 @@ Recent sessions:
 ${recent||'  No sessions logged yet'}
 
 Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
+}
+
+// ── What's new ───────────────────────────────────────────────────────────────
+// Bump APP_VERSION (YYYY-MM-DD) with every deployment. Add an entry to
+// CHANGELOG. Users who last opened before this date see the sheet once.
+const APP_VERSION = '2026-05-25';
+const CHANGELOG = [
+  {
+    v: '2026-05-25',
+    label: '25 May 2026',
+    items: [
+      { tag: 'New',      text: 'Onboarding wizard — 5-step setup: plan type, HYROX goal, Strava, Garmin and AI coach' },
+      { tag: 'New',      text: 'Week 1 assessment tests — 20-min run TT, strength baseline and 2km row establish your personal pace zones and loading targets' },
+      { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach — replaces generic paces with your real numbers' },
+      { tag: 'Improved', text: 'Plan start date is fully configurable — any Monday, any user' },
+      { tag: 'Fix',      text: 'Strava reconnect fixed — was missing the app URL, causing OAuth to fail silently after token expiry' },
+      { tag: 'New',      text: 'Strava setup guide built into the app — full 6-step Cloudflare Worker deployment walkthrough' },
+      { tag: 'Improved', text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
+      { tag: 'New',      text: 'Factory reset and Setup guide in More → App Setup' },
+    ],
+  },
+];
+
+function checkForUpdates() {
+  const lastSeen = localStorage.getItem('ht-last-seen-v');
+  if (!lastSeen) {
+    // First launch — record version silently, show nothing
+    localStorage.setItem('ht-last-seen-v', APP_VERSION);
+    return;
+  }
+  if (lastSeen >= APP_VERSION) return; // already seen everything
+  const newEntries = CHANGELOG.filter(e => e.v > lastSeen);
+  if (!newEntries.length) return;
+  setTimeout(() => showUpdatesSheet(newEntries), 600);
+}
+
+function showUpdatesSheet(entries) {
+  const tagClass = t => t === 'Fix' ? 'wntag-fix' : t === 'Improved' ? 'wntag-improved' : 'wntag-new';
+  const rows = entries.flatMap(e =>
+    e.items.map(i => `
+      <div style="display:flex;align-items:flex-start;gap:0;padding:8px 0;border-bottom:.5px solid var(--border);">
+        <span class="wntag ${tagClass(i.tag)}">${i.tag}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${i.text}</span>
+      </div>`)
+  ).join('');
+
+  const versionLine = entries.length === 1
+    ? entries[0].label
+    : `${entries[entries.length - 1].label} – ${entries[0].label}`;
+
+  document.getElementById('wn-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;">What's new</div>
+      <button onclick="dismissUpdates()" style="background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;">Done</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:14px;">${versionLine}</div>
+    <div style="margin-bottom:16px;">${rows}</div>
+    <button class="btn btn-accent" style="width:100%;font-size:14px;padding:13px;" onclick="dismissUpdates()">Got it</button>`;
+
+  document.getElementById('wn-backdrop').classList.add('open');
+  document.getElementById('wn-sheet').classList.add('open');
+}
+
+function dismissUpdates() {
+  document.getElementById('wn-backdrop').classList.remove('open');
+  document.getElementById('wn-sheet').classList.remove('open');
+  localStorage.setItem('ht-last-seen-v', APP_VERSION);
+}
+
+// ── Onboarding wizard ────────────────────────────────────────────────────────
+let _obStep = 0;
+let _obAnswers = {};
+
+function maybeShowOnboarding() {
+  if (localStorage.getItem('ht-onboarded')) return;
+  // Users with pre-existing real data (different from the empty SEED) skip onboarding
+  const hasSeed = sessions.length === SEED.length && sessions.every((s,i) => s.gid === SEED[i]?.gid);
+  if (sessions.length > 0 && !hasSeed) { localStorage.setItem('ht-onboarded','1'); return; }
+  // Resume after Strava OAuth redirect
+  const obReturn = localStorage.getItem('ht-ob-return');
+  if (obReturn) { localStorage.removeItem('ht-ob-return'); openOnboardingAt(parseInt(obReturn)); return; }
+  openOnboarding();
+}
+
+function openOnboarding() { openOnboardingAt(0); }
+function openOnboardingAt(step) {
+  _obStep = step;
+  _obAnswers = {};
+  renderOnboardStep();
+  openOv('onboard-overlay');
+}
+
+function renderOnboardStep() {
+  const total = 5;
+  const dots = Array.from({length:total},(_,i)=>
+    `<div style="width:6px;height:6px;border-radius:50%;transition:background .2s;background:${i===_obStep?'var(--accent)':'var(--border)'};"></div>`
+  ).join('');
+  const nav = `<div style="display:flex;gap:6px;justify-content:center;margin-bottom:32px;">${dots}</div>`;
+
+  let body = '';
+
+  if (_obStep === 0) {
+    body = `
+      <div style="text-align:center;padding:8px 0 28px;">
+        <div style="font-size:44px;margin-bottom:14px;letter-spacing:-.01em;font-weight:800;color:var(--accent);">HYB</div>
+        <div style="font-size:24px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;">Training App</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.9;max-width:270px;margin:0 auto;">
+          Built for hybrid athletes training toward HYROX and beyond
+        </div>
+      </div>
+      <div style="display:grid;gap:10px;margin-bottom:32px;">
+        ${[
+          ['Plan','12-week hybrid programme with structured sessions for every day'],
+          ['Log','Record runs, strength, erg and mixed sessions with splits and data'],
+          ['Recover','Garmin sleep, HRV and wellness data synced each morning automatically'],
+          ['AI','Session builder and personal coach powered by Claude AI'],
+        ].map(([k,v])=>`
+          <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
+            <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent);width:42px;flex-shrink:0;padding-top:1px;">${k}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;">${v}</div>
+          </div>`).join('')}
+      </div>
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;" onclick="_obStep=1;renderOnboardStep()">Get started →</button>`;
+
+  } else if (_obStep === 1) {
+    const pt = _obAnswers.planType || '';
+    const ps = _obAnswers.planStart || '';
+    const gl = _obAnswers.goal || '';
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your training plan</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;">Choose a plan structure, set your HYROX goal, and pick your Week 1 start date</div>
+
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Plan type</div>
+      ${[
+        ['hybrid','12-Week Hybrid Programme','Pre-built HYROX training: runs, strength, erg, race prep — ready to go'],
+        ['custom','Build your own','Start with a blank slate and add sessions using the AI builder'],
+      ].map(([v,label,desc])=>`
+        <div class="card" onclick="_obAnswers.planType='${v}';renderOnboardStep();"
+             style="cursor:pointer;margin-bottom:8px;${pt===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
+            </div>
+            <div style="font-size:16px;color:${pt===v?'var(--accent)':'var(--text3)'};">${pt===v?'✓':'›'}</div>
+          </div>
+        </div>`).join('')}
+
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:20px 0 8px;">HYROX goal</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
+        ${[['sub60','Sub 60 min','Elite'],['sub75','Sub 75 min','Competitive'],['sub90','Sub 90 min','Strong amateur'],['finish','First finish','Complete it']].map(([v,label,desc])=>`
+          <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
+               style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
+            <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+          </div>`).join('')}
+      </div>
+
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">
+        Week 1 start <span style="font-weight:400;">(pick a Monday)</span>
+      </div>
+      <input type="date" id="ob-ps" value="${ps}"
+        style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:6px;"
+        onchange="_obAnswers.planStart=this.value;document.getElementById('ob-date-hint').textContent=obDateHint(this.value);">
+      <div id="ob-date-hint" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;min-height:14px;">${ps?obDateHint(ps):''}</div>
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="obSavePlan()">Next →</button>
+      <button class="btn" style="width:100%;" onclick="_obStep=0;renderOnboardStep()">← Back</button>`;
+
+  } else if (_obStep === 2) {
+    const connected = !!stravaAccess;
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Strava sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:16px;">Automatically import activities from Strava into your training log</div>
+
+      ${connected ? `
+        <div style="background:rgba(52,199,89,.1);border:.5px solid rgba(52,199,89,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:#34c759;margin-bottom:16px;">
+          Connected${stravaAthlete ? ' · ' + stravaAthlete : ''} — activities will sync automatically
+        </div>` : `
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:14px;line-height:1.9;">
+          <b style="color:var(--text2);">What it does</b><br>
+          Pulls runs, rides and strength sessions from Strava · matches them to your plan · auto-fills pace, HR and distance<br>
+          <b style="color:var(--text2);">What you need first</b><br>
+          A Cloudflare Worker deployed with your Strava API credentials — see the full guide in More → Cloud Sync after setup
+        </div>
+        <div class="fg" style="margin-bottom:8px;">
+          <label class="flbl">Your Worker URL</label>
+          <input id="ob-strava-worker" type="url" placeholder="https://your-worker.workers.dev"
+            value="${stravaWorker||''}"
+            style="font-size:12px;font-family:var(--mono);">
+        </div>
+        <button class="btn" style="width:100%;color:var(--orange,#f56e2e);border-color:rgba(245,110,46,.25);margin-bottom:8px;font-size:13px;padding:13px;" onclick="obConnectStrava()">Connect Strava →</button>`}
+
+      <button class="btn ${connected?'btn-accent':''}" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=3;renderOnboardStep();">${connected?'Next →':'Skip — set up later in More →'}</button>
+      <button class="btn" style="width:100%;" onclick="_obStep=1;renderOnboardStep()">← Back</button>`;
+
+  } else if (_obStep === 3) {
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Garmin sleep sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Auto-fill HRV, resting HR, sleep hours and VO₂max each morning via iOS Shortcuts</div>
+
+      <div style="background:var(--bg2);border-radius:8px;padding:14px;margin-bottom:16px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Your sync token</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--blue);flex:1;word-break:break-all;line-height:1.5;">${syncToken}</div>
+          <button class="btn" style="font-size:10px;padding:5px 10px;color:var(--blue);border-color:rgba(167,139,250,.3);flex-shrink:0;"
+            onclick="navigator.clipboard.writeText('${syncToken}').then(()=>toast('Token copied ✓'))">Copy</button>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Paste this into the iOS Shortcut to authenticate syncs</div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:20px;line-height:1.9;">
+        <b style="color:var(--text2);">How it works</b><br>
+        1. Build the "Health Sync" Shortcut on iPhone (12 actions, ~15 min)<br>
+        2. Set 2 automations: Sleep Focus ends + Garmin Connect opens<br>
+        3. Token authenticates → data posts to Worker → app reads it each morning<br>
+        <b style="color:var(--text2);">Full instructions in More → Garmin Sleep &amp; Wellness Sync</b>
+      </div>
+
+      ${HEALTH_SHORTCUT_LINK ? `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:13px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue);text-decoration:none;margin-bottom:8px;">Get iCloud Shortcut →</a>` : ''}
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=4;renderOnboardStep()">Next →</button>
+      <button class="btn" style="width:100%;" onclick="_obStep=2;renderOnboardStep()">← Back</button>`;
+
+  } else if (_obStep === 4) {
+    const hasCoach = !!coachProfile;
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your AI coach</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">A personalised coaching assistant powered by Claude AI</div>
+
+      ${hasCoach ? `
+        <div style="background:rgba(212,175,55,.1);border:.5px solid rgba(212,175,55,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:20px;">
+          Coach set up · ${coachProfile.name}
+        </div>` : `
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;line-height:1.9;">
+          <b style="color:var(--text2);">What the AI coach does</b><br>
+          Answers questions about your training · Reviews your recovery · Suggests adjustments<br>
+          Plans sessions tailored to your goal and race date<br>
+          <b style="color:var(--text2);">What you need</b><br>
+          A Claude API key from console.anthropic.com (add it in More → AI Session Builder)
+        </div>
+        <button class="btn" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);font-size:13px;padding:13px;margin-bottom:8px;"
+          onclick="localStorage.setItem('ht-ob-return','4');localStorage.setItem('ht-onboarded','pending');closeOv('onboard-overlay');openCoachSetup();">
+          Set up coach now →
+        </button>`}
+
+      <div style="background:rgba(212,175,55,.08);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin:14px 0 14px;">
+        <div style="font-family:var(--mono);font-size:9px;line-height:1.8;color:var(--text3);">
+          <b style="color:var(--accent);">Week 1 — Testing week</b><br>
+          Your plan starts with 3 performance tests (run TT, strength baseline, row TT).
+          Open the <b>Plan tab → Week 1</b> to find them. Results set your pace zones, loading targets and erg splits automatically.
+        </div>
+      </div>
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="finishOnboarding()">
+        ${hasCoach ? 'All set — let\'s train →' : 'Skip and finish →'}
+      </button>
+      <button class="btn" style="width:100%;" onclick="_obStep=3;renderOnboardStep()">← Back</button>`;
+  }
+
+  document.getElementById('onboard-content').innerHTML = nav + body;
+  document.getElementById('onboard-scroll')?.scrollTo(0,0);
+}
+
+function obDateHint(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun, 1=Mon
+  if (day !== 1) {
+    const diff = day === 0 ? 1 : (8 - day);
+    const next = new Date(d); next.setDate(d.getDate() + diff);
+    return `Not a Monday — nearest Monday: ${next.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}`;
+  }
+  return `Week 1: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})} → ${new Date(d.getTime()+6*86400000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}`;
+}
+
+function obSavePlan() {
+  if (!_obAnswers.planType) { toast('Pick a plan type to continue'); return; }
+  if (!_obAnswers.goal)     { toast('Pick your HYROX goal to continue'); return; }
+  if (!_obAnswers.planStart) { toast('Set your Week 1 start date to continue'); return; }
+  const d = new Date(_obAnswers.planStart + 'T12:00:00');
+  if (d.getDay() !== 1) { toast('Please pick a Monday for Week 1'); return; }
+  localStorage.setItem('ht-plan-start', _obAnswers.planStart);
+  localStorage.setItem('ht-plan-type', _obAnswers.planType);
+  localStorage.setItem('ht-goal', _obAnswers.goal);
+  trainGoal = _obAnswers.goal;
+  WMAP = computeWMAP(_obAnswers.planStart);
+  if (_obAnswers.planType === 'custom') { sessions = []; saveData(); }
+  _obStep = 2;
+  renderOnboardStep();
+}
+
+function obConnectStrava() {
+  const w = (document.getElementById('ob-strava-worker')?.value || '').trim();
+  if (!w) { toast('Paste your Worker URL first'); return; }
+  stravaWorker = w.replace(/\/$/,'');
+  localStorage.setItem('ht-strava-worker', stravaWorker);
+  localStorage.setItem('ht-ob-return', '3');
+  const appUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  window.location.href = `${stravaWorker}/auth?app_url=${appUrl}`;
+}
+
+function finishOnboarding() {
+  localStorage.setItem('ht-onboarded', '1');
+  localStorage.removeItem('ht-ob-return');
+  closeOv('onboard-overlay');
+  try { renderAll(); } catch(e) {}
+  toast('Setup complete — welcome to Training App');
+}
+
+function confirmFactoryReset() {
+  if (!confirm('This will erase all sessions, settings, tokens and sync data. The app will reload as if brand new.\n\nAre you sure?')) return;
+  localStorage.clear();
+  location.reload();
 }
 
 // INIT
@@ -4921,6 +5690,14 @@ try { renderGarminSyncCard(); } catch(e) {}
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
+// Resume onboarding if coach setup was opened mid-flow
+if (localStorage.getItem('ht-onboarded') === 'pending') {
+  try { openOnboardingAt(4); } catch(e) {}
+} else {
+  try { maybeShowOnboarding(); } catch(e) {}
+}
+// Show what's-new sheet for returning users when version advances
+try { checkForUpdates(); } catch(e) {}
 </script>
 </body>
 </html>

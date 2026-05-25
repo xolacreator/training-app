@@ -1,10 +1,12 @@
-name = "training-app-strava"
+name = "training-app-worker"
 main = "index.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-APP_URL = "https://bruces6.github.io/training-app/"
+# Set this to the full URL of your deployed app (e.g. https://yourname.github.io/training-app/)
+APP_URL = "https://YOUR_APP_URL_HERE"
 
 [[kv_namespaces]]
+# Create a KV namespace named HEALTH_DATA in the Cloudflare dashboard and paste its ID below
 binding = "HEALTH_DATA"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"
