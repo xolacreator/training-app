@@ -768,6 +768,16 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">App Setup</div>
+    <div class="card">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
+        Re-run the setup guide or reset the app to a clean slate for a new user.
+      </div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="openOnboarding()">Setup guide</button>
+        <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmFactoryReset()">Factory reset</button>
+      </div>
+    </div>
     <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
@@ -805,6 +815,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>More
   </button>
 </nav>
+
+<!-- ONBOARDING OVERLAY -->
+<div class="overlay" id="onboard-overlay" style="background:var(--bg);z-index:200;display:flex;flex-direction:column;">
+  <div style="flex:1;overflow-y:auto;" id="onboard-scroll">
+    <div style="padding:max(env(safe-area-inset-top),24px) 24px 40px;" id="onboard-content"></div>
+  </div>
+</div>
 
 <!-- PLAN SESSION DETAIL OVERLAY -->
 <div class="overlay" id="plan-overlay">
@@ -2111,6 +2128,9 @@ function load() {
     }
   } catch(e) { sessions = [...SEED]; }
 
+  // Recompute WMAP if user has a custom plan start date
+  try { const ps=localStorage.getItem('ht-plan-start'); if(ps) WMAP=computeWMAP(ps); } catch(e) {}
+
   // Auto-detect current plan week from WMAP
   try {
     const _tn = new Date();
@@ -3036,10 +3056,18 @@ function drawChart(id,labels,data,type,color,spanGaps=false){
 // ═══════════════════════════════════════════════════════════════════════════
 // IMPORT
 // ═══════════════════════════════════════════════════════════════════════════
-const WMAP=[['1','2026-03-30','2026-04-05'],['2','2026-04-06','2026-04-12'],['3','2026-04-13','2026-04-19'],
+let WMAP=[['1','2026-03-30','2026-04-05'],['2','2026-04-06','2026-04-12'],['3','2026-04-13','2026-04-19'],
   ['4','2026-04-20','2026-04-26'],['5','2026-04-27','2026-05-03'],['6','2026-05-04','2026-05-10'],
   ['7','2026-05-11','2026-05-17'],['8','2026-05-18','2026-05-24'],['9','2026-05-25','2026-05-31'],
   ['10','2026-06-01','2026-06-07'],['11','2026-06-08','2026-06-14'],['12','2026-06-15','2026-06-21']];
+function computeWMAP(startISO) {
+  const d = new Date(startISO + 'T12:00:00');
+  return Array.from({length:12},(_,i)=>{
+    const ws=new Date(d); ws.setDate(ws.getDate()+i*7);
+    const we=new Date(ws); we.setDate(we.getDate()+6);
+    return [String(i+1), ws.toISOString().slice(0,10), we.toISOString().slice(0,10)];
+  });
+}
 function weekFor(d){for(const[w,ws,we]of WMAP)if(ws<=d&&d<=we)return w;return null;}
 function dayShort(d){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];}
 function classifyCSV(row){
@@ -4801,6 +4829,10 @@ function coachSetupNext() {
     renderCoachCard();
     coachMessages = [{role:'assistant', text:coachIntro()}];
     closeOv('coach-setup-overlay');
+    // If coach setup was launched from onboarding, return to onboarding step 4
+    if (localStorage.getItem('ht-onboarded') === 'pending') {
+      _obStep = 4; renderOnboardStep(); openOv('onboard-overlay'); return;
+    }
     renderCoachHeader();
     renderCoachMessages();
     openOv('coach-overlay');
@@ -4911,6 +4943,229 @@ ${recent||'  No sessions logged yet'}
 Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
 }
 
+// ── Onboarding wizard ────────────────────────────────────────────────────────
+let _obStep = 0;
+let _obAnswers = {};
+
+function maybeShowOnboarding() {
+  if (localStorage.getItem('ht-onboarded')) return;
+  // Users with pre-existing real data (different from the empty SEED) skip onboarding
+  const hasSeed = sessions.length === SEED.length && sessions.every((s,i) => s.gid === SEED[i]?.gid);
+  if (sessions.length > 0 && !hasSeed) { localStorage.setItem('ht-onboarded','1'); return; }
+  // Resume after Strava OAuth redirect
+  const obReturn = localStorage.getItem('ht-ob-return');
+  if (obReturn) { localStorage.removeItem('ht-ob-return'); openOnboardingAt(parseInt(obReturn)); return; }
+  openOnboarding();
+}
+
+function openOnboarding() { openOnboardingAt(0); }
+function openOnboardingAt(step) {
+  _obStep = step;
+  _obAnswers = {};
+  renderOnboardStep();
+  openOv('onboard-overlay');
+}
+
+function renderOnboardStep() {
+  const total = 5;
+  const dots = Array.from({length:total},(_,i)=>
+    `<div style="width:6px;height:6px;border-radius:50%;transition:background .2s;background:${i===_obStep?'var(--accent)':'var(--border)'};"></div>`
+  ).join('');
+  const nav = `<div style="display:flex;gap:6px;justify-content:center;margin-bottom:32px;">${dots}</div>`;
+
+  let body = '';
+
+  if (_obStep === 0) {
+    body = `
+      <div style="text-align:center;padding:8px 0 28px;">
+        <div style="font-size:44px;margin-bottom:14px;letter-spacing:-.01em;font-weight:800;color:var(--accent);">HYB</div>
+        <div style="font-size:24px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;">Training App</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.9;max-width:270px;margin:0 auto;">
+          Built for hybrid athletes training toward HYROX and beyond
+        </div>
+      </div>
+      <div style="display:grid;gap:10px;margin-bottom:32px;">
+        ${[
+          ['Plan','12-week hybrid programme with structured sessions for every day'],
+          ['Log','Record runs, strength, erg and mixed sessions with splits and data'],
+          ['Recover','Garmin sleep, HRV and wellness data synced each morning automatically'],
+          ['AI','Session builder and personal coach powered by Claude AI'],
+        ].map(([k,v])=>`
+          <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
+            <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent);width:42px;flex-shrink:0;padding-top:1px;">${k}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;">${v}</div>
+          </div>`).join('')}
+      </div>
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;" onclick="_obStep=1;renderOnboardStep()">Get started →</button>`;
+
+  } else if (_obStep === 1) {
+    const pt = _obAnswers.planType || '';
+    const ps = _obAnswers.planStart || '';
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your training plan</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;">Choose a plan structure and set your Week 1 start date</div>
+
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Plan type</div>
+      ${[
+        ['hybrid','12-Week Hybrid Programme','Pre-built HYROX training: runs, strength, erg, race prep — ready to go'],
+        ['custom','Build your own','Start with a blank slate and add sessions using the AI builder'],
+      ].map(([v,label,desc])=>`
+        <div class="card" onclick="_obAnswers.planType='${v}';renderOnboardStep();"
+             style="cursor:pointer;margin-bottom:8px;${pt===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;">${label}</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
+            </div>
+            <div style="font-size:16px;color:${pt===v?'var(--accent)':'var(--text3)'};">${pt===v?'✓':'›'}</div>
+          </div>
+        </div>`).join('')}
+
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:20px 0 8px;">
+        Week 1 start <span style="font-weight:400;">(pick a Monday)</span>
+      </div>
+      <input type="date" id="ob-ps" value="${ps}"
+        style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:6px;"
+        onchange="_obAnswers.planStart=this.value;document.getElementById('ob-date-hint').textContent=obDateHint(this.value);">
+      <div id="ob-date-hint" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;min-height:14px;">${ps?obDateHint(ps):''}</div>
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="obSavePlan()">Next →</button>
+      <button class="btn" style="width:100%;" onclick="_obStep=0;renderOnboardStep()">← Back</button>`;
+
+  } else if (_obStep === 2) {
+    const connected = !!stravaAccess;
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Strava sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Connect Strava to automatically import your runs, strength and erg sessions</div>
+
+      ${connected ? `
+        <div style="background:rgba(52,199,89,.1);border:.5px solid rgba(52,199,89,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:#34c759;margin-bottom:20px;">
+          Connected${stravaAthlete ? ' · ' + stravaAthlete : ''} — activities syncing
+        </div>` : `
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;line-height:1.9;">
+          <b style="color:var(--text2);">What Strava sync does</b><br>
+          Pulls your activities · Matches to plan sessions · Captures splits and pace data<br>
+          <b style="color:var(--text2);">What you need first</b><br>
+          Your Cloudflare Worker deployed and Strava API credentials set up (see the guide in the README)
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;">Worker URL</div>
+        <input id="ob-strava-worker" type="url" placeholder="https://your-worker.workers.dev"
+          value="${stravaWorker||''}"
+          style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:11px;margin-bottom:16px;">
+        <button class="btn" style="width:100%;color:var(--orange,#f56e2e);border-color:rgba(245,110,46,.25);margin-bottom:8px;font-size:13px;padding:13px;" onclick="obConnectStrava()">Connect Strava →</button>`}
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=3;renderOnboardStep();">${connected?'Next →':'Skip for now →'}</button>
+      <button class="btn" style="width:100%;" onclick="_obStep=1;renderOnboardStep()">← Back</button>`;
+
+  } else if (_obStep === 3) {
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Garmin sleep sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Auto-fill HRV, resting HR, sleep hours and VO₂max each morning via iOS Shortcuts</div>
+
+      <div style="background:var(--bg2);border-radius:8px;padding:14px;margin-bottom:16px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Your sync token</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--blue);flex:1;word-break:break-all;line-height:1.5;">${syncToken}</div>
+          <button class="btn" style="font-size:10px;padding:5px 10px;color:var(--blue);border-color:rgba(167,139,250,.3);flex-shrink:0;"
+            onclick="navigator.clipboard.writeText('${syncToken}').then(()=>toast('Token copied ✓'))">Copy</button>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Paste this into the iOS Shortcut to authenticate syncs</div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:20px;line-height:1.9;">
+        <b style="color:var(--text2);">How it works</b><br>
+        1. Build the "Health Sync" Shortcut on iPhone (12 actions, ~15 min)<br>
+        2. Set 2 automations: Sleep Focus ends + Garmin Connect opens<br>
+        3. Token authenticates → data posts to Worker → app reads it each morning<br>
+        <b style="color:var(--text2);">Full instructions in More → Garmin Sleep &amp; Wellness Sync</b>
+      </div>
+
+      ${HEALTH_SHORTCUT_LINK ? `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:13px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue);text-decoration:none;margin-bottom:8px;">Get iCloud Shortcut →</a>` : ''}
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=4;renderOnboardStep()">Next →</button>
+      <button class="btn" style="width:100%;" onclick="_obStep=2;renderOnboardStep()">← Back</button>`;
+
+  } else if (_obStep === 4) {
+    const hasCoach = !!coachProfile;
+    body = `
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your AI coach</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">A personalised coaching assistant powered by Claude AI</div>
+
+      ${hasCoach ? `
+        <div style="background:rgba(212,175,55,.1);border:.5px solid rgba(212,175,55,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:20px;">
+          Coach set up · ${coachProfile.name}
+        </div>` : `
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;line-height:1.9;">
+          <b style="color:var(--text2);">What the AI coach does</b><br>
+          Answers questions about your training · Reviews your recovery · Suggests adjustments<br>
+          Plans sessions tailored to your goal and race date<br>
+          <b style="color:var(--text2);">What you need</b><br>
+          A Claude API key from console.anthropic.com (add it in More → AI Session Builder)
+        </div>
+        <button class="btn" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);font-size:13px;padding:13px;margin-bottom:8px;"
+          onclick="localStorage.setItem('ht-ob-return','4');localStorage.setItem('ht-onboarded','pending');closeOv('onboard-overlay');openCoachSetup();">
+          Set up coach now →
+        </button>`}
+
+      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="finishOnboarding()">
+        ${hasCoach ? 'All set — let\'s train →' : 'Skip and finish →'}
+      </button>
+      <button class="btn" style="width:100%;" onclick="_obStep=3;renderOnboardStep()">← Back</button>`;
+  }
+
+  document.getElementById('onboard-content').innerHTML = nav + body;
+  document.getElementById('onboard-scroll')?.scrollTo(0,0);
+}
+
+function obDateHint(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun, 1=Mon
+  if (day !== 1) {
+    const diff = day === 0 ? 1 : (8 - day);
+    const next = new Date(d); next.setDate(d.getDate() + diff);
+    return `Not a Monday — nearest Monday: ${next.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}`;
+  }
+  return `Week 1: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})} → ${new Date(d.getTime()+6*86400000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}`;
+}
+
+function obSavePlan() {
+  if (!_obAnswers.planType) { toast('Pick a plan type to continue'); return; }
+  if (!_obAnswers.planStart) { toast('Set your Week 1 start date to continue'); return; }
+  const d = new Date(_obAnswers.planStart + 'T12:00:00');
+  if (d.getDay() !== 1) { toast('Please pick a Monday for Week 1'); return; }
+  localStorage.setItem('ht-plan-start', _obAnswers.planStart);
+  localStorage.setItem('ht-plan-type', _obAnswers.planType);
+  WMAP = computeWMAP(_obAnswers.planStart);
+  if (_obAnswers.planType === 'custom') { sessions = []; saveData(); }
+  _obStep = 2;
+  renderOnboardStep();
+}
+
+function obConnectStrava() {
+  const w = (document.getElementById('ob-strava-worker')?.value || '').trim();
+  if (!w) { toast('Paste your Worker URL first'); return; }
+  stravaWorker = w.replace(/\/$/,'');
+  localStorage.setItem('ht-strava-worker', stravaWorker);
+  localStorage.setItem('ht-ob-return', '3');
+  const appUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  window.location.href = `${stravaWorker}/auth?app_url=${appUrl}`;
+}
+
+function finishOnboarding() {
+  localStorage.setItem('ht-onboarded', '1');
+  localStorage.removeItem('ht-ob-return');
+  closeOv('onboard-overlay');
+  try { renderAll(); } catch(e) {}
+  toast('Setup complete — welcome to Training App');
+}
+
+function confirmFactoryReset() {
+  if (!confirm('This will erase all sessions, settings, tokens and sync data. The app will reload as if brand new.\n\nAre you sure?')) return;
+  localStorage.clear();
+  location.reload();
+}
+
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 try { load(); }      catch(e) { console.error('load() failed:', e); try { renderAll(); } catch(_) {} }
@@ -4921,6 +5176,12 @@ try { renderGarminSyncCard(); } catch(e) {}
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
+// Resume onboarding if coach setup was opened mid-flow
+if (localStorage.getItem('ht-onboarded') === 'pending') {
+  try { openOnboardingAt(4); } catch(e) {}
+} else {
+  try { maybeShowOnboarding(); } catch(e) {}
+}
 </script>
 </body>
 </html>
