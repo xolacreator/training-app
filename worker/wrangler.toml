@@ -3,8 +3,10 @@ main = "index.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-# Set this to the full URL of your deployed app (e.g. https://yourname.github.io/training-app/)
-APP_URL = "https://YOUR_APP_URL_HERE"
+# Your Strava Client ID (a number — from strava.com/settings/api)
+STRAVA_CLIENT_ID = "REPLACE_WITH_CLIENT_ID"
+# The full URL of your deployed app
+APP_URL = "https://YOUR_GITHUB_USERNAME.github.io/training-app/"
 
 [[kv_namespaces]]
 # Create a KV namespace named HEALTH_DATA in the Cloudflare dashboard and paste its ID below

@@ -736,7 +736,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
           Tap <b>Add Action</b> and build the following in order:<br><br>
 
           <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
-            <b style="color:var(--text2);">&mdash; Sleep duration &mdash;</b><br>
+            <b style="color:var(--accent);">REQUIRED &mdash; Sleep duration</b><br>
             1. Search for and add: <b>Find Health Samples</b><br>
             &nbsp;&nbsp;&rarr; tap the Type field &rarr; search and select <b>Sleep</b><br>
             &nbsp;&nbsp;&rarr; Sort by: <b>Newest First</b> &middot; toggle Limit on &rarr; <b>1</b><br>
@@ -752,22 +752,23 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
             &nbsp;&nbsp;&rarr; inside the If block add: <b>Stop and Output</b> "no sleep data yet"<br>
             &nbsp;&nbsp;(stops early if Garmin has not synced this morning)<br><br>
 
-            <b style="color:var(--text2);">&mdash; Heart metrics &mdash;</b><br>
-            8. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
+            <b style="color:var(--accent);">REQUIRED &mdash; Resting Heart Rate</b><br>
+            8. <b>Find Health Samples</b> &rarr; Type: <b>Resting Heart Rate</b><br>
             &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; below it add <b>Get Details of Health Sample</b> &rarr; Value<br>
-            &nbsp;&nbsp;&rarr; rename output <b>HRV</b><br>
-            9. <b>Find Health Samples</b> &rarr; Type: <b>Resting Heart Rate</b><br>
-            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>RHR</b><br>
-            10. <b>Find Health Samples</b> &rarr; Type: search <b>Cardio Fitness</b> (or VO2)<br>
-            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>VO2</b><br><br>
+            &nbsp;&nbsp;&rarr; add <b>Get Details of Health Sample</b> &rarr; Value &rarr; rename <b>RHR</b><br><br>
 
-            <b style="color:var(--text2);">&mdash; Steps &mdash;</b><br>
-            11. <b>Find Health Samples</b> &rarr; Type: search <b>Steps</b><br>
+            <b style="color:var(--text2);">OPTIONAL &mdash; add if your device supports it</b><br>
+            <span style="color:var(--text3);font-size:8px;">Apple Watch, Whoop, or any app that writes to Apple Health.<br>Skip any you don&apos;t have &mdash; the app works without them.</span><br><br>
+            9. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
             &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>Steps</b><br><br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>HRV</b><br>
+            10. <b>Find Health Samples</b> &rarr; Type: <b>Steps</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>Steps</b><br>
+            11. <b>Find Health Samples</b> &rarr; Type: <b>Cardio Fitness</b><br>
+            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
+            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>VO2</b><br>
+            &nbsp;&nbsp;<span style="color:var(--text3);font-size:8px;">Apple Watch only. Garmin does not reliably write this to Apple Health.</span><br><br>
 
             <b style="color:var(--text2);">&mdash; Date &mdash;</b><br>
             12. <b>Format Date</b> &rarr; Current Date &rarr; Format: Custom<br>
@@ -780,10 +781,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
             13. <b>Dictionary</b> &rarr; tap + to add each key/value pair:<br>
             &nbsp;&nbsp;date &rarr; Today<br>
             &nbsp;&nbsp;sleepHours &rarr; SleepHrs<br>
-            &nbsp;&nbsp;hrv &rarr; HRV<br>
             &nbsp;&nbsp;restingHR &rarr; RHR<br>
-            &nbsp;&nbsp;vo2max &rarr; VO2<br>
-            &nbsp;&nbsp;steps &rarr; Steps<br>
+            &nbsp;&nbsp;hrv &rarr; HRV &nbsp;<span style="color:var(--text3);font-size:8px;">(only if you added step 9)</span><br>
+            &nbsp;&nbsp;steps &rarr; Steps &nbsp;<span style="color:var(--text3);font-size:8px;">(only if you added step 10)</span><br>
+            &nbsp;&nbsp;vo2max &rarr; VO2 &nbsp;<span style="color:var(--text3);font-size:8px;">(only if you added step 11)</span><br>
             &nbsp;&nbsp;garminSyncTime &rarr; (add <b>Format Date</b> &rarr; ISO 8601)<br>
             14. <b>Get Text from Dictionary</b> (converts the above to JSON)<br>
             15. <b>Get Contents of URL</b>:<br>
@@ -807,9 +808,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
           <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Test it</div>
           Open the Shortcut &rarr; tap <b>Run &#9654;</b>. Then tap <b>Test sync</b> above.<br>
-          If it shows your sleep hours and HRV the pipeline is working.<br><br>
+          If it shows your sleep hours and resting HR the pipeline is working.<br><br>
           <span style="color:var(--text3);">
-            VO&#8322;max updates slowly &mdash; Garmin only recalculates it after outdoor tracked runs.<br>
+            VO&#8322;max is calculated by the app from your Week 1 run assessment &mdash; no device needed.<br>
+            If your Apple Watch also writes Cardio Fitness, it will appear alongside as a cross-check.<br>
             Steps show yesterday&apos;s total (today&apos;s is incomplete when the Shortcut runs at wake-up).
           </span>
         </div>
@@ -2127,7 +2129,7 @@ const ASSESSMENT_SESSIONS = [
       'Start GPS and run hard for exactly 20:00',
       'Record the total distance covered',
     ],
-    tip: 'Average pace = threshold pace. Zone 2 ceiling ≈ threshold + 50s/km. VO₂max intervals ≈ threshold − 22s/km.',
+    tip: 'Average pace = threshold pace. Zone 2 ceiling ≈ threshold + 50s/km. VO₂max interval pace ≈ threshold − 22s/km. Your VO₂max (ml/kg/min) is predicted automatically from this distance using the Daniels VDOT formula.',
     fields: [
       { id: 'run_tt_dist', label: 'Distance covered', unit: 'km', placeholder: 'e.g. 3.85', type: 'number', step: '0.01' },
     ],
@@ -2193,6 +2195,11 @@ function deriveBaselines(id, vals) {
       d.run_zone2_hi_pace  = fmtPaceSecs(th+50);
       d.run_zone2_lo_pace  = fmtPaceSecs(th+85);
       d.run_vo2max_pace    = fmtPaceSecs(th-22);
+      // Daniels VDOT: estimate VO2max (ml/kg/min) from 20-min TT distance
+      const v = (dist * 1000) / 20;
+      const vo2AtPace = -4.60 + 0.182258 * v + 0.000104 * v * v;
+      const pctVO2max = 0.8 + 0.1894393 * Math.exp(-0.012778 * 20) + 0.2989558 * Math.exp(-0.1932605 * 20);
+      d.vo2max_predicted = Math.round(vo2AtPace / pctVO2max);
     }
   }
   if (id==='strength-base') {
@@ -2214,8 +2221,10 @@ function getBaselineContext() {
   const bl = baselines; if (!bl||!Object.keys(bl).length) return '';
   const lines = ['TRAINING BASELINES (from Week 1 assessment):'];
   const r=bl['run-tt'], st=bl['strength-base'], rw=bl['row-tt'];
+  const vo2best = baselines.vo2max_composite?.value || r?.vo2max_predicted;
+  const vo2srcs = baselines.vo2max_composite?.sources?.join('+') || (r?.vo2max_predicted ? '20-min TT' : '');
   if (r?.run_threshold_pace) lines.push(
-    `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max=${r.run_vo2max_pace}/km`);
+    `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max intervals=${r.run_vo2max_pace}/km${vo2best ? ` · VO₂max=${vo2best} ml/kg/min (${vo2srcs})` : ''}`);
   if (st?.squat_1rm_est) lines.push(
     `  Squat: est. 1RM=${st.squat_1rm_est}kg (70%=${st.squat_70}kg, 80%=${st.squat_80}kg)`);
   if (st?.bench_1rm_est) lines.push(
@@ -2223,6 +2232,85 @@ function getBaselineContext() {
   if (rw?.row_500m_race_split) lines.push(
     `  Row: race split=${rw.row_500m_race_split}/500m · training split=${rw.row_500m_train_split}/500m`);
   return lines.join('\n');
+}
+function paceStrToMPerMin(paceStr) {
+  const parts = String(paceStr || '').split(':');
+  if (parts.length !== 2) return 0;
+  const secs = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+  return secs > 0 ? (1000 / secs) * 60 : 0;
+}
+function detectHRmax() {
+  const hrs = sessions
+    .filter(s => s.hr && !s.gid?.startsWith('SEED'))
+    .map(s => Number(s.hr)).filter(h => h > 100);
+  return hrs.length ? Math.round(Math.max(...hrs) * 1.05) : 185;
+}
+function getLatestRestingHR() {
+  return [...recoveryLog]
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .find(r => r.restingHR > 0)?.restingHR || null;
+}
+function computeVO2maxComposite() {
+  const sources = [];
+  const estimates = [];
+
+  // Source 1: Daniels VDOT from 20-min TT (weight 3)
+  const ttVO2 = baselines['run-tt']?.vo2max_predicted;
+  if (ttVO2 > 0) {
+    estimates.push(ttVO2, ttVO2, ttVO2);
+    sources.push('20-min TT');
+  }
+
+  // Source 2: HR-pace efficiency from Strava runs (Swain 1994: %HRR ≈ %VO2max)
+  const restingHR = getLatestRestingHR();
+  const hrmax = detectHRmax();
+  if (restingHR && hrmax > restingHR + 30) {
+    const runSessions = sessions
+      .filter(s => {
+        if (!s.hr || !s.pace || s.gid?.startsWith('SEED')) return false;
+        const name = (s.session || '').toLowerCase();
+        return name.includes('run') || name.includes('interval') || name.includes('tempo');
+      })
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 8);
+    let hrRunCount = 0;
+    for (const s of runSessions) {
+      const v = paceStrToMPerMin(s.pace);
+      if (v < 100 || v > 380) continue;
+      const vo2AtPace = -4.60 + 0.182258 * v + 0.000104 * v * v;
+      if (vo2AtPace <= 5) continue;
+      const hrReserve = hrmax - restingHR;
+      const pctHRR = (Number(s.hr) - restingHR) / hrReserve;
+      if (pctHRR < 0.40 || pctHRR > 0.97) continue;
+      const est = Math.round(vo2AtPace / pctHRR);
+      if (est < 25 || est > 90) continue;
+      estimates.push(est);
+      hrRunCount++;
+    }
+    if (hrRunCount > 0) sources.push(`${hrRunCount} run${hrRunCount > 1 ? 's' : ''}`);
+  }
+
+  // Source 3: Uth-Sørensen cross-check from resting HR (15.3 × HRmax / HRresting)
+  if (restingHR && hrmax > 0) {
+    const uthEst = Math.round(15.3 * hrmax / restingHR);
+    if (uthEst >= 25 && uthEst <= 90) {
+      estimates.push(uthEst);
+      sources.push('RHR');
+    }
+  }
+
+  if (!estimates.length) return null;
+  const sorted = [...estimates].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid];
+  return { value, sources, dataPoints: estimates.length };
+}
+function refreshVO2maxComposite() {
+  baselines.vo2max_composite = computeVO2maxComposite();
+  saveBaselines();
+  try { renderBaselinesCard(); } catch(e) {}
 }
 function saveBaselines() {
   try { localStorage.setItem('ht-baselines', JSON.stringify(baselines)); } catch(e) {}
@@ -3032,6 +3120,7 @@ function saveAssessmentResult(id) {
   const derived = deriveBaselines(id, vals);
   baselines[id] = derived;
   saveBaselines();
+  try { refreshVO2maxComposite(); } catch(e) {}
   toast('Targets set ✓');
   closeOv('assessment-overlay');
   try { renderBaselinesCard(); } catch(e) {}
@@ -3044,7 +3133,8 @@ function buildAssessmentResultHtml(id, saved) {
   if (id==='run-tt') {
     if (saved.run_threshold_pace) rows.push(['Threshold pace', saved.run_threshold_pace+'/km']);
     if (saved.run_zone2_hi_pace)  rows.push(['Zone 2 range', saved.run_zone2_lo_pace+'–'+saved.run_zone2_hi_pace+'/km']);
-    if (saved.run_vo2max_pace)    rows.push(['VO₂max pace', saved.run_vo2max_pace+'/km']);
+    if (saved.run_vo2max_pace)    rows.push(['VO₂max interval pace', saved.run_vo2max_pace+'/km']);
+    if (saved.vo2max_predicted)   rows.push(['VO₂max (predicted)', saved.vo2max_predicted+' ml/kg/min']);
   }
   if (id==='strength-base') {
     if (saved.squat_1rm_est) rows.push(['Squat est. 1RM', saved.squat_1rm_est+'kg'],['Squat 70/80%', saved.squat_70+'kg / '+saved.squat_80+'kg']);
@@ -3085,6 +3175,12 @@ function renderBaselinesCard() {
   const r=baselines['run-tt'], st=baselines['strength-base'], rw=baselines['row-tt'];
   const rows=[];
   if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'–'+r.run_zone2_hi_pace,c:''});
+  const vo2c = baselines.vo2max_composite;
+  const vo2val = vo2c?.value || r?.vo2max_predicted;
+  if (vo2val) {
+    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : '20-min TT';
+    rows.push({l:'VO₂max est.',v:vo2val+' ml/kg/min',c:'bl',s:vo2sub});
+  }
   if (st?.squat_1rm_est)     rows.push({l:'Squat 1RM',v:'~'+st.squat_1rm_est+'kg',c:'bl'});
   if (st?.bench_1rm_est)     rows.push({l:'Bench 1RM',v:'~'+st.bench_1rm_est+'kg',c:'bl'});
   if (rw?.row_500m_race_split) rows.push({l:'Row split',v:rw.row_500m_race_split+'/500',c:''});
@@ -3095,7 +3191,7 @@ function renderBaselinesCard() {
         <button class="btn" style="font-size:9px;padding:3px 8px;" onclick="nav('plan',document.querySelectorAll('.nb')[2]);renderPlan(1)">Update →</button>
       </div>
       <div class="mg">
-        ${rows.map(x=>`<div class="metric ${x.c}"><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div></div>`).join('')}
+        ${rows.map(x=>`<div class="metric ${x.c}"><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div>${x.s?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px;">${x.s}</div>`:''}</div>`).join('')}
       </div>
     </div>`;
 }
@@ -4018,6 +4114,7 @@ function parseHealthFile(data) {
   recoveryLog = recoveryLog.filter(r => r.date !== data.date);
   recoveryLog.unshift(entry);
   saveRecovery();
+  try { refreshVO2maxComposite(); } catch(e) {}
   return true;
 }
 
@@ -4388,6 +4485,7 @@ async function syncFromStrava(silent = false) {
       }
       try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
       saveData(); renderAll();
+      try { refreshVO2maxComposite(); } catch(e) {}
       // Background: fetch per-km splits + laps for all run/ride sessions
       const detailGids = newGids.filter(gid => {
         const s = sessions.find(s => s.gid === gid);
@@ -4529,41 +4627,90 @@ function renderStravaCard() {
       <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;margin-bottom:10px;">Connect Strava →</button>
       <details>
         <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:2px 0;">
-          ▸ First time? Worker setup guide (~20 min)
+          ▸ First time? Worker setup guide
         </summary>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;margin-top:10px;">
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Step 1 — Strava API credentials</div>
-          1. Go to <b>strava.com/settings/api</b> (sign in to Strava)<br>
-          2. Create an app — name and website can be anything<br>
-          3. Set <b>Authorization Callback Domain</b> to: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
-          4. Note your <b>Client ID</b> and <b>Client Secret</b>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.0;margin-top:10px;">
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 2 — Deploy the Cloudflare Worker</div>
-          1. Go to <b>dash.cloudflare.com</b> → Workers &amp; Pages → Create<br>
-          2. Choose <b>Create Worker</b> → Deploy → then <b>Edit code</b><br>
-          3. Delete the default code, paste in the contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the repo<br>
-          4. Click <b>Deploy</b> — note your Worker URL (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART A: Strava API credentials —</div>
+          1. Open <b>strava.com/settings/api</b> and sign in<br>
+          2. Click <b>"Create &amp; Manage Your App"</b> (or view an existing one)<br>
+          3. App Name and Website can be anything (e.g. "My Training App" / "example.com")<br>
+          4. <b>Authorization Callback Domain</b>: type exactly <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
+          5. Click <b>Save</b> — note your <b>Client ID</b> (a number) and <b>Client Secret</b> (a long string)
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 3 — Set environment variables</div>
-          In your Worker → Settings → Variables → Add these:
-          <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:6px 0;line-height:2.2;">
-            <b>STRAVA_CLIENT_ID</b> — from Step 1<br>
-            <b>STRAVA_CLIENT_SECRET</b> — from Step 1<br>
-            <b>APP_URL</b> — the full URL of this app (e.g. <span id="strava-app-url-hint" style="color:var(--blue);"></span>)
-          </div>
+          <div style="height:10px;"></div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART B: Deploy your Cloudflare Worker —</div>
+          <div style="color:var(--text2);margin-bottom:4px;">Choose one method:</div>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 4 — Create the KV namespace</div>
-          1. Cloudflare Dashboard → Workers &amp; Pages → <b>KV</b><br>
-          2. Create a namespace named exactly: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code><br>
-          3. Go back to your Worker → Settings → <b>Bindings</b> → Add → KV Namespace<br>
-          4. Variable name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> · Namespace: the one you just created
+          <details style="margin:4px 0;">
+            <summary style="color:var(--accent);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 1 — Terminal/Wrangler (recommended, ~5 min)</summary>
+            <div style="padding:8px 0 0 8px;line-height:2.2;">
+              Needs: <b>Node.js</b> (nodejs.org) and a terminal (macOS: Terminal, Windows: Command Prompt)<br><br>
+              <b>1.</b> Install Wrangler:<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">npm install -g wrangler</code><br><br>
+              <b>2.</b> Log in to Cloudflare (opens a browser):<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler login</code><br><br>
+              <b>3.</b> Create the data store:<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler kv namespace create HEALTH_DATA</code><br>
+              → Copy the <b>"id"</b> value printed in the output (looks like a long hex string)<br><br>
+              <b>4.</b> Open <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/wrangler.toml</code> in the repo and fill in:<br>
+              <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:4px 0;line-height:2.2;">
+                id = <b>"paste_the_kv_id_here"</b><br>
+                STRAVA_CLIENT_ID = <b>"your_client_id"</b><br>
+                APP_URL = <b>"<span id="strava-app-url-hint" style="color:var(--blue);"></span>"</b>
+              </div>
+              <b>5.</b> Add your Client Secret (stored securely, never in a file):<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler secret put STRAVA_CLIENT_SECRET</code><br>
+              → Paste your Client Secret when prompted, press Enter<br><br>
+              <b>6.</b> Deploy:<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler deploy</code><br>
+              → Your Worker URL is printed (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code>)
+            </div>
+          </details>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 5 — Update Strava callback</div>
-          Back on <b>strava.com/settings/api</b>, update <b>Authorization Callback Domain</b> to your exact worker URL<br>
-          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+          <details style="margin:4px 0;">
+            <summary style="color:var(--text2);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 2 — Cloudflare Dashboard (no installs)</summary>
+            <div style="padding:8px 0 0 8px;line-height:2.2;">
+              <b>2A — Create a Worker</b><br>
+              1. Go to <b>dash.cloudflare.com</b> and sign in (free account is fine)<br>
+              2. In the left sidebar click <b>"Workers &amp; Pages"</b><br>
+              3. Click the blue <b>"Create"</b> button (top right of the page)<br>
+              4. Click <b>"Create Worker"</b> → click <b>"Deploy"</b> (just deploys the default hello-world)<br>
+              5. You'll see a success screen — click <b>"Edit code"</b> (blue button, centre of page)<br>
+              6. In the code editor: press <b>Ctrl+A</b> (Win) or <b>Cmd+A</b> (Mac) to select all, then <b>Delete</b><br>
+              7. Paste in the full contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the GitHub repo<br>
+              8. Click <b>"Save and deploy"</b> (top right of the editor)<br>
+              9. Note the URL shown below the Worker name — this is your Worker URL<br><br>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 6 — Connect</div>
-          Paste your Worker URL above and tap <b>Connect Strava</b>
+              <b>2B — Add environment variables</b><br>
+              1. Click the <b>"&lt; Workers &amp; Pages"</b> breadcrumb link (top left) to go back<br>
+              2. Click your Worker's name in the list<br>
+              3. Click the <b>"Settings"</b> tab (in the tabs at the top of the Worker detail page — not the left sidebar)<br>
+              4. Scroll down to <b>"Variables and Secrets"</b> — click <b>"Add"</b> for each:<br>
+              <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:4px 0;line-height:2.4;">
+                Name: <b>STRAVA_CLIENT_ID</b> · Type: Text · Value: your Client ID<br>
+                Name: <b>STRAVA_CLIENT_SECRET</b> · Type: Secret · Value: your Client Secret<br>
+                Name: <b>APP_URL</b> · Type: Text · Value: this app's full URL
+              </div>
+              5. Click <b>"Save and deploy"</b> after adding all three<br><br>
+
+              <b>2C — Create the KV namespace (data store)</b><br>
+              1. Left sidebar → <b>"Workers &amp; Pages"</b> → click the <b>"KV"</b> tab at the top<br>
+              2. Click <b>"Create namespace"</b> → Name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> → click <b>"Add"</b><br>
+              3. Left sidebar → Workers &amp; Pages → click your Worker name<br>
+              4. Click <b>"Settings"</b> tab → scroll to <b>"KV Namespace Bindings"</b><br>
+              5. Click <b>"Add binding"</b> → Variable name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> · Namespace: select <b>HEALTH_DATA</b><br>
+              6. Click <b>"Save and deploy"</b>
+            </div>
+          </details>
+
+          <div style="height:10px;"></div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;font-size:10px;">— PART C: Finish up —</div>
+          <b>Update Strava callback:</b> Back on <b>strava.com/settings/api</b>, change<br>
+          <b>Authorization Callback Domain</b> to your Worker's domain only<br>
+          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code> — no https://)<br>
+          Click <b>Update</b><br><br>
+          <b>Connect:</b> Paste your Worker URL in the field above → tap <b>Connect Strava</b>
         </div>
       </details>`;
     // Inject current app URL hint
@@ -5369,8 +5516,31 @@ Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
 // ── What's new ───────────────────────────────────────────────────────────────
 // Bump APP_VERSION (YYYY-MM-DD) with every deployment. Add an entry to
 // CHANGELOG. Users who last opened before this date see the sheet once.
-const APP_VERSION = '2026-05-25';
+const APP_VERSION = '2026-05-28';
 const CHANGELOG = [
+  {
+    v: '2026-05-28',
+    label: '28 May 2026',
+    items: [
+      { tag: 'Improved', text: 'VO₂max now uses a three-source composite model: 20-min TT (Daniels VDOT), HR-pace efficiency from Strava runs (Swain 1994), and resting HR ratio (Uth-Sørensen). Updates automatically after every Strava sync or health check-in.' },
+    ],
+  },
+  {
+    v: '2026-05-27',
+    label: '27 May 2026',
+    items: [
+      { tag: 'Improved', text: 'Garmin Shortcut: Sleep and Resting HR are now the only required metrics. HRV, Steps and VO₂max are optional.' },
+      { tag: 'New',      text: 'VO₂max predicted from 20-min run TT via Daniels VDOT — no device needed.' },
+    ],
+  },
+  {
+    v: '2026-05-26',
+    label: '26 May 2026',
+    items: [
+      { tag: 'Improved', text: 'Cloudflare Worker setup guide overhauled — Wrangler CLI and Dashboard methods with exact button names' },
+      { tag: 'Fix',      text: 'GitHub username updated to xolacreator — no personal identifiers remain in the codebase' },
+    ],
+  },
   {
     v: '2026-05-25',
     label: '25 May 2026',
@@ -5380,8 +5550,7 @@ const CHANGELOG = [
       { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach — replaces generic paces with your real numbers' },
       { tag: 'Improved', text: 'Plan start date is fully configurable — any Monday, any user' },
       { tag: 'Fix',      text: 'Strava reconnect fixed — was missing the app URL, causing OAuth to fail silently after token expiry' },
-      { tag: 'New',      text: 'Strava setup guide built into the app — full 6-step Cloudflare Worker deployment walkthrough' },
-      { tag: 'Improved', text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
+      { tag: 'New',      text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
       { tag: 'New',      text: 'Factory reset and Setup guide in More → App Setup' },
     ],
   },
