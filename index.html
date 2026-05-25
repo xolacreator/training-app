@@ -141,6 +141,15 @@ body{
   will-change:transform;
 }
 .overlay.open{transform:translateY(0);}
+/* What's-new bottom sheet */
+.wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
+.wnbackdrop.open{opacity:1;pointer-events:auto;}
+.wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg);z-index:299;border-radius:16px 16px 0 0;border-top:.5px solid var(--border);max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;}
+.wnsheet.open{transform:translateY(0);}
+.wntag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-right:6px;flex-shrink:0;}
+.wntag-new{background:var(--accent-dim);color:var(--accent);}
+.wntag-fix{background:rgba(77,158,255,.12);color:var(--blue);}
+.wntag-improved{background:rgba(52,199,89,.12);color:var(--green,#34c759);}
 .oi{
   /* Top padding: safe area + back button space */
   padding-top:calc(var(--sat) + 16px);
@@ -860,6 +869,12 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>More
   </button>
 </nav>
+
+<!-- WHAT'S NEW SHEET -->
+<div class="wnbackdrop" id="wn-backdrop" onclick="dismissUpdates()"></div>
+<div class="wnsheet" id="wn-sheet">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);" id="wn-content"></div>
+</div>
 
 <!-- ONBOARDING OVERLAY -->
 <div class="overlay" id="onboard-overlay" style="background:var(--bg);z-index:200;display:flex;flex-direction:column;">
@@ -5351,6 +5366,73 @@ ${recent||'  No sessions logged yet'}
 Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
 }
 
+// ── What's new ───────────────────────────────────────────────────────────────
+// Bump APP_VERSION (YYYY-MM-DD) with every deployment. Add an entry to
+// CHANGELOG. Users who last opened before this date see the sheet once.
+const APP_VERSION = '2026-05-25';
+const CHANGELOG = [
+  {
+    v: '2026-05-25',
+    label: '25 May 2026',
+    items: [
+      { tag: 'New',      text: 'Onboarding wizard — 5-step setup: plan type, HYROX goal, Strava, Garmin and AI coach' },
+      { tag: 'New',      text: 'Week 1 assessment tests — 20-min run TT, strength baseline and 2km row establish your personal pace zones and loading targets' },
+      { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach — replaces generic paces with your real numbers' },
+      { tag: 'Improved', text: 'Plan start date is fully configurable — any Monday, any user' },
+      { tag: 'Fix',      text: 'Strava reconnect fixed — was missing the app URL, causing OAuth to fail silently after token expiry' },
+      { tag: 'New',      text: 'Strava setup guide built into the app — full 6-step Cloudflare Worker deployment walkthrough' },
+      { tag: 'Improved', text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
+      { tag: 'New',      text: 'Factory reset and Setup guide in More → App Setup' },
+    ],
+  },
+];
+
+function checkForUpdates() {
+  const lastSeen = localStorage.getItem('ht-last-seen-v');
+  if (!lastSeen) {
+    // First launch — record version silently, show nothing
+    localStorage.setItem('ht-last-seen-v', APP_VERSION);
+    return;
+  }
+  if (lastSeen >= APP_VERSION) return; // already seen everything
+  const newEntries = CHANGELOG.filter(e => e.v > lastSeen);
+  if (!newEntries.length) return;
+  setTimeout(() => showUpdatesSheet(newEntries), 600);
+}
+
+function showUpdatesSheet(entries) {
+  const tagClass = t => t === 'Fix' ? 'wntag-fix' : t === 'Improved' ? 'wntag-improved' : 'wntag-new';
+  const rows = entries.flatMap(e =>
+    e.items.map(i => `
+      <div style="display:flex;align-items:flex-start;gap:0;padding:8px 0;border-bottom:.5px solid var(--border);">
+        <span class="wntag ${tagClass(i.tag)}">${i.tag}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${i.text}</span>
+      </div>`)
+  ).join('');
+
+  const versionLine = entries.length === 1
+    ? entries[0].label
+    : `${entries[entries.length - 1].label} – ${entries[0].label}`;
+
+  document.getElementById('wn-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;">What's new</div>
+      <button onclick="dismissUpdates()" style="background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;">Done</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:14px;">${versionLine}</div>
+    <div style="margin-bottom:16px;">${rows}</div>
+    <button class="btn btn-accent" style="width:100%;font-size:14px;padding:13px;" onclick="dismissUpdates()">Got it</button>`;
+
+  document.getElementById('wn-backdrop').classList.add('open');
+  document.getElementById('wn-sheet').classList.add('open');
+}
+
+function dismissUpdates() {
+  document.getElementById('wn-backdrop').classList.remove('open');
+  document.getElementById('wn-sheet').classList.remove('open');
+  localStorage.setItem('ht-last-seen-v', APP_VERSION);
+}
+
 // ── Onboarding wizard ────────────────────────────────────────────────────────
 let _obStep = 0;
 let _obAnswers = {};
@@ -5614,6 +5696,8 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
 } else {
   try { maybeShowOnboarding(); } catch(e) {}
 }
+// Show what's-new sheet for returning users when version advances
+try { checkForUpdates(); } catch(e) {}
 </script>
 </body>
 </html>
