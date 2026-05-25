@@ -674,15 +674,15 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <div style="font-size:18px;color:var(--text3);">›</div>
       </div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Garmin Sleep &amp; Wellness Sync</div>
+    <div class="sec-lbl" style="margin-top:4px;">Health Data Sync</div>
     <div class="card" id="garmin-sync-card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         <div style="width:38px;height:38px;border-radius:10px;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/><polyline points="12 8 12 12 14 14"/></svg>
         </div>
         <div style="flex:1;">
-          <div style="font-size:13px;font-weight:800;">iOS Shortcut → Worker → App</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-fills HRV · RHR · Sleep · VO₂max · Steps each morning</div>
+          <div style="font-size:13px;font-weight:800;">Apple Health → Worker → App</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Reads sleep + RHR from Apple Health each morning via iOS Shortcut</div>
         </div>
       </div>
 
@@ -834,14 +834,14 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
           Turn off <b>Ask Before Running</b> &rarr; tap Done<br><br>
           <span style="color:var(--text3);font-size:8px;">
             This runs automatically when your morning alarm goes off or your Sleep Focus ends.<br>
-            Garmin data flows: watch &rarr; Garmin Connect app &rarr; Apple Health &rarr; Shortcut &rarr; Rev3.
+            Data flows: your device &rarr; Apple Health &rarr; Shortcut &rarr; Rev3. Works with Garmin, Apple Watch, Whoop, or any device that writes to Apple Health.
           </span>
 
         </div>
       </details>
 
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">
-        Workout data (activities): Garmin → Strava → App via Cloud Sync below
+        Activity data (runs, strength, erg): device → Strava → App via Cloud Sync below
       </div>
     </div>
     <div class="sec-lbl">Cloud Sync</div>
@@ -6023,8 +6023,8 @@ function renderOnboardStep() {
 
   } else if (_obStep === 3) {
     body = `
-      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Garmin sleep sync</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Auto-fill HRV, resting HR, sleep hours and VO₂max each morning via iOS Shortcuts</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Health data sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Auto-fill sleep, resting HR and more each morning via an iOS Shortcut — works with any device that writes to Apple Health</div>
 
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
         ${HEALTH_SHORTCUT_LINK
@@ -6038,7 +6038,7 @@ function renderOnboardStep() {
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:20px;line-height:1.9;">
         <b style="color:var(--text2);">How it works</b><br>
         1. Install the Shortcut from the link above<br>
-        2. Build it once using the guide in More → Garmin Sleep &amp; Wellness Sync<br>
+        2. Build it once using the guide in More → Health Data Sync<br>
         3. Run it manually the first time — it generates your token and shows it<br>
         4. Come back here, paste that token into More → Garmin → Sync token field<br>
         5. Set up the automation so it runs every morning when Sleep Focus ends<br>
