@@ -719,97 +719,102 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <!-- Collapsed setup instructions -->
       <details style="margin-bottom:10px;">
         <summary style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);cursor:pointer;padding:2px 0;list-style:none;-webkit-details-marker:display:none;">
-          &#9658; iOS Shortcut setup (one-time, ~20 min)
+          &#9658; How to build the iOS Shortcut (step-by-step)
         </summary>
-        <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;">
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Before you start</div>
-          &mdash; Garmin Connect app installed and watch synced at least once<br>
-          &mdash; Copy your sync token from above<br>
-          &mdash; Worker URL saved in Cloud Sync &rarr; Strava section below<br>
+        <div style="margin-top:12px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.8;">
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Create the shortcut</div>
-          Shortcuts app &rarr; tap <b>+</b> (top right) &rarr; tap the title &rarr; name it <b>Health Sync</b><br>
-          Tap <b>Add Action</b> and build the following in order:<br><br>
-
-          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
-            <b style="color:var(--accent);">REQUIRED &mdash; Sleep duration</b><br>
-            1. Search for and add: <b>Find Health Samples</b><br>
-            &nbsp;&nbsp;&rarr; tap the Type field &rarr; search and select <b>Sleep</b><br>
-            &nbsp;&nbsp;&rarr; Sort by: <b>Newest First</b> &middot; toggle Limit on &rarr; <b>1</b><br>
-            2. <b>Get Details of Health Sample</b> &rarr; Detail: <b>Start Date</b><br>
-            &nbsp;&nbsp;&rarr; tap the magic variable output &rarr; rename it <b>BedStart</b><br>
-            3. <b>Get Details of Health Sample</b> &rarr; Detail: <b>End Date</b><br>
-            &nbsp;&nbsp;&rarr; rename output <b>BedEnd</b><br>
-            4. <b>Number</b> &rarr; tap the input field &rarr; select BedEnd &rarr; rename output <b>EndEpoch</b><br>
-            5. <b>Number</b> &rarr; input: BedStart &rarr; rename output <b>StartEpoch</b><br>
-            6. <b>Calculate</b> &rarr; set to: EndEpoch <b>&minus;</b> StartEpoch <b>&divide;</b> 3600<br>
-            &nbsp;&nbsp;&rarr; Rounding: 1 decimal place &rarr; rename output <b>SleepHrs</b><br>
-            7. <b>If</b> &rarr; input: SleepHrs &rarr; Condition: <b>is less than</b> &rarr; value: 1<br>
-            &nbsp;&nbsp;&rarr; inside the If block add: <b>Stop and Output</b> "no sleep data yet"<br>
-            &nbsp;&nbsp;(stops early if Garmin has not synced this morning)<br><br>
-
-            <b style="color:var(--accent);">REQUIRED &mdash; Resting Heart Rate</b><br>
-            8. <b>Find Health Samples</b> &rarr; Type: <b>Resting Heart Rate</b><br>
-            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; add <b>Get Details of Health Sample</b> &rarr; Value &rarr; rename <b>RHR</b><br><br>
-
-            <b style="color:var(--text2);">OPTIONAL &mdash; add if your device supports it</b><br>
-            <span style="color:var(--text3);font-size:8px;">Apple Watch, Whoop, or any app that writes to Apple Health.<br>Skip any you don&apos;t have &mdash; the app works without them.</span><br><br>
-            9. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
-            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>HRV</b><br>
-            10. <b>Find Health Samples</b> &rarr; Type: <b>Steps</b><br>
-            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>Steps</b><br>
-            11. <b>Find Health Samples</b> &rarr; Type: <b>Cardio Fitness</b><br>
-            &nbsp;&nbsp;&rarr; Sort: Newest First &middot; Limit: 1<br>
-            &nbsp;&nbsp;&rarr; Get Details &rarr; Value &rarr; rename <b>VO2</b><br>
-            &nbsp;&nbsp;<span style="color:var(--text3);font-size:8px;">Apple Watch only. Garmin does not reliably write this to Apple Health.</span><br><br>
-
-            <b style="color:var(--text2);">&mdash; Date &mdash;</b><br>
-            12. <b>Format Date</b> &rarr; Current Date &rarr; Format: Custom<br>
-            &nbsp;&nbsp;&rarr; type exactly: <code style="background:var(--bg);padding:1px 3px;border-radius:3px;">yyyy-MM-dd</code><br>
-            &nbsp;&nbsp;&rarr; rename output <b>Today</b>
+          <div style="background:rgba(167,139,250,.1);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+            <b style="color:var(--blue);">Before you start</b><br>
+            Tap <b>Configure Shortcut</b> above first — it copies your sync token to the clipboard.<br>
+            You&apos;ll paste it into Step 1 below.
           </div>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Send data to the Worker</div>
-          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px;line-height:2.2;">
-            13. <b>Dictionary</b> &rarr; tap + to add each key/value pair:<br>
-            &nbsp;&nbsp;date &rarr; Today<br>
-            &nbsp;&nbsp;sleepHours &rarr; SleepHrs<br>
-            &nbsp;&nbsp;restingHR &rarr; RHR<br>
-            &nbsp;&nbsp;hrv &rarr; HRV &nbsp;<span style="color:var(--text3);font-size:8px;">(only if you added step 9)</span><br>
-            &nbsp;&nbsp;steps &rarr; Steps &nbsp;<span style="color:var(--text3);font-size:8px;">(only if you added step 10)</span><br>
-            &nbsp;&nbsp;vo2max &rarr; VO2 &nbsp;<span style="color:var(--text3);font-size:8px;">(only if you added step 11)</span><br>
-            &nbsp;&nbsp;garminSyncTime &rarr; (add <b>Format Date</b> &rarr; ISO 8601)<br>
-            14. <b>Get Text from Dictionary</b> (converts the above to JSON)<br>
-            15. <b>Get Contents of URL</b>:<br>
-            &nbsp;&nbsp;URL: <span id="garmin-health-url-instr" style="color:var(--blue);word-break:break-all;">your-worker.workers.dev/health</span><br>
-            &nbsp;&nbsp;Method: <b>POST</b><br>
-            &nbsp;&nbsp;Headers: tap + &rarr; Key: <b>X-Sync-Token</b> &middot; Value: <i>your sync token from above</i><br>
-            &nbsp;&nbsp;Request Body: <b>JSON</b> &rarr; set to the output of step 14
+          <b style="color:var(--text2);">Create the shortcut</b><br>
+          Open the <b>Shortcuts</b> app &rarr; tap <b>+</b> (top right)<br>
+          Tap the title at the top &rarr; rename it <b>Health Sync</b><br>
+          Tap <b>Add Action</b> and add the steps below in order.<br><br>
+
+          <!-- Step group: Token -->
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEP 1 — Paste your token</div>
+            Add a <b>Text</b> action &rarr; paste your sync token into the text field<br>
+            Tap the result bubble below it &rarr; tap <b>Set Variable</b> &rarr; name it <b>Token</b><br>
+            <span style="color:var(--text3);font-size:8px;">This stays saved in the shortcut — you never need to touch it again.</span>
           </div>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Set up two automations</div>
-          <b>Automation A &mdash; runs when Sleep Focus ends each morning</b><br>
-          Shortcuts &rarr; Automation tab &rarr; + &rarr; Personal Automation<br>
-          &rarr; Sleep &rarr; <b>Sleep Focus Ends</b><br>
-          &rarr; Run <b>Immediately</b> (not "Ask Before Running")<br>
-          &rarr; Add action: <b>Run Shortcut</b> &rarr; Health Sync &rarr; Done<br><br>
-          <b>Automation B &mdash; runs when Garmin syncs to your phone</b><br>
-          + &rarr; Personal Automation &rarr; App &rarr; select <b>Garmin Connect</b> &rarr; Is Opened<br>
-          &rarr; Run Immediately &rarr; Add action: <b>Wait</b> &rarr; 90 seconds<br>
-          &rarr; Add action: <b>Run Shortcut</b> &rarr; Health Sync &rarr; Done<br><br>
-          Both automations can fire on the same morning &mdash; duplicate data is safely ignored.
+          <!-- Step group: Sleep -->
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEPS 2–6 — Sleep hours</div>
+            2. Add <b>Find Health Samples</b><br>
+            &nbsp;&nbsp;&rarr; tap <b>Type</b> &rarr; search for and select <b>Sleep</b><br>
+            &nbsp;&nbsp;&rarr; Sort: <b>Newest First</b> &middot; turn on Limit &rarr; set to <b>1</b><br><br>
+            3. Add <b>Get Details of Health Sample</b><br>
+            &nbsp;&nbsp;&rarr; Detail: <b>Start Date</b> &rarr; tap the result &rarr; Set Variable &rarr; name <b>BedStart</b><br><br>
+            4. Add <b>Get Details of Health Sample</b><br>
+            &nbsp;&nbsp;&rarr; Detail: <b>End Date</b> &rarr; Set Variable &rarr; name <b>BedEnd</b><br><br>
+            5. Add <b>Calculate</b><br>
+            &nbsp;&nbsp;&rarr; tap the first input field &rarr; select <b>BedEnd</b><br>
+            &nbsp;&nbsp;&rarr; tap the operator (the +) &rarr; change to <b>−</b> (minus)<br>
+            &nbsp;&nbsp;&rarr; tap the second input &rarr; select <b>BedStart</b><br>
+            &nbsp;&nbsp;&rarr; tap + again &rarr; add <b>÷</b> (divide) &rarr; type <b>3600</b><br>
+            &nbsp;&nbsp;&rarr; tap the result &rarr; Set Variable &rarr; name <b>SleepHrs</b><br><br>
+            6. Add <b>If</b><br>
+            &nbsp;&nbsp;&rarr; input: <b>SleepHrs</b> &middot; Condition: <b>is less than</b> &middot; Value: <b>1</b><br>
+            &nbsp;&nbsp;&rarr; inside the If block add <b>Stop and Output</b> &rarr; type: "no sleep data yet"<br>
+            &nbsp;&nbsp;&rarr; make sure <b>End If</b> appears after the Otherwise line<br>
+            <span style="color:var(--text3);font-size:8px;">This stops the shortcut if Garmin hasn&apos;t synced yet this morning.</span>
+          </div>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Test it</div>
-          Open the Shortcut &rarr; tap <b>Run &#9654;</b>. Then tap <b>Test sync</b> above.<br>
-          If it shows your sleep hours and resting HR the pipeline is working.<br><br>
-          <span style="color:var(--text3);">
-            VO&#8322;max is calculated by the app from your Week 1 run assessment &mdash; no device needed.<br>
-            If your Apple Watch also writes Cardio Fitness, it will appear alongside as a cross-check.<br>
-            Steps show yesterday&apos;s total (today&apos;s is incomplete when the Shortcut runs at wake-up).
+          <!-- Step group: RHR -->
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEP 7 — Resting heart rate</div>
+            Add <b>Find Health Samples</b><br>
+            &nbsp;&rarr; Type: <b>Resting Heart Rate</b> &middot; Sort: Newest First &middot; Limit: <b>1</b><br>
+            Add <b>Get Details of Health Sample</b> &rarr; Detail: <b>Value</b><br>
+            &nbsp;&rarr; Set Variable &rarr; name <b>RHR</b>
+          </div>
+
+          <!-- Step group: Optional -->
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="color:var(--text2);font-weight:700;margin-bottom:6px;">STEPS 8–9 — Optional (Apple Watch or compatible device only)</div>
+            <span style="color:var(--text3);font-size:8px;">Skip these if you don&apos;t have an Apple Watch or a device that writes to Apple Health. The app works fine with just sleep + RHR.</span><br><br>
+            8. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
+            &nbsp;&nbsp;&rarr; Newest First &middot; Limit 1 &rarr; Get Details &rarr; Value &rarr; Set Variable &rarr; name <b>HRV</b><br><br>
+            9. <b>Find Health Samples</b> &rarr; Type: <b>Steps</b><br>
+            &nbsp;&nbsp;&rarr; Newest First &middot; Limit 1 &rarr; Get Details &rarr; Value &rarr; Set Variable &rarr; name <b>Steps</b>
+          </div>
+
+          <!-- Step group: Date + Send -->
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEPS 10–12 — Date and send</div>
+            10. Add <b>Format Date</b><br>
+            &nbsp;&nbsp;&rarr; Date: <b>Current Date</b> &middot; Format: <b>Custom</b><br>
+            &nbsp;&nbsp;&rarr; in the custom field type exactly: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;font-size:9px;">yyyy-MM-dd</code><br>
+            &nbsp;&nbsp;&rarr; Set Variable &rarr; name <b>Today</b><br><br>
+            11. Add <b>Dictionary</b> &rarr; tap <b>+</b> to add each row:<br>
+            &nbsp;&nbsp;<b>date</b> → tap and select the variable <b>Today</b><br>
+            &nbsp;&nbsp;<b>sleepHours</b> → select <b>SleepHrs</b><br>
+            &nbsp;&nbsp;<b>restingHR</b> → select <b>RHR</b><br>
+            &nbsp;&nbsp;<b>hrv</b> → select <b>HRV</b> <span style="color:var(--text3);font-size:8px;">(only if you did step 8)</span><br>
+            &nbsp;&nbsp;<b>steps</b> → select <b>Steps</b> <span style="color:var(--text3);font-size:8px;">(only if you did step 9)</span><br><br>
+            12. Add <b>Get Contents of URL</b>:<br>
+            &nbsp;&nbsp;URL: <span id="garmin-health-url-instr" style="color:var(--blue);word-break:break-all;">https://training-app-api.xolacreator.workers.dev/health</span><br>
+            &nbsp;&nbsp;Method: tap GET &rarr; change to <b>POST</b><br>
+            &nbsp;&nbsp;Headers: tap <b>+</b> &rarr; Key: <b>X-Sync-Token</b> &middot; Value: tap and select <b>Token</b><br>
+            &nbsp;&nbsp;Request Body: tap <b>JSON</b> &rarr; tap the field &rarr; select the <b>Dictionary</b> from step 11
+          </div>
+
+          <b style="color:var(--text2);">Set up the automation (so it runs every morning)</b><br>
+          In the Shortcuts app &rarr; tap the <b>Automation</b> tab at the bottom<br>
+          Tap <b>+</b> &rarr; <b>Personal Automation</b> &rarr; scroll to find <b>Sleep</b><br>
+          Select <b>Sleep Focus Ends</b> &rarr; tap Next<br>
+          Tap <b>Add Action</b> &rarr; search for <b>Run Shortcut</b> &rarr; tap it &rarr; select <b>Health Sync</b><br>
+          Turn off <b>Ask Before Running</b> &rarr; tap Done<br><br>
+          <span style="color:var(--text3);font-size:8px;">
+            This runs automatically when your morning alarm goes off or your Sleep Focus ends.<br>
+            Garmin data flows: watch &rarr; Garmin Connect app &rarr; Apple Health &rarr; Shortcut &rarr; Rev3.
           </span>
+
         </div>
       </details>
 
@@ -5032,11 +5037,18 @@ function renderGarminSyncCard() {
     }
   }
 
-  // Configure Shortcut button — passes token silently via URL scheme
+  // Configure Shortcut button — copies token then opens Shortcuts app
   const configBtn = document.getElementById('garmin-configure-btn');
   if (configBtn) {
     configBtn.onclick = () => {
-      window.location.href = `shortcuts://run-shortcut?name=Health+Sync&input=${encodeURIComponent(syncToken)}`;
+      navigator.clipboard.writeText(syncToken).then(() => {
+        toast('Token copied — paste it in Step 1 of the Shortcut');
+        setTimeout(() => { window.location.href = 'shortcuts://'; }, 800);
+      }).catch(() => {
+        // Clipboard blocked (non-HTTPS or permission denied) — just open Shortcuts
+        toast('Open Shortcuts and paste your sync token in Step 1');
+        window.location.href = 'shortcuts://';
+      });
     };
   }
 
@@ -5986,16 +5998,18 @@ function renderOnboardStep() {
           : `<div style="background:var(--bg2);border-radius:8px;padding:11px;font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;">Shortcut link coming soon</div>`
         }
         <button class="btn" style="width:100%;color:var(--blue);border-color:rgba(167,139,250,.3);padding:13px;"
-          onclick="window.location.href='shortcuts://run-shortcut?name=Health+Sync&input='+encodeURIComponent('${syncToken}')">⚙ Configure Shortcut (passes token automatically)</button>
+          onclick="navigator.clipboard.writeText('${syncToken}').then(()=>{toast('Token copied — paste it in Step 1 of the Shortcut');setTimeout(()=>{window.location.href='shortcuts://';},800);}).catch(()=>{window.location.href='shortcuts://';})">⚙ Copy Token &amp; Open Shortcuts →</button>
       </div>
 
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:20px;line-height:1.9;">
         <b style="color:var(--text2);">How it works</b><br>
-        1. Install the Shortcut from the link above<br>
-        2. Tap Configure — your token is passed automatically<br>
-        3. Set automation: Sleep Focus ends → runs Shortcut each morning<br>
-        4. Sleep + resting HR sync overnight → Recovery Score calculated<br>
-        <b style="color:var(--text2);">Full instructions in More → Garmin Sleep &amp; Wellness Sync</b>
+        1. Tap "Copy Token &amp; Open Shortcuts" — your token is on the clipboard<br>
+        2. In Shortcuts: tap + → name it <b>Health Sync</b> → follow the steps in More below<br>
+        3. Paste your token into Step 1 (the Text action)<br>
+        4. Set up the automation: Sleep Focus ends → runs every morning<br>
+        5. Sleep + resting HR sync automatically → Recovery Score calculated<br>
+        <b style="color:var(--text2);">Full step-by-step guide: More → Garmin Sleep &amp; Wellness Sync →</b>
+        <b style="color:var(--blue);">iOS Shortcut setup</b>
       </div>
 
       ${HEALTH_SHORTCUT_LINK ? `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:13px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue);text-decoration:none;margin-bottom:8px;">Get iCloud Shortcut →</a>` : ''}
