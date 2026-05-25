@@ -5371,10 +5371,22 @@ function openCoach() {
 
 function coachIntro() {
   const p = coachProfile;
-  const goalStr = {sub60:'a sub-60 min HYROX',sub75:'a sub-75 min HYROX',sub90:'a sub-90 min HYROX',finish:'your first HYROX',marathon:'marathon performance',fitness:'your fitness goals'}[p.goal] || (p.goal ? p.goal : 'your goals');
+  const introGoalMap = {sub60:'a sub-60 min HYROX',sub75:'a sub-75 min HYROX',sub90:'a sub-90 min HYROX',finish:'your first HYROX',marathon:'marathon performance',fitness:'your fitness goals','strength-powerlifting':'your powerlifting base','strength-athletic':'athletic strength and conditioning','strength-hybrid-strength':'hybrid strength and endurance','strength-preseason':'your pre-season foundation'};
+  const strengthLiftNames = {squat:'squat',bench:'bench press',deadlift:'deadlift',ohp:'overhead press'};
+  let introGoalStr = introGoalMap[p.goal] || '';
+  if (!introGoalStr && p.goal) {
+    const lm = p.goal.match(/^strength-(squat|bench|deadlift|ohp)(?:-(.+))?$/);
+    if (lm) {
+      const ln = strengthLiftNames[lm[1]] || lm[1];
+      introGoalStr = lm[2] ? `a ${lm[2].replace(/-/g,' ')} ${ln}` : `a stronger ${ln}`;
+    } else {
+      introGoalStr = p.goal.replace(/-/g,' ');
+    }
+  }
+  introGoalStr = introGoalStr || 'your goals';
   const dateStr = p.raceDate ? ` — ${p.raceDate}` : '';
   const priorityLine = p.priority ? ` You've told me you're focused on: ${p.priority}.` : '';
-  return `Hey — I'm ${p.name}. We're working toward ${goalStr}${dateStr}.${priorityLine} What do you want to work on today?`;
+  return `Hey — I'm ${p.name}. We're working toward ${introGoalStr}${dateStr}.${priorityLine} What do you want to work on today?`;
 }
 
 function openCoachSetup() {
@@ -5524,7 +5536,24 @@ function buildCoachSystemPrompt() {
     sub60:'finish HYROX sub 60 minutes (elite)',sub75:'finish HYROX sub 75 minutes (competitive)',
     sub90:'finish HYROX sub 90 minutes (strong amateur)',finish:'complete their first HYROX strongly',
     marathon:'run a strong marathon or half marathon',fitness:'build general endurance and strength fitness',
+    'strength-powerlifting':'build a strong squat, bench and deadlift base',
+    'strength-athletic':'build athletic strength with conditioning',
+    'strength-hybrid-strength':'develop hybrid endurance and lifting performance',
+    'strength-preseason':'build a strength foundation before a competition block',
   };
+  // For specific lift goals, resolve dynamically from goalStr
+  const strengthLiftMap = {squat:'squat',bench:'bench press',deadlift:'deadlift',ohp:'overhead press'};
+  const resolvedGoal = (g => {
+    if (!g) return '';
+    if (goalMap[g]) return goalMap[g];
+    const liftMatch = g.match(/^strength-(squat|bench|deadlift|ohp)(?:-(.+))?$/);
+    if (liftMatch) {
+      const liftName = strengthLiftMap[liftMatch[1]] || liftMatch[1];
+      const target = liftMatch[2] ? liftMatch[2].replace(/-/g,' ') : '';
+      return target ? `hit a ${target} ${liftName}` : `improve their ${liftName}`;
+    }
+    return g.replace(/-/g,' ');
+  })(p.goal);
   const styleMap = {
     direct:'Be direct and demanding. Give hard truths without softening them. Push relentlessly.',
     motivational:'Be energetic and belief-focused. Build confidence while holding them accountable.',
@@ -5548,7 +5577,7 @@ function buildCoachSystemPrompt() {
   const priority  = p.priority ? `Athlete's stated priority: "${p.priority}"` : '';
 
   const blCtx = getBaselineContext();
-  return `You are ${p.name}, a personal performance coach. The athlete's goal is to ${goalMap[p.goal]||p.goal}. Their next race or key date: ${raceDate}.
+  return `You are ${p.name}, a personal performance coach. The athlete's goal is to ${resolvedGoal}. Their next race or key date: ${raceDate}.
 
 ${styleMap[p.style]} Focus especially on ${focusMap[p.focus]}.
 ${detailMap[p.detail]}
@@ -5711,20 +5740,23 @@ function renderOnboardStep() {
       <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;" onclick="_obStep=1;renderOnboardStep()">Get started →</button>`;
 
   } else if (_obStep === 1) {
-    const gc = _obAnswers.goalCategory || '';
-    const rt = _obAnswers.raceType     || '';
-    const gl = _obAnswers.goal         || '';
-    const pt = _obAnswers.planType     || '';
-    const ps = _obAnswers.planStart    || '';
+    const gc  = _obAnswers.goalCategory  || '';
+    const rt  = _obAnswers.raceType      || '';
+    const gl  = _obAnswers.goal          || '';
+    const pt  = _obAnswers.planType      || '';
+    const ps  = _obAnswers.planStart     || '';
+    const st  = _obAnswers.strengthType  || '';
+    const sl  = _obAnswers.strengthLift  || '';
+    const stg = _obAnswers.strengthTarget|| '';
 
-    // Goal category cards
+    // Goal category cards — always reset sub-selections on category change
     const goalCategoryCards = [
       ['race',     '🏁', 'Race Performance',       'Train toward a specific race with a target finish time'],
       ['fitness',  '⚡', 'General Fitness',         'Build endurance, strength and conditioning'],
-      ['strength', '🏋️', 'Strength & Conditioning', 'Powerlifting base with aerobic capacity to match'],
+      ['strength', '🏋️', 'Strength & Conditioning', 'Improve a specific lift or build an overall strength base'],
       ['custom',   '🛠', 'Custom Plan',             'Start blank — design sessions with the AI builder'],
     ].map(([v,icon,label,desc]) => `
-      <div class="card" onclick="_obAnswers.goalCategory='${v}';if('${v}'!=='race'){_obAnswers.raceType='';_obAnswers.goal='';_obAnswers.planType='';}renderOnboardStep();"
+      <div class="card" onclick="_obAnswers.goalCategory='${v}';_obAnswers.raceType='';_obAnswers.goal='';_obAnswers.planType='';_obAnswers.strengthType='';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';renderOnboardStep();"
            style="cursor:pointer;margin-bottom:8px;${gc===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
         <div style="display:flex;align-items:center;gap:12px;">
           <div style="font-size:20px;">${icon}</div>
@@ -5756,6 +5788,51 @@ function renderOnboardStep() {
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
+    }
+
+    // Strength sub-selection (shown when category = strength)
+    let strengthCards = '';
+    if (gc === 'strength') {
+      strengthCards = `
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
+        ${[
+          ['lift',           '🎯', 'Specific Lift Goal',       'Focus training around improving one movement — squat, bench, deadlift or OHP'],
+          ['powerlifting',   '🏋️', 'Powerlifting Base',        'Build the big three: squat, bench press and deadlift together'],
+          ['athletic',       '⚡', 'Athletic Strength',        'Compound lifts plus conditioning — strength that works in real life'],
+          ['hybrid-strength','🔄', 'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength programme'],
+          ['preseason',      '🛠', 'Pre-Season Foundation',    'Build strength and work capacity before a racing or competition block'],
+        ].map(([v,icon,label,desc]) => `
+          <div class="card" onclick="_obAnswers.strengthType='${v}';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';_obAnswers.goal='';renderOnboardStep();"
+               style="cursor:pointer;margin-bottom:8px;${st===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="font-size:18px;">${icon}</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:700;">${label}</div>
+                <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
+              </div>
+              <div style="font-size:16px;color:${st===v?'var(--accent)':'var(--text3)'};">${st===v?'✓':'›'}</div>
+            </div>
+          </div>`).join('')}
+
+        ${st === 'lift' ? `
+          <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Which lift?</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+            ${[['squat','Squat','Back squat or front squat'],['bench','Bench Press','Flat or competition bench'],['deadlift','Deadlift','Conventional or sumo'],['ohp','Overhead Press','Strict press or push press']].map(([v,label,desc]) => `
+              <div onclick="_obAnswers.strengthLift='${v}';_obAnswers.goal='strength-${v}';renderOnboardStep();"
+                   style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${sl===v?'var(--accent)':'var(--border)'};cursor:pointer;${sl===v?'background:var(--accent-dim);':''}">
+                <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+                <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
+              </div>`).join('')}
+          </div>
+          ${sl ? `
+            <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:14px 0 6px;">Target weight (optional)</div>
+            <input type="text" placeholder="e.g. 100kg, 225lbs, bodyweight double…"
+              value="${stg}"
+              style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:4px;"
+              oninput="_obAnswers.strengthTarget=this.value;">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:8px;">Your coach and AI builder will use this to calibrate loading and timeline</div>
+          ` : ''}
+        ` : ''}`;
     }
 
     // Goal / target sub-selection (depends on race type)
@@ -5854,6 +5931,7 @@ function renderOnboardStep() {
       <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Goal type</div>
       ${goalCategoryCards}
       ${raceTypeCards}
+      ${strengthCards}
       ${goalCards}
       ${planTypeCards}
 
@@ -5978,10 +6056,14 @@ function obDateHint(iso) {
 }
 
 function obSavePlan() {
-  const gc = _obAnswers.goalCategory || '';
-  const rt = _obAnswers.raceType || '';
+  const gc = _obAnswers.goalCategory  || '';
+  const rt = _obAnswers.raceType      || '';
+  const st = _obAnswers.strengthType  || '';
+  const sl = _obAnswers.strengthLift  || '';
   if (!gc) { toast('Select a goal type to continue'); return; }
-  if (gc === 'race' && !rt) { toast('Select your race type to continue'); return; }
+  if (gc === 'race'     && !rt) { toast('Select your race type to continue'); return; }
+  if (gc === 'strength' && !st) { toast('Select a strength focus to continue'); return; }
+  if (st === 'lift'     && !sl) { toast('Choose which lift to focus on'); return; }
   // Require a specific goal for race types that have time targets
   const needsGoal = ['hyrox','marathon','half','5k10k','triathlon'].includes(rt);
   if (needsGoal && !_obAnswers.goal) { toast('Pick your target to continue'); return; }
@@ -5990,18 +6072,26 @@ function obSavePlan() {
   if (d.getDay() !== 1) { toast('Please pick a Monday for Week 1'); return; }
 
   // Infer plan type: HYROX users choose; everyone else defaults to custom
-  if (!_obAnswers.planType) {
-    _obAnswers.planType = (rt === 'hyrox') ? 'hybrid' : 'custom';
-  }
+  if (!_obAnswers.planType) _obAnswers.planType = (rt === 'hyrox') ? 'hybrid' : 'custom';
 
-  // Build a goal string compatible with coach prompt system
-  const goalStr = _obAnswers.goal || rt || gc || 'custom';
+  // Build a goal string the coach prompt system understands
+  let goalStr;
+  if (gc === 'strength') {
+    goalStr = sl
+      ? `strength-${sl}${_obAnswers.strengthTarget ? '-' + _obAnswers.strengthTarget.replace(/\s/g,'-') : ''}`
+      : `strength-${st}`;
+  } else {
+    goalStr = _obAnswers.goal || rt || gc || 'custom';
+  }
 
   localStorage.setItem('ht-plan-start', _obAnswers.planStart);
   localStorage.setItem('ht-plan-type', _obAnswers.planType);
   localStorage.setItem('ht-goal', goalStr);
   localStorage.setItem('ht-goal-category', gc);
   localStorage.setItem('ht-goal-race-type', rt);
+  localStorage.setItem('ht-goal-strength-type', st);
+  localStorage.setItem('ht-goal-strength-lift', sl);
+  if (_obAnswers.strengthTarget) localStorage.setItem('ht-goal-strength-target', _obAnswers.strengthTarget);
   trainGoal = goalStr;
   WMAP = computeWMAP(_obAnswers.planStart);
   if (_obAnswers.planType === 'custom') { sessions = []; saveData(); }
