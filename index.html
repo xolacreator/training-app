@@ -2221,8 +2221,10 @@ function getBaselineContext() {
   const bl = baselines; if (!bl||!Object.keys(bl).length) return '';
   const lines = ['TRAINING BASELINES (from Week 1 assessment):'];
   const r=bl['run-tt'], st=bl['strength-base'], rw=bl['row-tt'];
+  const vo2best = baselines.vo2max_composite?.value || r?.vo2max_predicted;
+  const vo2srcs = baselines.vo2max_composite?.sources?.join('+') || (r?.vo2max_predicted ? '20-min TT' : '');
   if (r?.run_threshold_pace) lines.push(
-    `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max intervals=${r.run_vo2max_pace}/km${r.vo2max_predicted ? ` · predicted VO₂max=${r.vo2max_predicted} ml/kg/min` : ''}`);
+    `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max intervals=${r.run_vo2max_pace}/km${vo2best ? ` · VO₂max=${vo2best} ml/kg/min (${vo2srcs})` : ''}`);
   if (st?.squat_1rm_est) lines.push(
     `  Squat: est. 1RM=${st.squat_1rm_est}kg (70%=${st.squat_70}kg, 80%=${st.squat_80}kg)`);
   if (st?.bench_1rm_est) lines.push(
@@ -2230,6 +2232,85 @@ function getBaselineContext() {
   if (rw?.row_500m_race_split) lines.push(
     `  Row: race split=${rw.row_500m_race_split}/500m · training split=${rw.row_500m_train_split}/500m`);
   return lines.join('\n');
+}
+function paceStrToMPerMin(paceStr) {
+  const parts = String(paceStr || '').split(':');
+  if (parts.length !== 2) return 0;
+  const secs = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+  return secs > 0 ? (1000 / secs) * 60 : 0;
+}
+function detectHRmax() {
+  const hrs = sessions
+    .filter(s => s.hr && !s.gid?.startsWith('SEED'))
+    .map(s => Number(s.hr)).filter(h => h > 100);
+  return hrs.length ? Math.round(Math.max(...hrs) * 1.05) : 185;
+}
+function getLatestRestingHR() {
+  return [...recoveryLog]
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .find(r => r.restingHR > 0)?.restingHR || null;
+}
+function computeVO2maxComposite() {
+  const sources = [];
+  const estimates = [];
+
+  // Source 1: Daniels VDOT from 20-min TT (weight 3)
+  const ttVO2 = baselines['run-tt']?.vo2max_predicted;
+  if (ttVO2 > 0) {
+    estimates.push(ttVO2, ttVO2, ttVO2);
+    sources.push('20-min TT');
+  }
+
+  // Source 2: HR-pace efficiency from Strava runs (Swain 1994: %HRR ≈ %VO2max)
+  const restingHR = getLatestRestingHR();
+  const hrmax = detectHRmax();
+  if (restingHR && hrmax > restingHR + 30) {
+    const runSessions = sessions
+      .filter(s => {
+        if (!s.hr || !s.pace || s.gid?.startsWith('SEED')) return false;
+        const name = (s.session || '').toLowerCase();
+        return name.includes('run') || name.includes('interval') || name.includes('tempo');
+      })
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 8);
+    let hrRunCount = 0;
+    for (const s of runSessions) {
+      const v = paceStrToMPerMin(s.pace);
+      if (v < 100 || v > 380) continue;
+      const vo2AtPace = -4.60 + 0.182258 * v + 0.000104 * v * v;
+      if (vo2AtPace <= 5) continue;
+      const hrReserve = hrmax - restingHR;
+      const pctHRR = (Number(s.hr) - restingHR) / hrReserve;
+      if (pctHRR < 0.40 || pctHRR > 0.97) continue;
+      const est = Math.round(vo2AtPace / pctHRR);
+      if (est < 25 || est > 90) continue;
+      estimates.push(est);
+      hrRunCount++;
+    }
+    if (hrRunCount > 0) sources.push(`${hrRunCount} run${hrRunCount > 1 ? 's' : ''}`);
+  }
+
+  // Source 3: Uth-Sørensen cross-check from resting HR (15.3 × HRmax / HRresting)
+  if (restingHR && hrmax > 0) {
+    const uthEst = Math.round(15.3 * hrmax / restingHR);
+    if (uthEst >= 25 && uthEst <= 90) {
+      estimates.push(uthEst);
+      sources.push('RHR');
+    }
+  }
+
+  if (!estimates.length) return null;
+  const sorted = [...estimates].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid];
+  return { value, sources, dataPoints: estimates.length };
+}
+function refreshVO2maxComposite() {
+  baselines.vo2max_composite = computeVO2maxComposite();
+  saveBaselines();
+  try { renderBaselinesCard(); } catch(e) {}
 }
 function saveBaselines() {
   try { localStorage.setItem('ht-baselines', JSON.stringify(baselines)); } catch(e) {}
@@ -3039,6 +3120,7 @@ function saveAssessmentResult(id) {
   const derived = deriveBaselines(id, vals);
   baselines[id] = derived;
   saveBaselines();
+  try { refreshVO2maxComposite(); } catch(e) {}
   toast('Targets set ✓');
   closeOv('assessment-overlay');
   try { renderBaselinesCard(); } catch(e) {}
@@ -3051,7 +3133,8 @@ function buildAssessmentResultHtml(id, saved) {
   if (id==='run-tt') {
     if (saved.run_threshold_pace) rows.push(['Threshold pace', saved.run_threshold_pace+'/km']);
     if (saved.run_zone2_hi_pace)  rows.push(['Zone 2 range', saved.run_zone2_lo_pace+'–'+saved.run_zone2_hi_pace+'/km']);
-    if (saved.run_vo2max_pace)    rows.push(['VO₂max pace', saved.run_vo2max_pace+'/km']);
+    if (saved.run_vo2max_pace)    rows.push(['VO₂max interval pace', saved.run_vo2max_pace+'/km']);
+    if (saved.vo2max_predicted)   rows.push(['VO₂max (predicted)', saved.vo2max_predicted+' ml/kg/min']);
   }
   if (id==='strength-base') {
     if (saved.squat_1rm_est) rows.push(['Squat est. 1RM', saved.squat_1rm_est+'kg'],['Squat 70/80%', saved.squat_70+'kg / '+saved.squat_80+'kg']);
@@ -3092,7 +3175,12 @@ function renderBaselinesCard() {
   const r=baselines['run-tt'], st=baselines['strength-base'], rw=baselines['row-tt'];
   const rows=[];
   if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'–'+r.run_zone2_hi_pace,c:''});
-  if (r?.vo2max_predicted)   rows.push({l:'VO₂max est.',v:r.vo2max_predicted+' ml/kg/min',c:'bl'});
+  const vo2c = baselines.vo2max_composite;
+  const vo2val = vo2c?.value || r?.vo2max_predicted;
+  if (vo2val) {
+    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : '20-min TT';
+    rows.push({l:'VO₂max est.',v:vo2val+' ml/kg/min',c:'bl',s:vo2sub});
+  }
   if (st?.squat_1rm_est)     rows.push({l:'Squat 1RM',v:'~'+st.squat_1rm_est+'kg',c:'bl'});
   if (st?.bench_1rm_est)     rows.push({l:'Bench 1RM',v:'~'+st.bench_1rm_est+'kg',c:'bl'});
   if (rw?.row_500m_race_split) rows.push({l:'Row split',v:rw.row_500m_race_split+'/500',c:''});
@@ -3103,7 +3191,7 @@ function renderBaselinesCard() {
         <button class="btn" style="font-size:9px;padding:3px 8px;" onclick="nav('plan',document.querySelectorAll('.nb')[2]);renderPlan(1)">Update →</button>
       </div>
       <div class="mg">
-        ${rows.map(x=>`<div class="metric ${x.c}"><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div></div>`).join('')}
+        ${rows.map(x=>`<div class="metric ${x.c}"><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div>${x.s?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px;">${x.s}</div>`:''}</div>`).join('')}
       </div>
     </div>`;
 }
@@ -4026,6 +4114,7 @@ function parseHealthFile(data) {
   recoveryLog = recoveryLog.filter(r => r.date !== data.date);
   recoveryLog.unshift(entry);
   saveRecovery();
+  try { refreshVO2maxComposite(); } catch(e) {}
   return true;
 }
 
@@ -4396,6 +4485,7 @@ async function syncFromStrava(silent = false) {
       }
       try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
       saveData(); renderAll();
+      try { refreshVO2maxComposite(); } catch(e) {}
       // Background: fetch per-km splits + laps for all run/ride sessions
       const detailGids = newGids.filter(gid => {
         const s = sessions.find(s => s.gid === gid);
@@ -5426,14 +5516,21 @@ Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
 // ── What's new ───────────────────────────────────────────────────────────────
 // Bump APP_VERSION (YYYY-MM-DD) with every deployment. Add an entry to
 // CHANGELOG. Users who last opened before this date see the sheet once.
-const APP_VERSION = '2026-05-27';
+const APP_VERSION = '2026-05-28';
 const CHANGELOG = [
+  {
+    v: '2026-05-28',
+    label: '28 May 2026',
+    items: [
+      { tag: 'Improved', text: 'VO₂max now uses a three-source composite model: 20-min TT (Daniels VDOT), HR-pace efficiency from Strava runs (Swain 1994), and resting HR ratio (Uth-Sørensen). Updates automatically after every Strava sync or health check-in.' },
+    ],
+  },
   {
     v: '2026-05-27',
     label: '27 May 2026',
     items: [
-      { tag: 'Improved', text: 'Garmin Shortcut: Sleep and Resting HR are now the only required metrics. HRV, Steps and VO₂max (Cardio Fitness) are optional — add them only if your device writes them to Apple Health.' },
-      { tag: 'New',      text: 'VO₂max is now predicted from your 20-min run TT using the Daniels VDOT formula — no device needed. Shows in your baselines card and feeds into the AI coach.' },
+      { tag: 'Improved', text: 'Garmin Shortcut: Sleep and Resting HR are now the only required metrics. HRV, Steps and VO₂max are optional.' },
+      { tag: 'New',      text: 'VO₂max predicted from 20-min run TT via Daniels VDOT — no device needed.' },
     ],
   },
   {
