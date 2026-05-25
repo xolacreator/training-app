@@ -4529,41 +4529,90 @@ function renderStravaCard() {
       <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;margin-bottom:10px;">Connect Strava →</button>
       <details>
         <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:2px 0;">
-          ▸ First time? Worker setup guide (~20 min)
+          ▸ First time? Worker setup guide
         </summary>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;margin-top:10px;">
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Step 1 — Strava API credentials</div>
-          1. Go to <b>strava.com/settings/api</b> (sign in to Strava)<br>
-          2. Create an app — name and website can be anything<br>
-          3. Set <b>Authorization Callback Domain</b> to: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
-          4. Note your <b>Client ID</b> and <b>Client Secret</b>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.0;margin-top:10px;">
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 2 — Deploy the Cloudflare Worker</div>
-          1. Go to <b>dash.cloudflare.com</b> → Workers &amp; Pages → Create<br>
-          2. Choose <b>Create Worker</b> → Deploy → then <b>Edit code</b><br>
-          3. Delete the default code, paste in the contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the repo<br>
-          4. Click <b>Deploy</b> — note your Worker URL (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART A: Strava API credentials —</div>
+          1. Open <b>strava.com/settings/api</b> and sign in<br>
+          2. Click <b>"Create &amp; Manage Your App"</b> (or view an existing one)<br>
+          3. App Name and Website can be anything (e.g. "My Training App" / "example.com")<br>
+          4. <b>Authorization Callback Domain</b>: type exactly <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
+          5. Click <b>Save</b> — note your <b>Client ID</b> (a number) and <b>Client Secret</b> (a long string)
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 3 — Set environment variables</div>
-          In your Worker → Settings → Variables → Add these:
-          <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:6px 0;line-height:2.2;">
-            <b>STRAVA_CLIENT_ID</b> — from Step 1<br>
-            <b>STRAVA_CLIENT_SECRET</b> — from Step 1<br>
-            <b>APP_URL</b> — the full URL of this app (e.g. <span id="strava-app-url-hint" style="color:var(--blue);"></span>)
-          </div>
+          <div style="height:10px;"></div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART B: Deploy your Cloudflare Worker —</div>
+          <div style="color:var(--text2);margin-bottom:4px;">Choose one method:</div>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 4 — Create the KV namespace</div>
-          1. Cloudflare Dashboard → Workers &amp; Pages → <b>KV</b><br>
-          2. Create a namespace named exactly: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code><br>
-          3. Go back to your Worker → Settings → <b>Bindings</b> → Add → KV Namespace<br>
-          4. Variable name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> · Namespace: the one you just created
+          <details style="margin:4px 0;">
+            <summary style="color:var(--accent);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 1 — Terminal/Wrangler (recommended, ~5 min)</summary>
+            <div style="padding:8px 0 0 8px;line-height:2.2;">
+              Needs: <b>Node.js</b> (nodejs.org) and a terminal (macOS: Terminal, Windows: Command Prompt)<br><br>
+              <b>1.</b> Install Wrangler:<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">npm install -g wrangler</code><br><br>
+              <b>2.</b> Log in to Cloudflare (opens a browser):<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler login</code><br><br>
+              <b>3.</b> Create the data store:<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler kv namespace create HEALTH_DATA</code><br>
+              → Copy the <b>"id"</b> value printed in the output (looks like a long hex string)<br><br>
+              <b>4.</b> Open <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/wrangler.toml</code> in the repo and fill in:<br>
+              <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:4px 0;line-height:2.2;">
+                id = <b>"paste_the_kv_id_here"</b><br>
+                STRAVA_CLIENT_ID = <b>"your_client_id"</b><br>
+                APP_URL = <b>"<span id="strava-app-url-hint" style="color:var(--blue);"></span>"</b>
+              </div>
+              <b>5.</b> Add your Client Secret (stored securely, never in a file):<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler secret put STRAVA_CLIENT_SECRET</code><br>
+              → Paste your Client Secret when prompted, press Enter<br><br>
+              <b>6.</b> Deploy:<br>
+              <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0;">wrangler deploy</code><br>
+              → Your Worker URL is printed (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code>)
+            </div>
+          </details>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 5 — Update Strava callback</div>
-          Back on <b>strava.com/settings/api</b>, update <b>Authorization Callback Domain</b> to your exact worker URL<br>
-          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+          <details style="margin:4px 0;">
+            <summary style="color:var(--text2);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 2 — Cloudflare Dashboard (no installs)</summary>
+            <div style="padding:8px 0 0 8px;line-height:2.2;">
+              <b>2A — Create a Worker</b><br>
+              1. Go to <b>dash.cloudflare.com</b> and sign in (free account is fine)<br>
+              2. In the left sidebar click <b>"Workers &amp; Pages"</b><br>
+              3. Click the blue <b>"Create"</b> button (top right of the page)<br>
+              4. Click <b>"Create Worker"</b> → click <b>"Deploy"</b> (just deploys the default hello-world)<br>
+              5. You'll see a success screen — click <b>"Edit code"</b> (blue button, centre of page)<br>
+              6. In the code editor: press <b>Ctrl+A</b> (Win) or <b>Cmd+A</b> (Mac) to select all, then <b>Delete</b><br>
+              7. Paste in the full contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the GitHub repo<br>
+              8. Click <b>"Save and deploy"</b> (top right of the editor)<br>
+              9. Note the URL shown below the Worker name — this is your Worker URL<br><br>
 
-          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 6 — Connect</div>
-          Paste your Worker URL above and tap <b>Connect Strava</b>
+              <b>2B — Add environment variables</b><br>
+              1. Click the <b>"&lt; Workers &amp; Pages"</b> breadcrumb link (top left) to go back<br>
+              2. Click your Worker's name in the list<br>
+              3. Click the <b>"Settings"</b> tab (in the tabs at the top of the Worker detail page — not the left sidebar)<br>
+              4. Scroll down to <b>"Variables and Secrets"</b> — click <b>"Add"</b> for each:<br>
+              <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:4px 0;line-height:2.4;">
+                Name: <b>STRAVA_CLIENT_ID</b> · Type: Text · Value: your Client ID<br>
+                Name: <b>STRAVA_CLIENT_SECRET</b> · Type: Secret · Value: your Client Secret<br>
+                Name: <b>APP_URL</b> · Type: Text · Value: this app's full URL
+              </div>
+              5. Click <b>"Save and deploy"</b> after adding all three<br><br>
+
+              <b>2C — Create the KV namespace (data store)</b><br>
+              1. Left sidebar → <b>"Workers &amp; Pages"</b> → click the <b>"KV"</b> tab at the top<br>
+              2. Click <b>"Create namespace"</b> → Name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> → click <b>"Add"</b><br>
+              3. Left sidebar → Workers &amp; Pages → click your Worker name<br>
+              4. Click <b>"Settings"</b> tab → scroll to <b>"KV Namespace Bindings"</b><br>
+              5. Click <b>"Add binding"</b> → Variable name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> · Namespace: select <b>HEALTH_DATA</b><br>
+              6. Click <b>"Save and deploy"</b>
+            </div>
+          </details>
+
+          <div style="height:10px;"></div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;font-size:10px;">— PART C: Finish up —</div>
+          <b>Update Strava callback:</b> Back on <b>strava.com/settings/api</b>, change<br>
+          <b>Authorization Callback Domain</b> to your Worker's domain only<br>
+          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code> — no https://)<br>
+          Click <b>Update</b><br><br>
+          <b>Connect:</b> Paste your Worker URL in the field above → tap <b>Connect Strava</b>
         </div>
       </details>`;
     // Inject current app URL hint
@@ -5369,8 +5418,16 @@ Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
 // ── What's new ───────────────────────────────────────────────────────────────
 // Bump APP_VERSION (YYYY-MM-DD) with every deployment. Add an entry to
 // CHANGELOG. Users who last opened before this date see the sheet once.
-const APP_VERSION = '2026-05-25';
+const APP_VERSION = '2026-05-26';
 const CHANGELOG = [
+  {
+    v: '2026-05-26',
+    label: '26 May 2026',
+    items: [
+      { tag: 'Improved', text: 'Cloudflare Worker setup guide overhauled — now offers Wrangler CLI method (recommended) and step-by-step Dashboard method with exact button names' },
+      { tag: 'Fix',      text: 'GitHub username updated to xolacreator — no personal identifiers remain in the codebase' },
+    ],
+  },
   {
     v: '2026-05-25',
     label: '25 May 2026',
@@ -5380,8 +5437,7 @@ const CHANGELOG = [
       { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach — replaces generic paces with your real numbers' },
       { tag: 'Improved', text: 'Plan start date is fully configurable — any Monday, any user' },
       { tag: 'Fix',      text: 'Strava reconnect fixed — was missing the app URL, causing OAuth to fail silently after token expiry' },
-      { tag: 'New',      text: 'Strava setup guide built into the app — full 6-step Cloudflare Worker deployment walkthrough' },
-      { tag: 'Improved', text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
+      { tag: 'New',      text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
       { tag: 'New',      text: 'Factory reset and Setup guide in More → App Setup' },
     ],
   },
