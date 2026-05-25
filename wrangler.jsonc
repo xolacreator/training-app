@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "training-app-strava",
+  "name": "training-app-api",
   "compatibility_date": "2026-05-25",
   "observability": {
     "enabled": true
