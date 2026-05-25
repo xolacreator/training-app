@@ -4129,7 +4129,7 @@ document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${URL.c
 // ═══════════════════════════════════════════════════════════════════════════
 
 function initStrava() {
-  stravaWorker = localStorage.getItem('ht-strava-worker') || 'https://training-app-strava.brucesarmento.workers.dev';
+  stravaWorker = localStorage.getItem('ht-strava-worker') || '';
   try {
     const saved = JSON.parse(localStorage.getItem('ht-strava-tok') || 'null');
     if (saved) {
@@ -4437,55 +4437,107 @@ function closeReviewFlow() {
 }
 
 function reconnectStrava() {
-  if (!stravaWorker) { toast('Disconnect first, then re-enter the worker URL'); return; }
-  window.location.href = `${stravaWorker}/auth`;
+  if (!stravaWorker) { toast('Disconnect first, then re-enter your worker URL'); return; }
+  const appUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  window.location.href = `${stravaWorker}/auth?app_url=${appUrl}`;
 }
 
 function renderStravaCard() {
   const card = document.getElementById('strava-card');
   if (!card) return;
   const connected = !!stravaAccess;
-  const lastSync = localStorage.getItem('ht-strava-sync');
-  const lastStr  = lastSync ? new Date(lastSync).toLocaleString('en-AU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
+  const lastSync  = localStorage.getItem('ht-strava-sync');
+  const lastStr   = lastSync ? new Date(lastSync).toLocaleString('en-AU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
+  const savedWorker = stravaWorker || '';
+
+  const stravaIcon = `<svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="COLOUR" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
 
   if (!connected) {
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="var(--accent)" stroke-width="2">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        ${stravaIcon.replace('COLOUR','var(--accent)')}
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">Strava Sync</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-import activities · last 90 days</div>
+          <div style="font-size:14px;font-weight:700;">Strava Sync</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-import runs, rides &amp; strength sessions</div>
         </div>
       </div>
-      <input id="strava-worker-input" type="url" placeholder="https://training-app-strava.<you>.workers.dev"
-        value="${stravaWorker}"
-        style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);font-family:var(--mono);margin-bottom:8px;">
-      <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;">Connect Strava</button>`;
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Your Cloudflare Worker URL</label>
+        <input id="strava-worker-input" type="url"
+          placeholder="https://your-worker.workers.dev"
+          value="${savedWorker}"
+          style="font-size:12px;font-family:var(--mono);">
+      </div>
+      <button class="btn btn-accent" onclick="connectStrava()" style="width:100%;margin-bottom:10px;">Connect Strava →</button>
+      <details>
+        <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:2px 0;">
+          ▸ First time? Worker setup guide (~20 min)
+        </summary>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.1;margin-top:10px;">
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;">Step 1 — Strava API credentials</div>
+          1. Go to <b>strava.com/settings/api</b> (sign in to Strava)<br>
+          2. Create an app — name and website can be anything<br>
+          3. Set <b>Authorization Callback Domain</b> to: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
+          4. Note your <b>Client ID</b> and <b>Client Secret</b>
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 2 — Deploy the Cloudflare Worker</div>
+          1. Go to <b>dash.cloudflare.com</b> → Workers &amp; Pages → Create<br>
+          2. Choose <b>Create Worker</b> → Deploy → then <b>Edit code</b><br>
+          3. Delete the default code, paste in the contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the repo<br>
+          4. Click <b>Deploy</b> — note your Worker URL (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 3 — Set environment variables</div>
+          In your Worker → Settings → Variables → Add these:
+          <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:6px 0;line-height:2.2;">
+            <b>STRAVA_CLIENT_ID</b> — from Step 1<br>
+            <b>STRAVA_CLIENT_SECRET</b> — from Step 1<br>
+            <b>APP_URL</b> — the full URL of this app (e.g. <span id="strava-app-url-hint" style="color:var(--blue);"></span>)
+          </div>
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 4 — Create the KV namespace</div>
+          1. Cloudflare Dashboard → Workers &amp; Pages → <b>KV</b><br>
+          2. Create a namespace named exactly: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code><br>
+          3. Go back to your Worker → Settings → <b>Bindings</b> → Add → KV Namespace<br>
+          4. Variable name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> · Namespace: the one you just created
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 5 — Update Strava callback</div>
+          Back on <b>strava.com/settings/api</b>, update <b>Authorization Callback Domain</b> to your exact worker URL<br>
+          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">your-worker.workers.dev</code>)
+
+          <div style="color:var(--text2);font-weight:700;margin:10px 0 4px;">Step 6 — Connect</div>
+          Paste your Worker URL above and tap <b>Connect Strava</b>
+        </div>
+      </details>`;
+    // Inject current app URL hint
+    try {
+      const el = document.getElementById('strava-app-url-hint');
+      if (el) el.textContent = window.location.origin + window.location.pathname;
+    } catch(e) {}
   } else {
     const syncing = stravaState === 'syncing';
     const errored = stravaState === 'error';
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="${errored?'var(--red)':'var(--accent)'}" stroke-width="2">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        ${stravaIcon.replace('COLOUR', errored?'var(--red)':'var(--accent)')}
         <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;color:var(--text);">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
+          <div style="font-size:14px;font-weight:700;">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
           <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
-            ${errored ? '⚠ Token expired or sync failed' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
+            ${errored ? '⚠ Access token expired — reconnect to resume' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
           </div>
         </div>
       </div>
       ${errored ? `
-      <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava</button>
-      <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:rgba(240,101,101,.08);border:.5px solid rgba(240,101,101,.2);border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.8;">
+          Strava access tokens expire every 6 hours. Tap Reconnect — it re-runs the same OAuth flow and refreshes your token automatically.
+        </div>
+        <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava →</button>
+        <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
       ` : `
-      <div class="btn-row">
-        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromStrava(false)" ${syncing?'disabled':''}>Sync now</button>
-        <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
-      </div>`}`;
+        <div class="btn-row">
+          <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="syncFromStrava(false)" ${syncing?'disabled':''}>Sync now</button>
+          <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
+        </div>
+      `}`;
   }
 }
 
@@ -5354,25 +5406,27 @@ function renderOnboardStep() {
     const connected = !!stravaAccess;
     body = `
       <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Strava sync</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Connect Strava to automatically import your runs, strength and erg sessions</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:16px;">Automatically import activities from Strava into your training log</div>
 
       ${connected ? `
-        <div style="background:rgba(52,199,89,.1);border:.5px solid rgba(52,199,89,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:#34c759;margin-bottom:20px;">
-          Connected${stravaAthlete ? ' · ' + stravaAthlete : ''} — activities syncing
+        <div style="background:rgba(52,199,89,.1);border:.5px solid rgba(52,199,89,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:#34c759;margin-bottom:16px;">
+          Connected${stravaAthlete ? ' · ' + stravaAthlete : ''} — activities will sync automatically
         </div>` : `
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;line-height:1.9;">
-          <b style="color:var(--text2);">What Strava sync does</b><br>
-          Pulls your activities · Matches to plan sessions · Captures splits and pace data<br>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:14px;line-height:1.9;">
+          <b style="color:var(--text2);">What it does</b><br>
+          Pulls runs, rides and strength sessions from Strava · matches them to your plan · auto-fills pace, HR and distance<br>
           <b style="color:var(--text2);">What you need first</b><br>
-          Your Cloudflare Worker deployed and Strava API credentials set up (see the guide in the README)
+          A Cloudflare Worker deployed with your Strava API credentials — see the full guide in More → Cloud Sync after setup
         </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;">Worker URL</div>
-        <input id="ob-strava-worker" type="url" placeholder="https://your-worker.workers.dev"
-          value="${stravaWorker||''}"
-          style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:11px;margin-bottom:16px;">
+        <div class="fg" style="margin-bottom:8px;">
+          <label class="flbl">Your Worker URL</label>
+          <input id="ob-strava-worker" type="url" placeholder="https://your-worker.workers.dev"
+            value="${stravaWorker||''}"
+            style="font-size:12px;font-family:var(--mono);">
+        </div>
         <button class="btn" style="width:100%;color:var(--orange,#f56e2e);border-color:rgba(245,110,46,.25);margin-bottom:8px;font-size:13px;padding:13px;" onclick="obConnectStrava()">Connect Strava →</button>`}
 
-      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=3;renderOnboardStep();">${connected?'Next →':'Skip for now →'}</button>
+      <button class="btn ${connected?'btn-accent':''}" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=3;renderOnboardStep();">${connected?'Next →':'Skip — set up later in More →'}</button>
       <button class="btn" style="width:100%;" onclick="_obStep=1;renderOnboardStep()">← Back</button>`;
 
   } else if (_obStep === 3) {
