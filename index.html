@@ -611,7 +611,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="px" style="padding-top:8px;">
     <div style="margin-bottom:16px;"><div class="eyebrow">Analysis</div><div class="screen-title">Stats</div></div>
     <div class="mg" id="stats-metrics"></div>
-    <div class="sec-lbl">Weekly volume (km)</div>
+    <div class="sec-lbl">Weekly volume (<span id="vol-unit-lbl">km</span>)</div>
     <div class="card"><div class="chart-wrap"><canvas id="chart-volume"></canvas></div></div>
     <div class="sec-lbl">Pace trend</div>
     <div class="card"><div class="chart-wrap"><canvas id="chart-pace"></canvas></div></div>
@@ -631,25 +631,6 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div class="btn-row" style="margin-bottom:0;">
         <button class="btn" onclick="openBuilder(null,null)">+ New session</button>
         <button class="btn" onclick="openTemplates()">My templates</button>
-      </div>
-    </div>
-    <div class="sec-lbl">Import from Garmin</div>
-    <div class="card">
-      <div class="drop-zone" onclick="document.getElementById('csv-input').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
-        <div style="margin-bottom:10px;color:var(--text3);"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Upload Activities.csv</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Garmin Connect → Activities → Export CSV</div>
-      </div>
-      <input type="file" id="csv-input" accept=".csv,.json" style="display:none" onchange="handleFile(this.files[0])">
-      <div id="import-preview" style="display:none;margin-top:10px;"></div>
-    </div>
-    <div class="sec-lbl">Garmin export steps</div>
-    <div class="card">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:2;">
-        1. connect.garmin.com → sign in<br>
-        2. Activities → All Activities<br>
-        3. Top right → Export CSV<br>
-        4. Upload the file above
       </div>
     </div>
     <div class="sec-lbl">AI Training</div>
@@ -674,179 +655,36 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <div style="font-size:18px;color:var(--text3);">›</div>
       </div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Health Data Sync</div>
-    <div class="card" id="garmin-sync-card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <div style="width:38px;height:38px;border-radius:10px;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/><polyline points="12 8 12 12 14 14"/></svg>
-        </div>
-        <div style="flex:1;">
-          <div style="font-size:13px;font-weight:800;">Apple Health → Worker → App</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Reads sleep + RHR from Apple Health each morning via iOS Shortcut</div>
-        </div>
-      </div>
-
-      <!-- Shortcut install button -->
-      <div id="garmin-shortcut-install-btn" style="margin-bottom:8px;"></div>
-
-      <!-- Token entry — user pastes after first Shortcut run -->
-      <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;border:.5px solid rgba(167,139,250,.2);">
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Sync token</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="garmin-token-input" type="text" placeholder="Paste token from first Shortcut run"
-            style="flex:1;font-family:var(--mono);font-size:11px;background:var(--bg2);border:.5px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);min-width:0;">
-          <button class="btn" style="flex-shrink:0;font-size:10px;padding:5px 10px;color:var(--blue);border-color:rgba(167,139,250,.3);" onclick="garminSaveToken()">Save</button>
-        </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:5px;" id="garmin-token-hint">Run the Shortcut once manually — your token appears at the end</div>
-      </div>
-
-      <!-- Connection status -->
-      <div id="garmin-status" style="font-family:var(--mono);font-size:9px;border-radius:6px;padding:7px 10px;margin-bottom:12px;"></div>
-
-      <!-- What syncs info -->
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:12px;line-height:1.9;">
-        <span style="color:var(--text2);font-weight:700;">What syncs automatically</span><br>
-        Sleep hours · Resting HR (required) · HRV · Steps (optional, Apple Watch)<br>
-        <span style="color:var(--text2);font-weight:700;">Calculated by the app</span><br>
-        Recovery Score from sleep + RHR · VO₂max from run assessments
-      </div>
-
-      <!-- Shortcut link wrap kept for compat -->
-      <div style="margin-bottom:0px;" id="garmin-shortcut-link-wrap"></div>
-
-      <!-- Test sync button -->
-      <button class="btn" style="width:100%;color:var(--blue);border-color:rgba(167,139,250,.25);margin-bottom:12px;"
-        onclick="(async()=>{
-          const btn=this; btn.textContent='Testing…'; btn.disabled=true;
-          const d=await workerGetHealthFile();
-          btn.textContent='Test sync'; btn.disabled=false;
-          if(d) toast('Data found: sleep '+d.sleepHours+'h, HRV '+(d.hrv||'—'));
-          else toast('No data found — run the Shortcut first');
-        })()">Test sync</button>
-
-      <!-- Collapsed setup instructions -->
-      <details style="margin-bottom:10px;">
-        <summary style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);cursor:pointer;padding:2px 0;list-style:none;-webkit-details-marker:display:none;">
-          &#9658; How to build the iOS Shortcut (step-by-step)
-        </summary>
-        <div style="margin-top:12px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.8;">
-
-          <div style="background:rgba(167,139,250,.1);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
-            <b style="color:var(--blue);">No setup needed before building</b><br>
-            The Shortcut creates its own unique token on first run and saves it automatically.<br>
-            After running it once, you&apos;ll see your token — paste it into the app and you&apos;re done.
-          </div>
-
-          <b style="color:var(--text2);">Create the shortcut</b><br>
-          Open the <b>Shortcuts</b> app &rarr; tap <b>+</b> (top right)<br>
-          Tap the title at the top &rarr; rename it <b>Health Sync</b><br>
-          Tap <b>Add Action</b> and add the steps below in order.<br><br>
-
-          <!-- Step group: Token (self-generating) -->
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEPS 1–3 — Token (generates itself once, then persists)</div>
-            1. Add <b>Get File</b><br>
-            &nbsp;&nbsp;&rarr; tap the path field &rarr; type: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;font-size:9px;">Shortcuts/htoken.txt</code><br>
-            &nbsp;&nbsp;&rarr; find the toggle <b>Error if Not Found</b> &rarr; turn it <b>OFF</b><br>
-            &nbsp;&nbsp;&rarr; tap the result bubble &rarr; Set Variable &rarr; name it <b>StoredToken</b><br><br>
-            2. Add <b>If</b><br>
-            &nbsp;&nbsp;&rarr; input: <b>StoredToken</b> &middot; Condition: <b>has any value</b><br>
-            &nbsp;&nbsp;&rarr; inside the <b>If</b> block: add <b>Set Variable</b> &rarr; Token = StoredToken<br>
-            &nbsp;&nbsp;&rarr; tap <b>Otherwise</b> (the else branch):<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;— Add <b>Generate GUID</b> &rarr; Set Variable &rarr; name it <b>Token</b><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;— Add <b>Save File</b> &rarr; tap the file field &rarr; select <b>Token</b><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr; Where: <b>iCloud Drive</b> &middot; Folder: <b>Shortcuts</b> &middot; Name: <b>htoken.txt</b><br>
-            &nbsp;&nbsp;&rarr; tap <b>End If</b> to close the block<br><br>
-            3. Add <b>If</b><br>
-            &nbsp;&nbsp;&rarr; input: <b>StoredToken</b> &middot; Condition: <b>does not have any value</b><br>
-            &nbsp;&nbsp;&rarr; inside: add <b>Show Result</b> &rarr; tap the text &rarr; select <b>Token</b><br>
-            &nbsp;&nbsp;&rarr; (you can add a label: type "Your Rev3 token: " then select Token)<br>
-            &nbsp;&nbsp;&rarr; End If<br>
-            <span style="color:var(--text3);font-size:8px;">This only shows the token on the very first run. Copy it into the app (field above). Every run after that is silent.</span>
-          </div>
-
-          <!-- Step group: Sleep -->
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEPS 4–8 — Sleep hours</div>
-            4. Add <b>Find Health Samples</b><br>
-            &nbsp;&nbsp;&rarr; tap <b>Type</b> &rarr; search for and select <b>Sleep</b><br>
-            &nbsp;&nbsp;&rarr; Sort: <b>Newest First</b> &middot; turn on Limit &rarr; set to <b>1</b><br><br>
-            5. Add <b>Get Details of Health Sample</b><br>
-            &nbsp;&nbsp;&rarr; Detail: <b>Start Date</b> &rarr; tap the result &rarr; Set Variable &rarr; name <b>BedStart</b><br><br>
-            6. Add <b>Get Details of Health Sample</b><br>
-            &nbsp;&nbsp;&rarr; Detail: <b>End Date</b> &rarr; Set Variable &rarr; name <b>BedEnd</b><br><br>
-            7. Add <b>Calculate</b><br>
-            &nbsp;&nbsp;&rarr; tap the first input field &rarr; select <b>BedEnd</b><br>
-            &nbsp;&nbsp;&rarr; tap the operator (the +) &rarr; change to <b>−</b> (minus)<br>
-            &nbsp;&nbsp;&rarr; tap the second input &rarr; select <b>BedStart</b><br>
-            &nbsp;&nbsp;&rarr; tap + again &rarr; add <b>÷</b> (divide) &rarr; type <b>3600</b><br>
-            &nbsp;&nbsp;&rarr; tap the result &rarr; Set Variable &rarr; name <b>SleepHrs</b><br><br>
-            8. Add <b>If</b><br>
-            &nbsp;&nbsp;&rarr; input: <b>SleepHrs</b> &middot; Condition: <b>is less than</b> &middot; Value: <b>1</b><br>
-            &nbsp;&nbsp;&rarr; inside the If block add <b>Stop and Output</b> &rarr; type: "no sleep data yet"<br>
-            &nbsp;&nbsp;&rarr; make sure <b>End If</b> appears after the Otherwise line<br>
-            <span style="color:var(--text3);font-size:8px;">Stops the shortcut if Garmin hasn&apos;t synced to Apple Health yet this morning.</span>
-          </div>
-
-          <!-- Step group: RHR -->
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEP 9 — Resting heart rate</div>
-            Add <b>Find Health Samples</b><br>
-            &nbsp;&rarr; Type: <b>Resting Heart Rate</b> &middot; Sort: Newest First &middot; Limit: <b>1</b><br>
-            Add <b>Get Details of Health Sample</b> &rarr; Detail: <b>Value</b> &rarr; Set Variable &rarr; name <b>RHR</b>
-          </div>
-
-          <!-- Step group: Optional -->
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-            <div style="color:var(--text2);font-weight:700;margin-bottom:6px;">STEPS 10–11 — Optional (skip if no Apple Watch)</div>
-            <span style="color:var(--text3);font-size:8px;">Only add these if you have an Apple Watch or another device that writes HRV and Steps to Apple Health. The app works fine with just sleep + RHR.</span><br><br>
-            10. <b>Find Health Samples</b> &rarr; Type: <b>Heart Rate Variability</b><br>
-            &nbsp;&nbsp;&rarr; Newest First &middot; Limit 1 &rarr; Get Details &rarr; Value &rarr; Set Variable &rarr; name <b>HRV</b><br><br>
-            11. <b>Find Health Samples</b> &rarr; Type: <b>Steps</b><br>
-            &nbsp;&nbsp;&rarr; Newest First &middot; Limit 1 &rarr; Get Details &rarr; Value &rarr; Set Variable &rarr; name <b>Steps</b>
-          </div>
-
-          <!-- Step group: Date + Send -->
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-            <div style="color:var(--accent);font-weight:700;margin-bottom:6px;">STEPS 12–14 — Date and send</div>
-            12. Add <b>Format Date</b><br>
-            &nbsp;&nbsp;&rarr; Date: <b>Current Date</b> &middot; Format: <b>Custom</b><br>
-            &nbsp;&nbsp;&rarr; in the custom field type exactly: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;font-size:9px;">yyyy-MM-dd</code><br>
-            &nbsp;&nbsp;&rarr; Set Variable &rarr; name <b>Today</b><br><br>
-            13. Add <b>Dictionary</b> &rarr; tap <b>+</b> to add each row:<br>
-            &nbsp;&nbsp;<b>date</b> &rarr; tap and select the variable <b>Today</b><br>
-            &nbsp;&nbsp;<b>sleepHours</b> &rarr; select <b>SleepHrs</b><br>
-            &nbsp;&nbsp;<b>restingHR</b> &rarr; select <b>RHR</b><br>
-            &nbsp;&nbsp;<b>hrv</b> &rarr; select <b>HRV</b> <span style="color:var(--text3);font-size:8px;">(only if you did step 10)</span><br>
-            &nbsp;&nbsp;<b>steps</b> &rarr; select <b>Steps</b> <span style="color:var(--text3);font-size:8px;">(only if you did step 11)</span><br><br>
-            14. Add <b>Get Contents of URL</b>:<br>
-            &nbsp;&nbsp;URL: <span id="garmin-health-url-instr" style="color:var(--blue);word-break:break-all;">https://training-app-api.xolacreator.workers.dev/health</span><br>
-            &nbsp;&nbsp;Method: tap GET &rarr; change to <b>POST</b><br>
-            &nbsp;&nbsp;Headers: tap <b>+</b> &rarr; Key: <b>X-Sync-Token</b> &middot; Value: tap and select <b>Token</b><br>
-            &nbsp;&nbsp;Request Body: tap <b>JSON</b> &rarr; tap the field &rarr; select the <b>Dictionary</b> from step 13
-          </div>
-
-          <b style="color:var(--text2);">Set up the automation (so it runs every morning)</b><br>
-          In the Shortcuts app &rarr; tap the <b>Automation</b> tab at the bottom<br>
-          Tap <b>+</b> &rarr; <b>Personal Automation</b> &rarr; scroll to find <b>Sleep</b><br>
-          Select <b>Sleep Focus Ends</b> &rarr; tap Next<br>
-          Tap <b>Add Action</b> &rarr; search for <b>Run Shortcut</b> &rarr; tap it &rarr; select <b>Health Sync</b><br>
-          Turn off <b>Ask Before Running</b> &rarr; tap Done<br><br>
-          <span style="color:var(--text3);font-size:8px;">
-            This runs automatically when your morning alarm goes off or your Sleep Focus ends.<br>
-            Data flows: your device &rarr; Apple Health &rarr; Shortcut &rarr; Rev3. Works with Garmin, Apple Watch, Whoop, or any device that writes to Apple Health.
-          </span>
-
-        </div>
-      </details>
-
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">
-        Activity data (runs, strength, erg): device → Strava → App via Cloud Sync below
-      </div>
-    </div>
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Units</div>
+    <div class="card" id="units-settings-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:2px;">Running distance</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Paces and distances</div>
+        </div>
+        <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
+          <button id="unit-run-km" onclick="setUnitRun('km')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KM</button>
+          <button id="unit-run-mi" onclick="setUnitRun('mi')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">MI</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:2px;">Weight</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Lifts and body weight</div>
+        </div>
+        <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
+          <button id="unit-wt-kg" onclick="setUnitWeight('kg')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KG</button>
+          <button id="unit-wt-lbs" onclick="setUnitWeight('lbs')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">LBS</button>
+        </div>
+      </div>
+    </div>
     <div class="sec-lbl" style="margin-top:4px;">App Setup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
@@ -1128,6 +966,53 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
     <div class="card" id="hx-summary" style="margin-top:12px;"></div>
     <div style="height:32px;"></div>
+  </div>
+</div>
+
+<!-- MORNING CHECK-IN -->
+<div id="morning-overlay" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.65);align-items:flex-end;">
+  <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;padding:28px 20px calc(28px + var(--sab)) 20px;max-height:88vh;overflow-y:auto;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;">Morning Check-in</div>
+        <div style="font-size:22px;font-weight:800;color:var(--text1);letter-spacing:-.02em;">How did you sleep?</div>
+      </div>
+      <button onclick="skipMorningCheckin()" style="background:none;border:none;color:var(--text3);font-size:26px;cursor:pointer;padding:0;line-height:1;margin-top:2px;">×</button>
+    </div>
+
+    <label style="display:block;margin-bottom:16px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">Sleep hours <span style="color:var(--accent);">*</span></div>
+      <input id="mc-sleep" type="number" min="0" max="24" step="0.5" inputmode="decimal" placeholder="e.g. 7.5"
+        style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
+    </label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <label>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">Sleep score</div>
+        <input id="mc-sleep-score" type="number" min="0" max="100" inputmode="numeric" placeholder="0–100"
+          style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
+      </label>
+      <label>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">HRV (ms)</div>
+        <input id="mc-hrv" type="number" min="0" max="300" inputmode="numeric" placeholder="e.g. 55"
+          style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
+      </label>
+    </div>
+
+    <label style="display:block;margin-bottom:24px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">Resting heart rate (bpm)</div>
+      <input id="mc-rhr" type="number" min="0" max="220" inputmode="numeric" placeholder="e.g. 52"
+        style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
+    </label>
+
+    <button onclick="saveMorningCheckin()"
+      style="width:100%;background:var(--accent);color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;letter-spacing:-.01em;margin-bottom:10px;">
+      Save check-in
+    </button>
+    <button onclick="skipMorningCheckin()"
+      style="width:100%;background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:8px;">
+      Skip for today
+    </button>
   </div>
 </div>
 
@@ -2349,7 +2234,8 @@ function loadBaselines() {
 let sessions = [];
 let feel = null;
 let cat = 'run';
-let sUnit = 'kg';
+let sUnit    = localStorage.getItem('ht-units-weight') || 'kg';
+let unitRun  = localStorage.getItem('ht-units-run')    || 'km';
 let splits = [];
 let exercises = [];
 let stations = [];
@@ -2619,7 +2505,7 @@ function renderToday() {
   const now = new Date();
   const todayDow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()];
   document.getElementById('today-date').textContent =
-    now.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    now.toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
   // Next upcoming race/test event
   const allRaces = [];
@@ -2642,7 +2528,7 @@ function renderToday() {
     <div class="metric"><div class="mlbl">Sessions logged</div>
       <div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
     <div class="metric bl"><div class="mlbl">Peak tempo</div>
-      <div class="mval bl" style="font-size:22px;">${tempo?tempo.pace:'—'}<span class="munit">/km</span></div>
+      <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'—'}<span class="munit">${paceUnit()}</span></div>
       <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'}</div></div>
     <div class="metric gr"><div class="mlbl">W${currentPlanWeek} logged</div>
       <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week</div></div>
@@ -2754,12 +2640,12 @@ function buildRunMetrics() {
   if (isInterval) {
     html += `<div class="flbl" style="margin-bottom:5px;">Rep splits</div>
     <table class="split-tbl"><thead><tr>
-      <th>#</th><th>Dist</th><th>Time</th><th>Pace /km</th><th>HR</th><th></th>
+      <th>#</th><th>Dist</th><th>Time</th><th>Pace ${paceUnit()}</th><th>HR</th><th></th>
     </tr></thead><tbody id="split-body">${renderSplitRows()}</tbody></table>
     <button class="add-row" onclick="addSplit()">+ Add rep / interval</button>`;
   }
   html += `<div class="g2" style="margin-bottom:10px;">
-    <div><label class="flbl">Total distance (km)</label>
+    <div><label class="flbl">Total distance (${distUnit()})</label>
       <input type="text" id="f-dist" placeholder="e.g. 6.4" oninput="calcRunPace()"></div>
     <div><label class="flbl">Total time</label>
       <input type="text" id="f-dur" placeholder="HH:MM:SS" oninput="calcRunPace()"></div>
@@ -2837,7 +2723,7 @@ function renderEx(ex,idx){
     <button class="add-row" onclick="addSet(${idx})" style="margin-top:5px;">+ Add set</button>
   </div>`;
 }
-function setSUnit(u,btn){sUnit=u;document.querySelectorAll('.unit-opt').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderMetrics();}
+function setSUnit(u,btn){sUnit=u;localStorage.setItem('ht-units-weight',u);document.querySelectorAll('.unit-opt').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderMetrics();}
 function addEx(){exercises.push({name:'',sets:[{reps:'',weight:''}]});document.getElementById('ex-list').innerHTML=exercises.map((ex,i)=>renderEx(ex,i)).join('');}
 function rmEx(i){exercises.splice(i,1);document.getElementById('ex-list').innerHTML=exercises.map((ex,i)=>renderEx(ex,i)).join('');}
 function addSet(i){exercises[i].sets.push({reps:'',weight:''});const el=document.getElementById(`sets${i}`);if(el)el.innerHTML=exercises[i].sets.map((s,si)=>`<div class="set-row"><div class="set-num">${si+1}</div><input class="set-inp" type="text" value="${s.reps||''}" placeholder="Reps" oninput="setCh(${i},${si},'reps',this.value)"><input class="set-inp" type="text" value="${s.weight||''}" placeholder="${sUnit}" oninput="setCh(${i},${si},'weight',this.value)"><button class="del-btn" onclick="rmSet(${i},${si})">✕</button></div>`).join('');}
@@ -2871,7 +2757,7 @@ function buildMixedMetrics(){
   <div id="station-list">${stations.map((s,i)=>renderStation(s,i)).join('')}</div>
   <button class="add-row" onclick="addStation()">+ Add station</button>
   <div class="g2" style="margin-bottom:10px;">
-    <div><label class="flbl">Total dist (km)</label><input type="text" id="f-dist" placeholder="5.5"></div>
+    <div><label class="flbl">Total dist (${distUnit()})</label><input type="text" id="f-dist" placeholder="5.5"></div>
     <div><label class="flbl">Total time</label><input type="text" id="f-dur" placeholder="HH:MM:SS"></div>
   </div>
   <div><label class="flbl">Avg HR (bpm)</label><input type="number" id="f-hr" placeholder="145" style="margin-bottom:10px;"></div>`;
@@ -2909,7 +2795,7 @@ function setFeel(v,btn){feel=v;document.querySelectorAll('.feel-btn').forEach(b=
 function buildNotes(){
   const lines=[];
   if(cat==='run'&&splits.length){
-    lines.push('Splits: '+splits.map((s,i)=>`${i+1}: ${[s.dist,s.time,s.pace?s.pace+'/km':'',s.hr?s.hr+'bpm':''].filter(Boolean).join(' ')}`).join(' | '));
+    lines.push('Splits: '+splits.map((s,i)=>`${i+1}: ${[s.dist,s.time,s.pace?convertPaceStr(s.pace)+paceUnit():'',s.hr?s.hr+'bpm':''].filter(Boolean).join(' ')}`).join(' | '));
   }
   if(cat==='strength'&&exercises.length){
     exercises.forEach(ex=>{if(!ex.name&&!ex.sets.length)return;lines.push(`${ex.name||'Exercise'}: `+ex.sets.map((s,i)=>`${i+1}: ${s.reps||'?'}×${s.weight||'?'}${sUnit}`).join(', '));});
@@ -2961,8 +2847,8 @@ function renderRecentLog(){
   if(!recent.length){document.getElementById('recent-log').innerHTML='<div class="empty">No sessions yet.</div>';return;}
   document.getElementById('recent-log').innerHTML=recent.map((s,i)=>{
     const idx=sessions.indexOf(s);
-    const stats=[s.pace?s.pace+'/km':'',s.dist?s.dist+'km':'',s.hr?s.hr+'bpm':'',s.dur?s.dur+'min':''].filter(Boolean);
-    const ds=new Date(s.ts).toLocaleDateString('en-AU',{month:'short',day:'numeric'});
+    const stats=[s.pace?convertPaceStr(s.pace)+paceUnit():'',s.dist?fmtDist(parseFloat(s.dist)):'',s.hr?s.hr+'bpm':'',s.dur?s.dur+'min':''].filter(Boolean);
+    const ds=new Date(s.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     return `<div class="lrow" onclick="openLogOverlay(${idx})">
       <div class="lrow-top">
         <div><div class="lrow-title">${s.session} ${ibadge(s.intensity)}</div>
@@ -3225,14 +3111,14 @@ function renderBaselinesCard() {
 function openLogOverlay(idx){
   detailIdx=idx;
   const s=sessions[idx];
-  const ds=new Date(s.ts).toLocaleDateString('en-AU',{weekday:'long',month:'long',day:'numeric'});
+  const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('lo-eyebrow').textContent=`Week ${s.week} · ${s.day} · ${ds}`;
   document.getElementById('lo-title').textContent=s.session;
   document.getElementById('lo-sub').innerHTML=ibadge(s.intensity);
 
   const sc=[];
-  if(s.pace)sc.push({l:'Avg Pace',v:s.pace,u:'/km',c:'bl'});
-  if(s.dist)sc.push({l:'Distance',v:s.dist,u:'km',c:''});
+  if(s.pace)sc.push({l:'Avg Pace',v:convertPaceStr(s.pace),u:paceUnit(),c:'bl'});
+  if(s.dist)sc.push({l:'Distance',v:unitRun==='mi'?+(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,u:distUnit(),c:''});
   if(s.hr)sc.push({l:'Avg HR',v:s.hr,u:'bpm',c:'am'});
   if(s.dur)sc.push({l:'Duration',v:s.dur,u:'min',c:''});
   document.getElementById('lo-stats').innerHTML=sc.map(x=>`
@@ -3475,6 +3361,8 @@ function loadTemplate(i){
 // STATS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderStats(){
+  const volLbl = document.getElementById('vol-unit-lbl');
+  if (volLbl) volLbl.textContent = distUnit();
   const wc={};for(let w=1;w<=12;w++)wc[w]=0;
   sessions.forEach(s=>{if(s.week)wc[parseInt(s.week)]=(wc[parseInt(s.week)]||0)+1;});
   const total=Object.values(wc).reduce((a,b)=>a+b,0);
@@ -3485,7 +3373,7 @@ function renderStats(){
 
   document.getElementById('stats-metrics').innerHTML=`
     <div class="metric"><div class="mlbl">Sessions</div><div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
-    <div class="metric"><div class="mlbl">Distance</div><div class="mval">${Math.round(totalKm)}<span class="munit">km</span></div><div class="msub">logged runs</div></div>
+    <div class="metric"><div class="mlbl">Distance</div><div class="mval">${unitRun==='mi'?Math.round(totalKm*MI_PER_KM):Math.round(totalKm)}<span class="munit">${distUnit()}</span></div><div class="msub">logged runs</div></div>
     <div class="metric am"><div class="mlbl">Avg feel</div><div class="mval am">${avgFeel?avgFeel.toFixed(1):'—'}</div><div class="msub">out of 5</div></div>
     <div class="metric bl"><div class="mlbl">Weeks active</div><div class="mval bl">${Object.values(wc).filter(v=>v>0).length}<span class="munit">/12</span></div><div class="msub"></div></div>
   `;
@@ -3494,7 +3382,8 @@ function renderStats(){
   const volData=[];const paceData=[];const feelData=[];
   for(let w=1;w<=12;w++){
     const km=sessions.filter(s=>s.week===String(w)&&s.dist).reduce((a,s)=>a+parseFloat(s.dist||0),0);
-    volData.push(Math.round(km*10)/10);
+    const vol=unitRun==='mi'?km*MI_PER_KM:km;
+    volData.push(Math.round(vol*10)/10);
     const paced=sessions.filter(s=>s.week===String(w)&&s.pace&&s.pace.includes(':'));
     if(paced.length){
       const avg=paced.reduce((a,s)=>{const p=s.pace.split(':');return a+(parseInt(p[0])*60+parseFloat(p[1]));},0)/paced.length;
@@ -3698,7 +3587,7 @@ function renderDataSummary(){
   const lastExport = localStorage.getItem('ht-last-export');
   const lastSync   = localStorage.getItem('ht-last-sync');
   const templates  = (() => { try { return JSON.parse(localStorage.getItem('ht-tmpl')||'[]').length; } catch(e) { return 0; } })();
-  const fmt = d => new Date(d).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  const fmt = d => new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
   const lines = [`${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.`];
   if (lastSync)   lines.push(`Drive sync: ${fmt(lastSync)}`);
   if (lastExport) lines.push(`File backup: ${fmt(lastExport)}`);
@@ -3757,7 +3646,7 @@ function renderAIContext() {
     </div>
     ${avgPaceSecs ? `<div style="display:flex;justify-content:space-between;align-items:center;">
       <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Recent avg pace</span>
-      <span style="font-size:12px;font-weight:700;color:var(--blue);">${secsToMMSS(avgPaceSecs)}/km</span>
+      <span style="font-size:12px;font-weight:700;color:var(--blue);">${secsToMMSS(unitRun==='mi'?avgPaceSecs/MI_PER_KM:avgPaceSecs)}${paceUnit()}</span>
     </div>` : ''}
     <div style="border-top:.5px solid var(--border);padding-top:8px;">
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Injury Flags (always respected)</div>
@@ -3953,7 +3842,6 @@ function aiLogNow() {
 // GOOGLE DRIVE SYNC
 // ═══════════════════════════════════════════════════════════════════════════
 const DRIVE_FILE  = 'hybrid-training-sync.json';
-const HEALTH_FILE = 'health-checkin.json';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.readonly';
 let driveToken    = null;
 let driveClientId = '';
@@ -3968,18 +3856,6 @@ let stravaWorker  = '';
 let stravaState   = 'idle'; // 'idle' | 'syncing' | 'error'
 let pendingReview = []; // gids of Strava imports awaiting feel rating
 
-// ── Sync token (for Worker KV health endpoint) ────────────────────────────
-// Paste the iCloud Shortcut link below once you have it:
-const HEALTH_SHORTCUT_LINK = '';
-
-let syncToken = localStorage.getItem('ht-sync-token') || '';
-if (!syncToken) {
-  syncToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
-  try { localStorage.setItem('ht-sync-token', syncToken); } catch(e) {}
-}
 
 function initDrive() {
   driveClientId = localStorage.getItem('ht-drive-cid') || '479339090650-il0un5msincdmjcfp4dmeu45jg6p5p0j.apps.googleusercontent.com';
@@ -4087,62 +3963,8 @@ async function driveDownload() {
   return r.json();
 }
 
-// ── Health file (written by iOS Shortcut via Google Drive) ───────────────
 
-async function driveGetHealthFile() {
-  if (!driveToken) return null;
-  try {
-    const list = await driveGet('/drive/v3/files', {
-      q: `name='${HEALTH_FILE}' and trashed=false`,
-      fields: 'files(id)',
-    });
-    const fid = list.files?.[0]?.id;
-    if (!fid) return null;
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`,
-      { headers: { Authorization: `Bearer ${driveToken}` } });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch(e) { return null; } // silent — scope may not be granted until re-auth
-}
 
-async function workerGetHealthFile(date) {
-  try {
-    const d = date || todayISO();
-    const resp = await fetch(
-      `${stravaWorker}/health?date=${d}`,
-      { headers: { 'X-Sync-Token': syncToken } }
-    );
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    return data.ok === false ? null : data;
-  } catch(e) { return null; }
-}
-
-function parseHealthFile(data) {
-  if (!data || !data.date) return false;
-  const existing = recoveryLog.find(r => r.date === data.date);
-  // Never overwrite a manually entered entry
-  if (existing && existing.source !== 'drive') return false;
-  const entry = {
-    ...(existing || {}),
-    date:          data.date,
-    sleepHours:    Math.round((parseFloat(data.sleepHours)||existing?.sleepHours||0) * 2) / 2,
-    hrv:           parseInt(data.hrv)         || existing?.hrv         || null,
-    restingHR:     parseInt(data.restingHR)   || existing?.restingHR   || null,
-    bodyBattery:   parseInt(data.bodyBattery) || existing?.bodyBattery || null,
-    vo2max:        parseFloat(data.vo2max)    || existing?.vo2max      || null,
-    steps:         parseInt(data.steps)       || existing?.steps       || null,
-    garminSyncTime: data.garminSyncTime       || existing?.garminSyncTime || null,
-    source:        'drive',
-    ts:            existing?.ts || Date.now(),
-  };
-  entry.recoveryScore = computeRecoveryScore(entry);
-  recoveryLog = recoveryLog.filter(r => r.date !== data.date);
-  recoveryLog.unshift(entry);
-  saveRecovery();
-  try { refreshVO2maxComposite(); } catch(e) {}
-  return true;
-}
 
 // ── Sync logic ────────────────────────────────────────────────────────────
 
@@ -4188,9 +4010,6 @@ async function syncFromDrive() {
     // Push local state up (always keeps Drive current)
     await driveUpload(drivePayload());
     localStorage.setItem('ht-last-sync', new Date().toISOString());
-    // Silently pull health check-in written by iOS Shortcut
-    const healthData = await driveGetHealthFile();
-    if (healthData && parseHealthFile(healthData)) renderRecoveryCard();
     driveState = 'idle';
     renderDriveCard();
     renderDataSummary();
@@ -4266,7 +4085,7 @@ function renderDriveCard() {
   } else {
     const lastSync = localStorage.getItem('ht-last-sync');
     const syncLine = lastSync
-      ? new Date(lastSync).toLocaleString('en-AU', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+      ? new Date(lastSync).toLocaleString('en-US', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
       : 'Not yet synced';
     const stateColor = driveState==='error' ? 'var(--red)' : driveState==='syncing' ? 'var(--accent)' : 'var(--green)';
     const stateLabel = driveState==='error' ? 'Error' : driveState==='syncing' ? 'Syncing…' : 'Connected';
@@ -4437,9 +4256,10 @@ function stravaIntensity(act) {
 
 function mpsToMinKm(mps) {
   if (!mps || mps <= 0) return '';
-  const mpk = 1000 / mps / 60;
-  const m = Math.floor(mpk);
-  const s = Math.round((mpk - m) * 60);
+  const secsPerKm = 1000 / mps;
+  const secsPerUnit = unitRun === 'mi' ? secsPerKm / MI_PER_KM : secsPerKm;
+  const m = Math.floor(secsPerUnit / 60);
+  const s = Math.round(secsPerUnit % 60);
   return `${m}:${String(s).padStart(2,'0')}`;
 }
 
@@ -4569,8 +4389,8 @@ function renderReviewStep() {
   document.getElementById('rv-strava-name').textContent = stravaName ? `Strava: ${stravaName}` : '';
 
   const sc = [];
-  if (s.pace) sc.push({l:'Avg Pace', v:s.pace, u:'/km', c:'bl'});
-  if (s.dist) sc.push({l:'Distance', v:s.dist, u:'km', c:''});
+  if (s.pace) sc.push({l:'Avg Pace', v:convertPaceStr(s.pace), u:paceUnit(), c:'bl'});
+  if (s.dist) sc.push({l:'Distance', v:unitRun==='mi'?+(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist, u:distUnit(), c:''});
   if (s.hr)   sc.push({l:'Avg HR',   v:s.hr,   u:'bpm', c:'am'});
   if (s.dur)  sc.push({l:'Duration', v:s.dur,  u:'min', c:''});
   document.getElementById('rv-stats').innerHTML = sc.map(x =>
@@ -4629,7 +4449,7 @@ function renderStravaCard() {
   if (!card) return;
   const connected = !!stravaAccess;
   const lastSync  = localStorage.getItem('ht-strava-sync');
-  const lastStr   = lastSync ? new Date(lastSync).toLocaleString('en-AU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
+  const lastStr   = lastSync ? new Date(lastSync).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Never';
   const savedWorker = stravaWorker || '';
 
   const stravaIcon = `<svg viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0;" fill="none" stroke="COLOUR" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
@@ -4773,6 +4593,65 @@ function renderStravaCard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// UNIT HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+const MI_PER_KM = 0.621371;
+
+function distDisplay(km) {
+  if (unitRun === 'mi') return { val: +(km * MI_PER_KM).toFixed(2), unit: 'mi' };
+  return { val: km, unit: 'km' };
+}
+function fmtDist(km) {
+  const d = distDisplay(km);
+  return `${d.val}${d.unit}`;
+}
+function distUnit() { return unitRun === 'mi' ? 'mi' : 'km'; }
+function paceUnit() { return unitRun === 'mi' ? '/mi' : '/km'; }
+
+function convertPaceStr(paceStr) {
+  if (!paceStr || unitRun !== 'mi') return paceStr;
+  const parts = paceStr.split(':');
+  if (parts.length !== 2) return paceStr;
+  const totalSec = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  const secPerMi = Math.round(totalSec / MI_PER_KM);
+  return `${Math.floor(secPerMi/60)}:${String(secPerMi%60).padStart(2,'0')}`;
+}
+
+function weightDisplay(val) {
+  if (sUnit === 'lbs') return `${Math.round(val * 2.20462)}lbs`;
+  return `${val}kg`;
+}
+
+function setUnitRun(u) {
+  unitRun = u;
+  localStorage.setItem('ht-units-run', u);
+  try { renderAll(); } catch(e) {}
+  renderMoreSettings();
+}
+function setUnitWeight(u) {
+  sUnit = u;
+  localStorage.setItem('ht-units-weight', u);
+  try { renderMetrics(); } catch(e) {}
+  renderMoreSettings();
+}
+function renderMoreSettings() {
+  const accentBg = 'var(--accent)';
+  const dimBg    = 'var(--bg2)';
+  const accentFg = '#000';
+  const dimFg    = 'var(--text3)';
+  const setBtn = (id, active) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.background = active ? accentBg : dimBg;
+    el.style.color      = active ? accentFg : dimFg;
+  };
+  setBtn('unit-run-km',  unitRun === 'km');
+  setBtn('unit-run-mi',  unitRun === 'mi');
+  setBtn('unit-wt-kg',   sUnit   === 'kg');
+  setBtn('unit-wt-lbs',  sUnit   === 'lbs');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MORNING CHECK-IN / RECOVERY
 // ═══════════════════════════════════════════════════════════════════════════
 function todayISO() {
@@ -4782,28 +4661,7 @@ function saveRecovery() {
   try { localStorage.setItem('ht-recovery', JSON.stringify(recoveryLog)); } catch(e) {}
 }
 
-// Auto-pickup: silently check for new Garmin health data whenever app comes to foreground.
-// Throttled to once per 30 min so it doesn't hammer endpoints on every tab switch.
-let _lastHealthCheck = 0;
-document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState !== 'visible') return;
-  if (!stravaWorker && !driveToken) return;
-  const now = Date.now();
-  if (now - _lastHealthCheck < 30 * 60 * 1000) return;
-  _lastHealthCheck = now;
-  // Try Worker KV first, fall back to Google Drive
-  let data = null;
-  if (stravaWorker && syncToken) {
-    data = await workerGetHealthFile();
-  }
-  if (!data && driveToken) {
-    data = await driveGetHealthFile();
-  }
-  if (data && parseHealthFile(data)) {
-    renderRecoveryCard();
-    toast('Garmin data updated ✓');
-  }
-});
+
 function getTodayEntry() {
   return recoveryLog.find(r => r.date === todayISO());
 }
@@ -4912,7 +4770,7 @@ function renderRecoveryCard() {
           ${entry.bodyBattery ? `<span>BB ${entry.bodyBattery}%</span>`       : ''}
           ${entry.steps       ? `<span>${Math.round(entry.steps/1000*10)/10}k steps</span>` : ''}
           ${entry.vo2max      ? `<span>VO₂max ${entry.vo2max}</span>`         : ''}
-          ${entry.garminSyncTime ? `<span style="color:var(--text3);">synced ${new Date(entry.garminSyncTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
+
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="flex:1;">
@@ -4926,7 +4784,6 @@ function renderRecoveryCard() {
           <button class="btn btn-accent" style="margin-top:20px;padding:10px 16px;" onclick="rcAddScore()">Save →</button>
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="btn" style="flex:1;font-family:var(--mono);font-size:10px;color:var(--blue);border-color:rgba(167,139,250,.25);" id="rc-sync-btn" onclick="rcSyncDrive()">↓ Re-sync</button>
           <button class="btn" style="flex:1;font-family:var(--mono);font-size:10px;" onclick="rcOpenEdit()">Edit manually</button>
         </div>
         ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:8px;">Your avg: ${baseline}/100</div>` : ''}
@@ -4979,7 +4836,6 @@ function renderRecoveryCard() {
           </div>
         </div>
         <button class="btn btn-accent" style="width:100%;" onclick="rcLog()">Log check-in</button>
-        ${(driveToken || (stravaWorker && syncToken)) ? `<button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);" id="rc-sync-btn" onclick="rcSyncDrive()">↓ Re-sync</button>` : ''}
         ${baseline ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-top:8px;">Your avg sleep score: ${baseline}/100</div>` : ''}
       </div>`;
   }
@@ -5025,89 +4881,8 @@ function rcAddScore() {
   toast('Sleep score saved ✓');
 }
 
-async function rcSyncDrive() {
-  if (!stravaWorker && !driveToken) { toast('Set up the Worker or connect Google Drive first'); return; }
-  const btn = document.getElementById('rc-sync-btn');
-  if (btn) { btn.textContent = 'Syncing…'; btn.disabled = true; }
-  // Try Worker KV first, fall back to Google Drive
-  let data = null;
-  if (stravaWorker && syncToken) {
-    data = await workerGetHealthFile();
-  }
-  if (!data && driveToken) {
-    data = await driveGetHealthFile();
-  }
-  if (!data) {
-    if (btn) { btn.textContent = '↓ Re-sync'; btn.disabled = false; }
-    toast('No health data found — run the Shortcut first');
-    return;
-  }
-  const updated = parseHealthFile(data);
-  renderRecoveryCard();
-  toast(updated ? 'Recovery data synced ✓' : 'Already up to date');
-}
 
-function garminSaveToken() {
-  const input = document.getElementById('garmin-token-input');
-  const val = (input?.value || '').trim();
-  if (!val) { toast('Paste your sync token first'); return; }
-  syncToken = val;
-  try { localStorage.setItem('ht-sync-token', syncToken); } catch(e) {}
-  toast('Token saved ✓');
-  renderGarminSyncCard();
-}
 
-// ── Garmin sync card renderer ────────────────────────────────────────────
-function renderGarminSyncCard() {
-  // Install Shortcut button
-  const installBtn = document.getElementById('garmin-shortcut-install-btn');
-  if (installBtn) {
-    if (HEALTH_SHORTCUT_LINK) {
-      installBtn.innerHTML = `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:11px;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);text-decoration:none;">↓ Install Health Sync Shortcut</a>`;
-    } else {
-      installBtn.innerHTML = `<div style="background:var(--bg3);border-radius:8px;padding:11px;font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">Shortcut link coming soon<br><span style="font-size:8px;">Follow the manual steps below to build it</span></div>`;
-    }
-  }
-
-  // Token input — show current saved token if exists, placeholder otherwise
-  const tokenInput = document.getElementById('garmin-token-input');
-  if (tokenInput) {
-    tokenInput.value = syncToken || '';
-    tokenInput.placeholder = syncToken ? '' : 'Paste token from first Shortcut run';
-  }
-  const tokenHint = document.getElementById('garmin-token-hint');
-  if (tokenHint) {
-    tokenHint.textContent = syncToken
-      ? 'Token saved — Shortcut is linked to this app'
-      : 'Run the Shortcut once manually — your token appears at the end';
-    tokenHint.style.color = syncToken ? 'var(--green)' : 'var(--text3)';
-  }
-
-  const statusEl = document.getElementById('garmin-status');
-  if (statusEl) {
-    if (stravaWorker && syncToken) {
-      statusEl.style.background = 'var(--green-dim)';
-      statusEl.style.color = 'var(--green)';
-      statusEl.textContent = 'Ready — health data will sync automatically each morning';
-    } else if (!syncToken) {
-      statusEl.style.background = 'var(--bg3)';
-      statusEl.style.color = 'var(--text3)';
-      statusEl.textContent = 'Install the Shortcut and run it once to get your token';
-    } else {
-      statusEl.style.background = 'var(--bg3)';
-      statusEl.style.color = 'var(--text3)';
-      statusEl.textContent = 'Token saved — Worker URL is set automatically';
-    }
-  }
-
-  const urlInstr = document.getElementById('garmin-health-url-instr');
-  if (urlInstr) {
-    urlInstr.textContent = stravaWorker ? `${stravaWorker}/health` : 'https://training-app-api.xolacreator.workers.dev/health';
-  }
-
-  const linkWrap = document.getElementById('garmin-shortcut-link-wrap');
-  if (linkWrap) linkWrap.innerHTML = '';
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HYROX RACE CALCULATOR
@@ -5180,10 +4955,10 @@ function renderStravaSplits(s) {
   if (splits && splits.length > 0) {
     const hasHR  = splits.some(sp => sp.average_heartrate);
     const hasCad = splits.some(sp => sp.average_cadence);
-    html += `<div class="sec-lbl"${laps && laps.length > 1 ? '' : ' style="margin-top:14px;"'}>Per-km splits · ${splits.length} km</div>
+    html += `<div class="sec-lbl"${laps && laps.length > 1 ? '' : ' style="margin-top:14px;"'}>Per-${distUnit()} splits · ${splits.length} ${distUnit()}</div>
     <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
       <table class="split-tbl"><thead><tr>
-        <th style="text-align:left;">km</th>
+        <th style="text-align:left;">${distUnit()}</th>
         <th style="text-align:right;">Pace</th>
         <th style="text-align:right;">Time</th>
         ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
@@ -5504,9 +5279,9 @@ function coachSetupNext() {
     renderCoachCard();
     coachMessages = [{role:'assistant', text:coachIntro()}];
     closeOv('coach-setup-overlay');
-    // If coach setup was launched from onboarding, return to onboarding step 4
+    // If coach setup was launched from onboarding, return to onboarding step 3
     if (localStorage.getItem('ht-onboarded') === 'pending') {
-      _obStep = 4; renderOnboardStep(); openOv('onboard-overlay'); return;
+      _obStep = 3; renderOnboardStep(); openOv('onboard-overlay'); return;
     }
     renderCoachHeader();
     renderCoachMessages();
@@ -5745,6 +5520,51 @@ function maybeShowOnboarding() {
   openOnboarding();
 }
 
+function maybeShowMorningCheckin() {
+  if (!localStorage.getItem('ht-onboarded')) return;
+  if (sessionStorage.getItem('mc-shown')) return;
+  const h = new Date().getHours();
+  if (h < 4 || h >= 16) return;
+  if (getTodayEntry()) return;
+  sessionStorage.setItem('mc-shown', '1');
+  setTimeout(() => {
+    const el = document.getElementById('morning-overlay');
+    if (el) el.style.display = 'flex';
+  }, 800);
+}
+
+function skipMorningCheckin() {
+  sessionStorage.setItem('mc-shown', '1');
+  const el = document.getElementById('morning-overlay');
+  if (el) el.style.display = 'none';
+}
+
+function saveMorningCheckin() {
+  const sleep = parseFloat(document.getElementById('mc-sleep')?.value || '');
+  if (!sleep || isNaN(sleep)) { toast('Enter your sleep hours to continue'); return; }
+  const score = parseInt(document.getElementById('mc-sleep-score')?.value || '') || null;
+  const hrv   = parseInt(document.getElementById('mc-hrv')?.value   || '') || null;
+  const rhr   = parseInt(document.getElementById('mc-rhr')?.value   || '') || null;
+  const today = todayISO();
+  let entry = recoveryLog.find(r => r.date === today);
+  if (entry) {
+    entry.sleepHours = sleep;
+    if (score !== null) entry.sleepScore = score;
+    if (hrv   !== null) entry.hrv        = hrv;
+    if (rhr   !== null) entry.restingHR  = rhr;
+  } else {
+    entry = { date: today, sleepHours: sleep, sleepScore: score, hrv, restingHR: rhr };
+    recoveryLog.unshift(entry);
+  }
+  entry.recoveryScore = computeRecoveryScore(entry);
+  saveRecovery();
+  renderRecoveryCard();
+  sessionStorage.setItem('mc-shown', '1');
+  const el = document.getElementById('morning-overlay');
+  if (el) el.style.display = 'none';
+  toast('Morning check-in saved ✓');
+}
+
 function openOnboarding() { openOnboardingAt(0); }
 function openOnboardingAt(step) {
   _obStep = step;
@@ -5754,7 +5574,7 @@ function openOnboardingAt(step) {
 }
 
 function renderOnboardStep() {
-  const total = 5;
+  const total = 4;
   const dots = Array.from({length:total},(_,i)=>
     `<div style="width:6px;height:6px;border-radius:50%;transition:background .2s;background:${i===_obStep?'var(--accent)':'var(--border)'};"></div>`
   ).join('');
@@ -6022,35 +5842,6 @@ function renderOnboardStep() {
       <button class="btn" style="width:100%;" onclick="_obStep=1;renderOnboardStep()">← Back</button>`;
 
   } else if (_obStep === 3) {
-    body = `
-      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Health data sync</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Auto-fill sleep, resting HR and more each morning via an iOS Shortcut — works with any device that writes to Apple Health</div>
-
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-        ${HEALTH_SHORTCUT_LINK
-          ? `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:13px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue);text-decoration:none;">↓ Install Health Sync Shortcut</a>`
-          : `<div style="background:var(--bg2);border-radius:8px;padding:11px;font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;">Shortcut link coming soon</div>`
-        }
-        <button class="btn" style="width:100%;color:var(--blue);border-color:rgba(167,139,250,.3);padding:13px;"
-          onclick="window.location.href='shortcuts://'">Open Shortcuts app →</button>
-      </div>
-
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:20px;line-height:1.9;">
-        <b style="color:var(--text2);">How it works</b><br>
-        1. Install the Shortcut from the link above<br>
-        2. Build it once using the guide in More → Health Data Sync<br>
-        3. Run it manually the first time — it generates your token and shows it<br>
-        4. Come back here, paste that token into More → Garmin → Sync token field<br>
-        5. Set up the automation so it runs every morning when Sleep Focus ends<br>
-        <b style="color:var(--text2);">After that: fully automatic. No app open needed.</b>
-      </div>
-
-      ${HEALTH_SHORTCUT_LINK ? `<a href="${HEALTH_SHORTCUT_LINK}" style="display:block;text-align:center;background:var(--blue-dim);border:.5px solid rgba(167,139,250,.3);border-radius:8px;padding:13px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue);text-decoration:none;margin-bottom:8px;">Get iCloud Shortcut →</a>` : ''}
-
-      <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=4;renderOnboardStep()">Next →</button>
-      <button class="btn" style="width:100%;" onclick="_obStep=2;renderOnboardStep()">← Back</button>`;
-
-  } else if (_obStep === 4) {
     const hasCoach = !!coachProfile;
     body = `
       <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your AI coach</div>
@@ -6068,7 +5859,7 @@ function renderOnboardStep() {
           A Claude API key from console.anthropic.com (add it in More → AI Session Builder)
         </div>
         <button class="btn" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);font-size:13px;padding:13px;margin-bottom:8px;"
-          onclick="localStorage.setItem('ht-ob-return','4');localStorage.setItem('ht-onboarded','pending');closeOv('onboard-overlay');openCoachSetup();">
+          onclick="localStorage.setItem('ht-ob-return','3');localStorage.setItem('ht-onboarded','pending');closeOv('onboard-overlay');openCoachSetup();">
           Set up coach now →
         </button>`}
 
@@ -6083,7 +5874,7 @@ function renderOnboardStep() {
       <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="finishOnboarding()">
         ${hasCoach ? 'All set — let\'s train →' : 'Skip and finish →'}
       </button>
-      <button class="btn" style="width:100%;" onclick="_obStep=3;renderOnboardStep()">← Back</button>`;
+      <button class="btn" style="width:100%;" onclick="_obStep=2;renderOnboardStep()">← Back</button>`;
   }
 
   document.getElementById('onboard-content').innerHTML = nav + body;
@@ -6097,9 +5888,9 @@ function obDateHint(iso) {
   if (day !== 1) {
     const diff = day === 0 ? 1 : (8 - day);
     const next = new Date(d); next.setDate(d.getDate() + diff);
-    return `Not a Monday — nearest Monday: ${next.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}`;
+    return `Not a Monday — nearest Monday: ${next.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}`;
   }
-  return `Week 1: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})} → ${new Date(d.getTime()+6*86400000).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}`;
+  return `Week 1: ${d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} → ${new Date(d.getTime()+6*86400000).toLocaleDateString('en-US',{day:'numeric',month:'short'})}`;
 }
 
 function obSavePlan() {
@@ -6176,16 +5967,17 @@ try { load(); }      catch(e) { console.error('load() failed:', e); try { render
 try { initTheme(); } catch(e) {}
 try { initDrive(); } catch(e) {}
 try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
-try { renderGarminSyncCard(); } catch(e) {}
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
 // Resume onboarding if coach setup was opened mid-flow
 if (localStorage.getItem('ht-onboarded') === 'pending') {
-  try { openOnboardingAt(4); } catch(e) {}
+  try { openOnboardingAt(3); } catch(e) {}
 } else {
   try { maybeShowOnboarding(); } catch(e) {}
 }
+try { renderMoreSettings(); } catch(e) {}
+try { maybeShowMorningCheckin(); } catch(e) {}
 // Show what's-new sheet for returning users when version advances
 try { checkForUpdates(); } catch(e) {}
 </script>
