@@ -1,14 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "training-app-strava",
+  "name": "training-app-api",
+  "main": "worker/index.js",
   "compatibility_date": "2026-05-25",
-  "observability": {
-    "enabled": true
-  },
-  "assets": {
-    "directory": "."
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true }
 }
