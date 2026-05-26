@@ -658,6 +658,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Notifications</div>
+    <div class="card" id="notif-card" style="min-height:60px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Units</div>
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -1041,14 +1043,17 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Messages — this is the only scrolling region -->
   <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
   <!-- Input bar — always pinned to bottom, full width -->
-  <div style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
+  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
-      <textarea id="coach-input" rows="2" placeholder="Ask your coach anything…"
+      <textarea id="coach-input" rows="2" placeholder="Reply to your coach…"
         style="flex:1;min-width:0;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
       <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="flex-shrink:0;width:44px;height:44px;padding:0;font-size:20px;line-height:1;border-radius:var(--r);">↑</button>
     </div>
-    <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Reconfigure coach</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="coachMessages=[];coachMode=null;renderCoachModePicker();">← Change mode</button>
+      <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Edit coach profile</button>
+    </div>
   </div>
 </div>
 
@@ -2236,6 +2241,13 @@ let feel = null;
 let cat = 'run';
 let sUnit    = localStorage.getItem('ht-units-weight') || 'kg';
 let unitRun  = localStorage.getItem('ht-units-run')    || 'km';
+let swReg    = null;
+const notifPrefs = {
+  morning: localStorage.getItem('ht-notif-morning') !== 'off',
+  session: localStorage.getItem('ht-notif-session') !== 'off',
+  coach:   localStorage.getItem('ht-notif-coach')   !== 'off',
+};
+let coachMode = null;
 let splits = [];
 let exercises = [];
 let stations = [];
@@ -2257,33 +2269,41 @@ let baselines = {};
 let trainGoal = '';
 
 const COACH_SETUP_STEPS = [
-  {id:'name',     q:"What should your coach go by?",              sub:"They'll introduce themselves with this name",       type:'text',   placeholder:'e.g. Coach Sam, The Hammer, Coach Mia…'},
-  {id:'style',    q:"What coaching style fits you?",              sub:"Shapes the tone of every conversation",            type:'choice', options:[
-    {val:'direct',       label:'Direct & Challenging', desc:'Hard truths, no sugar-coating'},
-    {val:'motivational', label:'Motivational',          desc:'Energy and belief-focused'},
-    {val:'technical',    label:'Technical',             desc:'Data-driven and analytical'},
-    {val:'balanced',     label:'Balanced',              desc:'Mix of all three'},
+  {id:'name',        q:"What should your coach go by?",              sub:"They'll introduce themselves with this name",             type:'text',   placeholder:'e.g. Coach Sam, The Hammer, Coach Mia…'},
+  {id:'style',       q:"What coaching style fits you?",              sub:"Shapes the tone of every conversation",                  type:'choice', options:[
+    {val:'direct',       label:'Direct & Challenging',  desc:'Hard truths, no sugar-coating'},
+    {val:'motivational', label:'Motivational',           desc:'Energy and belief-focused'},
+    {val:'technical',    label:'Technical & Data-Driven',desc:'Numbers, analytics and science'},
+    {val:'balanced',     label:'Balanced',               desc:'Challenge, motivation and data mixed'},
+    {val:'toughlove',    label:'Tough Love',             desc:'High expectations, zero excuses'},
   ]},
-  {id:'goal',     q:"What's your primary race or fitness goal?",    sub:"Helps your coach calibrate everything",             type:'choice', options:[
-    {val:'sub60',  label:'Sub-60 min HYROX',   desc:'Elite level'},
-    {val:'sub75',  label:'Sub-75 min HYROX',   desc:'Competitive'},
-    {val:'sub90',  label:'Sub-90 min HYROX',   desc:'Strong amateur'},
-    {val:'finish', label:'First HYROX finish', desc:'Strong and smart race'},
-    {val:'marathon',label:'Marathon / Half',   desc:'Road race performance'},
-    {val:'fitness', label:'General fitness',   desc:'Endurance + strength base'},
+  {id:'background',  q:"What's your training background?",          sub:"Your coach calibrates the depth of advice to your experience", type:'choice', options:[
+    {val:'beginner',     label:'Just getting started',  desc:'Under 1 year of structured training'},
+    {val:'intermediate', label:'1–3 years',             desc:'Consistent training history'},
+    {val:'experienced',  label:'3–5 years',             desc:'Solid base, competitive goals'},
+    {val:'athlete',      label:'Competitive athlete',   desc:'5+ years, sport-specific background'},
   ]},
-  {id:'raceDate', q:"When is your next race or key date?",          sub:"Your coach will count down and plan around this",  type:'text',   placeholder:'e.g. 20 Jun 2026, or HYROX Sydney Nov 2026'},
-  {id:'focus',    q:"Where do you need the most coaching?",         sub:"Your coach will emphasise this area",              type:'choice', options:[
-    {val:'running',  label:'Running pace',     desc:'Speed and endurance development'},
-    {val:'stations', label:'Station / strength',desc:'Technique and strength work'},
-    {val:'strategy', label:'Race strategy',    desc:'Pacing and race execution'},
-    {val:'all',      label:'Full package',     desc:'All areas equally'},
+  {id:'goal',        q:"What's your primary race or fitness goal?",  sub:"Helps your coach calibrate everything",                   type:'choice', options:[
+    {val:'sub60',   label:'Sub-60 min HYROX',   desc:'Elite level'},
+    {val:'sub75',   label:'Sub-75 min HYROX',   desc:'Competitive'},
+    {val:'sub90',   label:'Sub-90 min HYROX',   desc:'Strong amateur'},
+    {val:'finish',  label:'First HYROX finish',  desc:'Strong and smart race'},
+    {val:'marathon',label:'Marathon / Half',     desc:'Road race performance'},
+    {val:'fitness', label:'General fitness',     desc:'Endurance + strength base'},
   ]},
-  {id:'detail',   q:"How do you prefer your feedback?",           sub:"Sets response length and depth",                   type:'choice', options:[
+  {id:'raceDate',    q:"When is your next race or key date?",        sub:"Your coach will count down and plan around this",         type:'text',   placeholder:'e.g. Jun 20 2026, or HYROX Sydney Nov 2026'},
+  {id:'focus',       q:"Where do you need the most coaching?",       sub:"Your coach will emphasize this area",                    type:'choice', options:[
+    {val:'running',   label:'Running pace',       desc:'Speed and endurance development'},
+    {val:'stations',  label:'Station / strength', desc:'Technique and strength work'},
+    {val:'strategy',  label:'Race strategy',      desc:'Pacing and race execution'},
+    {val:'all',       label:'Full package',       desc:'All areas equally'},
+  ]},
+  {id:'detail',      q:"How do you prefer your feedback?",           sub:"Sets response length and depth",                         type:'choice', options:[
     {val:'short',    label:'Short & sharp',   desc:'Bullet points, no fluff'},
     {val:'detailed', label:'Full breakdown',  desc:'Deep analysis and reasoning'},
   ]},
-  {id:'priority', q:"What are you currently working toward?",     sub:"Your coach uses this to open every conversation",  type:'text',   placeholder:'e.g. Building my running base before the quality phase kicks in. Weak on SkiErg and need to fix my sled push technique.'},
+  {id:'limitations', q:"Any injuries or physical limitations?",      sub:"Your coach works around these and flags warning signs",   type:'text',   placeholder:'e.g. Left knee tendinopathy. Or: None currently.'},
+  {id:'priority',    q:"What are you currently working toward?",     sub:"Your coach uses this to frame every conversation",        type:'text',   placeholder:'e.g. Building run base before quality phase. Weak on SkiErg — need technique work.'},
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5178,36 +5198,210 @@ function renderCoachCard() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+async function initNotifications() {
+  if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+  try { swReg = await navigator.serviceWorker.register('./sw.js'); } catch(e) {}
+  maybeShowNudges();
+}
+
+async function showNotif(title, body, tag = 'rev3') {
+  if (Notification.permission !== 'granted') return;
+  try {
+    const reg = swReg || (await navigator.serviceWorker.ready);
+    reg.showNotification(title, {
+      body,
+      tag,
+      icon: './R Star App Icon.png',
+      badge: './R Star App Icon.png',
+      requireInteraction: false,
+    });
+  } catch(e) {
+    try { new Notification(title, { body }); } catch(_) {}
+  }
+}
+
+async function requestNotifPermission() {
+  if (!('Notification' in window)) { toast('Notifications not supported on this browser'); return; }
+  const result = await Notification.requestPermission();
+  renderNotifCard();
+  if (result === 'granted') { toast('Notifications enabled ✓'); maybeShowNudges(); }
+  else toast('Notification permission denied — enable it in your browser settings');
+}
+
+function setNotifPref(key, val) {
+  notifPrefs[key] = val;
+  localStorage.setItem('ht-notif-' + key, val ? 'on' : 'off');
+  renderNotifCard();
+}
+
+function renderNotifCard() {
+  const el = document.getElementById('notif-card');
+  if (!el) return;
+  const supported = 'Notification' in window;
+  const perm = supported ? Notification.permission : 'unsupported';
+  const granted = perm === 'granted';
+  const denied  = perm === 'denied';
+
+  const toggle = (key, label, sub) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:${granted?'var(--text1)':'var(--text3)'};">${label}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${sub}</div>
+      </div>
+      <div onclick="${granted?`setNotifPref('${key}',${!notifPrefs[key]})`:'requestNotifPermission()'}"
+        style="width:42px;height:24px;border-radius:12px;background:${granted&&notifPrefs[key]?'var(--accent)':'var(--border)'};position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;">
+        <div style="position:absolute;top:3px;left:${granted&&notifPrefs[key]?'21':'3'}px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;"></div>
+      </div>
+    </div>`;
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text1);">Notifications</div>
+        <div style="font-family:var(--mono);font-size:9px;color:${granted?'var(--green)':denied?'var(--red)':'var(--text3)'};">
+          ${granted?'● Permission granted':denied?'● Blocked in browser settings':'● Permission not yet granted'}
+        </div>
+      </div>
+      ${!granted&&!denied?`<button class="btn btn-accent" style="font-size:11px;padding:8px 14px;" onclick="requestNotifPermission()">Enable</button>`:''}
+    </div>
+    ${toggle('morning','Morning check-in reminder','Daily nudge to log your sleep and recovery data')}
+    ${toggle('session','Session reminder','Alert when you haven\'t logged a session in 3+ days')}
+    ${toggle('coach','Coach check-in nudge','Weekly reminder to chat with your AI coach')}
+    ${denied?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:10px;line-height:1.7;">Notifications are blocked. Go to your browser or phone settings and allow notifications for this site.</div>`:''}
+  `;
+}
+
+function maybeShowNudges() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  // Session reminder: no session logged in 3+ days
+  if (notifPrefs.session && !sessionStorage.getItem('sn-shown') && sessions.length) {
+    const withTs = sessions.filter(s => s.ts);
+    if (withTs.length) {
+      const daysSince = (Date.now() - withTs[0].ts) / 86400000;
+      if (daysSince >= 3) {
+        sessionStorage.setItem('sn-shown', '1');
+        setTimeout(() => showNotif(
+          'Time to log a session 💪',
+          `It's been ${Math.floor(daysSince)} days since your last logged session. Keep the streak going.`,
+          'session-reminder'
+        ), 2000);
+      }
+    }
+  }
+
+  // Coach nudge: coach set up, not opened in 7+ days
+  if (notifPrefs.coach && coachProfile && !sessionStorage.getItem('cn-shown')) {
+    const last = parseInt(localStorage.getItem('ht-last-coach-open') || '0');
+    if (!last || (Date.now() - last) > 7 * 86400000) {
+      sessionStorage.setItem('cn-shown', '1');
+      setTimeout(() => showNotif(
+        `Check in with ${coachProfile.name} 🎯`,
+        "You haven't chatted with your coach this week. A quick check-in keeps you on track.",
+        'coach-nudge'
+      ), 3500);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI COACH
+// ═══════════════════════════════════════════════════════════════════════════
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
   const key = localStorage.getItem('ht-ai-key') || '';
   if (!key || !key.startsWith('sk-ant')) {
     toast('Add a Claude API key in AI Session Builder first'); return;
   }
-  if (coachMessages.length === 0) coachMessages = [{role:'assistant', text:coachIntro()}];
+  localStorage.setItem('ht-last-coach-open', Date.now().toString());
   renderCoachHeader();
-  renderCoachMessages();
+  if (coachMessages.length === 0) {
+    coachMode = null;
+    renderCoachModePicker();
+  } else {
+    renderCoachMessages();
+  }
   openOv('coach-overlay');
 }
 
-function coachIntro() {
+function renderCoachModePicker() {
+  const el = document.getElementById('coach-messages');
+  if (!el || !coachProfile) return;
   const p = coachProfile;
-  const introGoalMap = {sub60:'a sub-60 min HYROX',sub75:'a sub-75 min HYROX',sub90:'a sub-90 min HYROX',finish:'your first HYROX',marathon:'marathon performance',fitness:'your fitness goals','strength-powerlifting':'your powerlifting base','strength-athletic':'athletic strength and conditioning','strength-hybrid-strength':'hybrid strength and endurance','strength-preseason':'your pre-season foundation'};
-  const strengthLiftNames = {squat:'squat',bench:'bench press',deadlift:'deadlift',ohp:'overhead press'};
-  let introGoalStr = introGoalMap[p.goal] || '';
-  if (!introGoalStr && p.goal) {
-    const lm = p.goal.match(/^strength-(squat|bench|deadlift|ohp)(?:-(.+))?$/);
-    if (lm) {
-      const ln = strengthLiftNames[lm[1]] || lm[1];
-      introGoalStr = lm[2] ? `a ${lm[2].replace(/-/g,' ')} ${ln}` : `a stronger ${ln}`;
-    } else {
-      introGoalStr = p.goal.replace(/-/g,' ');
-    }
+  const modes = [
+    { id:'checkin',  icon:'☀️', label:'Daily check-in',        sub:'Recovery + upcoming session breakdown' },
+    { id:'review',   icon:'📊', label:'Review my training',    sub:'Analyze recent sessions and progress' },
+    { id:'program',  icon:'📋', label:'Talk programming',      sub:'Current or future training plans' },
+    { id:'motivate', icon:'🔥', label:'Motivate me',           sub:'Get fired up for what\'s ahead' },
+    { id:'ask',      icon:'💬', label:'Ask anything',          sub:'Open conversation with your coach' },
+  ];
+  el.innerHTML = `
+    <div style="padding:8px 0 20px;">
+      <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px;">Hey, I'm ${p.name}.</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">What do you want to work on today?</div>
+    </div>
+    ${modes.map(m => `
+      <div onclick="selectCoachMode('${m.id}')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--bg2);border:.5px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <span style="font-size:20px;width:28px;text-align:center;">${m.icon}</span>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;color:var(--text1);">${m.label}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${m.sub}</div>
+        </div>
+        <div style="font-size:16px;color:var(--text3);">›</div>
+      </div>`).join('')}
+  `;
+  document.getElementById('coach-input-row').style.display = 'none';
+}
+
+async function selectCoachMode(mode) {
+  coachMode = mode;
+  document.getElementById('coach-input-row').style.display = '';
+  document.getElementById('coach-input').placeholder = 'Reply to your coach…';
+
+  if (mode === 'checkin' || mode === 'review') {
+    const prompt = mode === 'checkin'
+      ? 'Give me my daily check-in — cover my recovery data today, what\'s on my plan for the next session, and one key thing I should focus on. Be specific and direct.'
+      : 'Review my recent training. What\'s working, what\'s not, and what should I adjust?';
+    coachMessages = [{role:'user', text: prompt}];
+    coachTyping = true;
+    const el = document.getElementById('coach-messages');
+    if (el) el.innerHTML = `<div style="padding:20px 0;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text3);">···</div>`;
+    await _callCoachAPI();
+  } else {
+    const intros = {
+      program:  `Let's talk training. I've got your data in front of me — what's on your mind? Ask about this week, next phase, or anything with your programming.`,
+      motivate: `Let's go. Tell me what's ahead for you — I'll make sure you're ready for it.`,
+      ask:      `I'm all yours. What do you want to talk about?`,
+    };
+    coachMessages = [{role:'assistant', text: intros[mode] || intros.ask}];
+    renderCoachMessages();
   }
-  introGoalStr = introGoalStr || 'your goals';
-  const dateStr = p.raceDate ? ` — ${p.raceDate}` : '';
-  const priorityLine = p.priority ? ` You've told me you're focused on: ${p.priority}.` : '';
-  return `Hey — I'm ${p.name}. We're working toward ${introGoalStr}${dateStr}.${priorityLine} What do you want to work on today?`;
+}
+
+async function _callCoachAPI() {
+  const key = localStorage.getItem('ht-ai-key') || '';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5', max_tokens: 700,
+        system: buildCoachSystemPrompt(),
+        messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
+      }),
+    });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || `API ${res.status}`); }
+    const data = await res.json();
+    coachMessages.push({role:'assistant', text: data.content?.[0]?.text || '…'});
+  } catch(err) {
+    coachMessages.push({role:'assistant', text:`Sorry, something went wrong: ${err.message}`});
+  } finally {
+    coachTyping = false;
+    renderCoachMessages();
+  }
 }
 
 function openCoachSetup() {
@@ -5330,25 +5524,7 @@ async function sendCoachMessage() {
   coachMessages.push({role:'user', text});
   coachTyping = true;
   renderCoachMessages();
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
-      body:JSON.stringify({
-        model:'claude-haiku-4-5', max_tokens:600,
-        system: buildCoachSystemPrompt(),
-        messages: coachMessages.map(m => ({role:m.role, content:m.text})),
-      }),
-    });
-    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API ${res.status}`); }
-    const data = await res.json();
-    coachMessages.push({role:'assistant', text: data.content?.[0]?.text||'…'});
-  } catch(err) {
-    coachMessages.push({role:'assistant', text:`Sorry, something went wrong: ${err.message}`});
-  } finally {
-    coachTyping = false;
-    renderCoachMessages();
-  }
+  await _callCoachAPI();
 }
 
 function buildCoachSystemPrompt() {
@@ -5362,7 +5538,6 @@ function buildCoachSystemPrompt() {
     'strength-hybrid-strength':'develop hybrid endurance and lifting performance',
     'strength-preseason':'build a strength foundation before a competition block',
   };
-  // For specific lift goals, resolve dynamically from goalStr
   const strengthLiftMap = {squat:'squat',bench:'bench press',deadlift:'deadlift',ohp:'overhead press'};
   const resolvedGoal = (g => {
     if (!g) return '';
@@ -5375,45 +5550,69 @@ function buildCoachSystemPrompt() {
     }
     return g.replace(/-/g,' ');
   })(p.goal);
-  const styleMap = {
-    direct:'Be direct and demanding. Give hard truths without softening them. Push relentlessly.',
-    motivational:'Be energetic and belief-focused. Build confidence while holding them accountable.',
-    technical:'Be analytical. Reference numbers, paces and data whenever possible.',
-    balanced:'Balance challenge, motivation and technical depth in every response.',
-  };
-  const focusMap = {running:'running pace and endurance',stations:'station technique and strength work',strategy:'race strategy and pacing execution',all:'all aspects of performance'};
-  const detailMap = {short:'Keep every reply under 120 words. Use bullet points. No padding.',detailed:'Give thorough replies with reasoning. Up to 280 words.'};
 
-  const recent = sessions.slice(0,5).map(s=>`  W${s.week} ${s.day}: ${s.session}${s.pace?' · '+s.pace+'/km':''}${s.dist?' · '+s.dist+'km':''}${s.feel?' · feel '+s.feel+'/5':''}`).join('\n');
+  const styleMap = {
+    direct:      'Be direct and demanding. Give hard truths without softening them. Push relentlessly. No praise unless it\'s earned.',
+    motivational:'Be energetic and belief-focused. Build confidence while holding them fully accountable.',
+    technical:   'Be analytical. Reference numbers, paces and data at every opportunity. Reason from the data.',
+    balanced:    'Balance challenge, motivation and technical depth. Vary your tone based on what the athlete needs.',
+    toughlove:   'High expectations, zero excuses. Acknowledge good work briefly, then raise the bar. Never settle.',
+  };
+  const backgroundMap = {
+    beginner:    'beginner (under 1 year structured training)',
+    intermediate:'intermediate (1–3 years consistent training)',
+    experienced: 'experienced (3–5 years, competitive goals)',
+    athlete:     'competitive athlete (5+ years, sport background)',
+  };
+  const focusMap = {running:'running pace and endurance',stations:'station technique and strength work',strategy:'race strategy and pacing execution',all:'all aspects of performance equally'};
+  const detailMap = {short:'Keep every reply under 130 words. Bullet points where possible. Zero padding.',detailed:'Give thorough replies with full reasoning. Up to 300 words. Use structure when helpful.'};
+
+  const recent = sessions.slice(0,6).map(s=>`  W${s.week} ${s.day}: ${s.session}${s.pace?' · '+convertPaceStr(s.pace)+paceUnit():''}${s.dist?' · '+fmtDist(parseFloat(s.dist)):''}${s.feel?' · feel '+s.feel+'/5':''}`).join('\n');
   const bestTempo = sessions.filter(s=>s.pace&&/(tempo)/i.test(s.session||'')).sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
-  const bestPace  = bestTempo ? (bestTempo.best_pace||bestTempo.pace) : null;
+  const bestPace  = bestTempo ? convertPaceStr(bestTempo.best_pace||bestTempo.pace) : null;
   const hxGoal    = hyroxPlan ? `HYROX race plan: ${hxFmtLong(hyroxPlan.goalSecs)} target` : '';
   const todayRec  = getTodayEntry();
   const baseline  = recoveryBaseline();
   const recStr    = todayRec
-    ? `Today's recovery: ${todayRec.sleepHours}h sleep · score ${todayRec.sleepScore||'?'}/100${baseline?' (avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}${todayRec.restingHR?' · RHR '+todayRec.restingHR:''}`
+    ? `Today: ${todayRec.sleepHours}h sleep${todayRec.sleepScore?' · score '+todayRec.sleepScore+'/100':''}${baseline?' (7-day avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}${todayRec.restingHR?' · RHR '+todayRec.restingHR+'bpm':''}`
     : 'Recovery: not logged today';
+  const nextSess  = (() => {
+    const today = todayISO();
+    return sessions.find(s => s.date && s.date >= today && !s.feel) || null;
+  })();
+  const nextSessStr = nextSess ? `Next scheduled: W${nextSess.week} ${nextSess.day} — ${nextSess.session}` : '';
 
-  const raceDate  = p.raceDate || 'date not set';
-  const priority  = p.priority ? `Athlete's stated priority: "${p.priority}"` : '';
+  const raceDate  = p.raceDate || 'not set';
+  const priority  = p.priority    ? `\nAthlete's current priority: "${p.priority}"` : '';
+  const limits    = p.limitations ? `\nInjuries/limitations: ${p.limitations}` : '';
+  const bgStr     = backgroundMap[p.background] || p.background || '';
 
   const blCtx = getBaselineContext();
-  return `You are ${p.name}, a personal performance coach. The athlete's goal is to ${resolvedGoal}. Their next race or key date: ${raceDate}.
 
-${styleMap[p.style]} Focus especially on ${focusMap[p.focus]}.
-${detailMap[p.detail]}
-${priority}
+  const modeInstructions = {
+    checkin:  `\nMODE: DAILY CHECK-IN\nStructure your response as: (1) Recovery status based on today's data, (2) What's coming up next in training, (3) One specific focus point for the athlete today. Be personal, specific, and energizing. Under 200 words.`,
+    review:   `\nMODE: TRAINING REVIEW\nAnalyze the athlete's recent sessions. Cover: what's working, what needs attention, one tactical adjustment. Reference specific data. Under 200 words.`,
+    program:  `\nMODE: PROGRAMMING DISCUSSION\nYou're having a deep-dive conversation about the athlete's training program. Be strategic, reference the plan week and goals. Answer questions thoroughly.`,
+    motivate: `\nMODE: MOTIVATIONAL\nFocus entirely on mindset, belief and energy. Reference the athlete's goal and what it means. No technical detail unless they ask. Fire them up.`,
+    ask:      '',
+  };
+  const modeCtx = modeInstructions[coachMode] || '';
 
-ATHLETE DATA (current):
+  return `You are ${p.name}, a personal performance coach. Athletic background of athlete: ${bgStr}. Goal: ${resolvedGoal}. Next race/key date: ${raceDate}.
+
+${styleMap[p.style||'balanced']} Focus especially on ${focusMap[p.focus||'all']}.
+${detailMap[p.detail||'short']}${priority}${limits}${modeCtx}
+
+ATHLETE DATA:
 ${blCtx}
-Current plan week: ${currentPlanWeek} of 12
-${hxGoal}
-Best tempo pace: ${bestPace||'not yet logged'}
+Plan week: ${currentPlanWeek}/12${hxGoal?' · '+hxGoal:''}
+Best tempo: ${bestPace||'not yet logged'}
 ${recStr}
+${nextSessStr}
 Recent sessions:
-${recent||'  No sessions logged yet'}
+${recent||'  None logged yet'}
 
-Respond only as ${p.name}. No "as an AI" disclaimers. Stay in character.`;
+Respond only as ${p.name}. No AI disclaimers. Stay in character at all times.`;
 }
 
 // ── What's new ───────────────────────────────────────────────────────────────
@@ -5977,6 +6176,8 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
   try { maybeShowOnboarding(); } catch(e) {}
 }
 try { renderMoreSettings(); } catch(e) {}
+try { renderNotifCard(); } catch(e) {}
+try { initNotifications(); } catch(e) {}
 try { maybeShowMorningCheckin(); } catch(e) {}
 // Show what's-new sheet for returning users when version advances
 try { checkForUpdates(); } catch(e) {}
