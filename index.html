@@ -5815,6 +5815,14 @@ function maybeShowMorningCheckin() {
   if (h < 4 || h >= 16) return;
   if (getTodayEntry()) return;
   sessionStorage.setItem('mc-shown', '1');
+  // Fire browser notification if permission granted and pref on
+  if (notifPrefs.morning && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    showNotif(
+      "Morning check-in ☀️",
+      "Log your sleep and recovery data to keep your coach up to date.",
+      'morning-checkin'
+    );
+  }
   setTimeout(() => {
     const el = document.getElementById('morning-overlay');
     if (el) el.style.display = 'flex';
