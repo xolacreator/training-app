@@ -650,10 +650,11 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
         <div style="flex:1;">
           <div id="coach-card-name" style="font-size:14px;font-weight:700;">Set up your coach</div>
-          <div id="coach-card-sub" style="font-family:var(--mono);font-size:9px;color:var(--text3);">Personalised AI coaching powered by Claude</div>
+          <div id="coach-card-sub" style="font-family:var(--mono);font-size:9px;color:var(--text3);">Personalized AI coaching powered by Claude</div>
         </div>
         <div style="font-size:18px;color:var(--text3);">›</div>
       </div>
+      <div id="coach-card-memory"></div>
     </div>
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
@@ -1035,7 +1036,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header -->
   <div style="flex-shrink:0;padding:calc(var(--sat) + 14px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
-    <button class="back-btn" onclick="closeOv('coach-overlay')" style="position:static;margin-bottom:4px;">
+    <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
       <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
     </button>
     <div id="coach-chat-header"></div>
@@ -5186,15 +5187,35 @@ function loadCoach() {
 function renderCoachCard() {
   const name = document.getElementById('coach-card-name');
   const sub  = document.getElementById('coach-card-sub');
+  const memEl = document.getElementById('coach-card-memory');
   if (!name || !sub) return;
   if (coachProfile) {
-    const goalLabel = {sub60:'Sub-60',sub75:'Sub-75',sub90:'Sub-90',finish:'First finish'}[coachProfile.goal] || '';
-    const dateLabel = coachProfile.raceDate ? ' · ' + coachProfile.raceDate : '';
+    const mem = loadCoachMemory();
+    const styleLabel = {direct:'Direct',motivational:'Motivational',technical:'Technical',balanced:'Balanced',toughlove:'Tough Love'}[coachProfile.style]||'';
+    const sessionStr = mem.sessionCount > 0 ? `${mem.sessionCount} session${mem.sessionCount!==1?'s':''} together` : '';
     name.textContent = coachProfile.name;
-    sub.textContent  = goalLabel + dateLabel + ' · tap to chat';
+    sub.textContent  = [styleLabel, sessionStr, 'tap to chat'].filter(Boolean).join(' · ');
+    if (memEl) {
+      if (mem.notes) {
+        memEl.innerHTML = `
+          <details style="margin-top:12px;" onclick="event.stopPropagation()">
+            <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;"></span>
+              Coach's notes on you · ${mem.sessionCount} session${mem.sessionCount!==1?'s':''}
+            </summary>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.75;margin-top:10px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
+              ${mem.notes}
+            </div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Last updated ${mem.lastUpdate||'—'}</div>
+          </details>`;
+      } else {
+        memEl.innerHTML = '';
+      }
+    }
   } else {
     name.textContent = 'Set up your coach';
-    sub.textContent  = 'Personalised AI coaching powered by Claude';
+    sub.textContent  = 'Personalized AI coaching powered by Claude';
+    if (memEl) memEl.innerHTML = '';
   }
 }
 
@@ -5490,14 +5511,21 @@ function coachSetupBack() {
 function renderCoachHeader() {
   const el = document.getElementById('coach-chat-header');
   if (!el || !coachProfile) return;
-  const goalLabel = {sub60:'Sub-60',sub75:'Sub-75',sub90:'Sub-90',finish:'First finish'}[coachProfile.goal]||'';
-  const styleLabel = {direct:'Direct',motivational:'Motivational',technical:'Technical',balanced:'Balanced'}[coachProfile.style]||'';
+  const mem = loadCoachMemory();
+  const styleLabel = {direct:'Direct',motivational:'Motivational',technical:'Technical & Data-Driven',balanced:'Balanced',toughlove:'Tough Love'}[coachProfile.style]||'';
+  const sessionStr = mem.sessionCount > 0
+    ? `${mem.sessionCount} session${mem.sessionCount!==1?'s':''} together`
+    : 'New relationship';
+  const depthColor = mem.sessionCount >= 10 ? 'var(--accent)' : mem.sessionCount >= 4 ? 'var(--blue)' : 'var(--text3)';
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
-      <div>
+      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        ${mem.sessionCount >= 3 ? `<div style="position:absolute;bottom:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:${depthColor};border:2px solid var(--bg);"></div>` : ''}
+      </div>
+      <div style="flex:1;">
         <div style="font-size:16px;font-weight:700;">${coachProfile.name}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${goalLabel} · ${styleLabel}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${styleLabel} · <span style="color:${depthColor};">${sessionStr}</span></div>
       </div>
     </div>`;
 }
@@ -5598,10 +5626,15 @@ function buildCoachSystemPrompt() {
   };
   const modeCtx = modeInstructions[coachMode] || '';
 
+  const mem = loadCoachMemory();
+  const memCtx = mem.notes
+    ? `\nWHAT I KNOW ABOUT THIS ATHLETE (learned across ${mem.sessionCount} session${mem.sessionCount!==1?'s':''}): ${mem.notes}`
+    : '';
+
   return `You are ${p.name}, a personal performance coach. Athletic background of athlete: ${bgStr}. Goal: ${resolvedGoal}. Next race/key date: ${raceDate}.
 
 ${styleMap[p.style||'balanced']} Focus especially on ${focusMap[p.focus||'all']}.
-${detailMap[p.detail||'short']}${priority}${limits}${modeCtx}
+${detailMap[p.detail||'short']}${priority}${limits}${memCtx}${modeCtx}
 
 ATHLETE DATA:
 ${blCtx}
@@ -5612,7 +5645,63 @@ ${nextSessStr}
 Recent sessions:
 ${recent||'  None logged yet'}
 
+As this coaching relationship deepens, adapt your tone and references to reflect what you know about this individual. Recall past conversations naturally when relevant.
 Respond only as ${p.name}. No AI disclaimers. Stay in character at all times.`;
+}
+
+function loadCoachMemory() {
+  try { return JSON.parse(localStorage.getItem('ht-coach-memory') || '{}'); } catch(e) { return {}; }
+}
+
+function saveCoachMemory(mem) {
+  try { localStorage.setItem('ht-coach-memory', JSON.stringify(mem)); } catch(e) {}
+}
+
+async function updateCoachMemory() {
+  // Only persist if there was a real conversation (at least 3 exchanges)
+  const exchanges = coachMessages.filter(m => m.role === 'user').length;
+  if (exchanges < 2) return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) return;
+
+  const mem = loadCoachMemory();
+  const transcript = coachMessages
+    .slice(-20) // last 20 messages to avoid huge prompts
+    .map(m => `${m.role === 'user' ? 'Athlete' : 'Coach'}: ${m.text}`)
+    .join('\n');
+
+  const existingNotes = mem.notes
+    ? `Existing coach notes on this athlete:\n${mem.notes}\n\n`
+    : '';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5', max_tokens: 220,
+        messages: [{
+          role: 'user',
+          content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes — don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
+        }],
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const updatedNotes = data.content?.[0]?.text?.trim();
+    if (updatedNotes) {
+      saveCoachMemory({
+        notes: updatedNotes,
+        sessionCount: (mem.sessionCount || 0) + 1,
+        lastUpdate: todayISO(),
+      });
+    }
+  } catch(e) {}
+}
+
+function closeCoach() {
+  closeOv('coach-overlay');
+  updateCoachMemory(); // fire-and-forget background update
 }
 
 // ── What's new ───────────────────────────────────────────────────────────────
