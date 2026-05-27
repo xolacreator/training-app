@@ -66,7 +66,7 @@ body.force-light {
   --shadow:rgba(26,10,46,0.12);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-html{height:100%;background:var(--bg);}
+html{height:100%;background:var(--bg);overscroll-behavior:none;}
 body{
   min-height:100%;min-height:100dvh;
   background:var(--bg);color:var(--text);
@@ -129,8 +129,8 @@ body{
 /* ── OVERLAYS ── */
 .overlay{
   position:fixed;
-  /* Full screen including safe areas */
-  top:0;left:0;right:0;bottom:0;
+  /* Use dvh so the overlay shrinks when keyboard opens, keeping the footer visible */
+  top:0;left:0;right:0;height:100dvh;
   background:var(--bg);
   z-index:200;
   overflow-y:auto;
@@ -964,9 +964,19 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <!-- Goal time + Auto-Split -->
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-      <input id="hx-goal" type="text" inputmode="decimal" placeholder="1:30:00"
-        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:10px 8px;color:var(--text);"
-        onblur="hyroxGoalChange()">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:1px;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:8px 10px;">
+        <input id="hx-goal-h" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="1" maxlength="1"
+          style="width:22px;text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;background:transparent;border:none;color:var(--text);padding:0;"
+          onchange="hyroxGoalChange()">
+        <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text3);user-select:none;">:</span>
+        <input id="hx-goal-m" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="30" maxlength="2"
+          style="width:34px;text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;background:transparent;border:none;color:var(--text);padding:0;"
+          onchange="hyroxGoalChange()">
+        <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text3);user-select:none;">:</span>
+        <input id="hx-goal-s" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="00" maxlength="2"
+          style="width:34px;text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;background:transparent;border:none;color:var(--text);padding:0;"
+          onchange="hyroxGoalChange()">
+      </div>
       <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;touch-action:manipulation;">Auto-Split</button>
     </div>
     <!-- Stats row -->
@@ -5120,7 +5130,11 @@ function openHyroxCalc(){
 }
 
 function renderHyroxCalc(){
-  document.getElementById('hx-goal').value=hxFmtLong(hyroxPlan.goalSecs);
+  const _h=Math.floor(hyroxPlan.goalSecs/3600);
+  const _m=Math.floor((hyroxPlan.goalSecs%3600)/60);
+  const _s=hyroxPlan.goalSecs%60;
+  const hEl=document.getElementById('hx-goal-h');
+  if(hEl){hEl.value=_h;document.getElementById('hx-goal-m').value=String(_m).padStart(2,'0');document.getElementById('hx-goal-s').value=String(_s).padStart(2,'0');}
   const div=hyroxPlan.cat?.div||'open';
   const gen=hyroxPlan.cat?.gen||'men';
   const catKey=div+'_'+gen;
@@ -5184,8 +5198,11 @@ function renderHyroxCalc(){
 }
 
 function hyroxGoalChange(){
-  const v=hxParse(document.getElementById('hx-goal').value);
-  if(v&&v>0){hyroxPlan.goalSecs=v;saveHyrox();renderHyroxCalc();}
+  const h=parseInt(document.getElementById('hx-goal-h').value)||0;
+  const m=Math.min(parseInt(document.getElementById('hx-goal-m').value)||0,59);
+  const s=Math.min(parseInt(document.getElementById('hx-goal-s').value)||0,59);
+  const total=h*3600+m*60+s;
+  if(total>0){hyroxPlan.goalSecs=total;saveHyrox();renderHyroxCalc();}
 }
 
 function hyroxDistribute(){
