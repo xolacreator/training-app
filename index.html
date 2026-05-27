@@ -949,9 +949,9 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Target finish time</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
       <input id="hx-goal" type="text" placeholder="1:30:00"
-        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px 8px;color:var(--text);"
+        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px 8px;color:var(--text);"
         onblur="hyroxGoalChange()">
-      <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;">Auto-split</button>
+      <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;">Auto-Split</button>
     </div>
 
     <button class="btn" style="width:100%;margin-bottom:20px;color:var(--blue);border-color:rgba(167,139,250,.25);" onclick="hyroxPullTraining()">
@@ -2017,13 +2017,14 @@ const HYROX_SEGMENTS = [
   {id:'carry',  label:'Farmers Carry',    type:'station', dist:'200 m'},
   {id:'run7',   label:'Run 7',            type:'run',     dist:'1 km'},
   {id:'lunges', label:'Sandbag Lunges',   type:'station', dist:'200 m'},
-  {id:'run8',   label:'Run 8',            type:'run',     dist:'1 km'},
-  {id:'wball',  label:'Wall Balls',       type:'station', dist:'75 reps'},
+  {id:'run8',   label:'Run 8',            type:'run',        dist:'1 km'},
+  {id:'wball',  label:'Wall Balls',       type:'station',    dist:'75 reps'},
+  {id:'roxzone',label:'Rox Zone',         type:'transition', dist:'8 transitions'},
 ];
 const HYROX_BASE = {
   run1:270,ski:270,run2:270,sledp:210,run3:270,sledl:150,run4:270,
   bbj:270,run5:270,row:255,run6:270,carry:90,run7:270,lunges:300,
-  run8:270,wball:270
+  run8:270,wball:270,roxzone:90
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5075,9 +5076,11 @@ function renderHyroxCalc(){
   HYROX_SEGMENTS.forEach(seg=>{
     const secs=hyroxPlan.splits[seg.id]||0;
     cum+=secs;
-    const isRun=seg.type==='run';
-    html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);margin-bottom:3px;background:${isRun?'var(--blue-dim)':'var(--green-dim)'};">
-      <div style="width:8px;height:8px;border-radius:50%;background:${isRun?'var(--blue)':'var(--green)'};flex-shrink:0;opacity:.9;"></div>
+    const isRun=seg.type==='run', isTrans=seg.type==='transition';
+    const bg=isTrans?'var(--accent-dim)':isRun?'var(--blue-dim)':'var(--green-dim)';
+    const dot=isTrans?'var(--accent)':isRun?'var(--blue)':'var(--green)';
+    html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);margin-bottom:3px;background:${bg};${isTrans?'margin-top:6px;':''}">
+      <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0;opacity:.9;"></div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${seg.label}</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${seg.dist}</div>
