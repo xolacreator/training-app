@@ -9,3 +9,729 @@
 <meta name="theme-color" content="#1E0A4A">
 <link rel="apple-touch-icon" href="R%20Star%20App%20Icon.png">
 <title>Rev3</title>
+<link href="https://fonts.googleapis.com/css2?family=Coda:wght@400;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Dark (default) — deep purple · gold accent */
+  --bg:#0C0820; --bg2:#160D35; --bg3:#1E1445; --bg4:#2A1C5A;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
+  --text:#F0EBF8; --text2:#C4B8D8; --text3:#6B5B8A;
+  --accent:#D4AF37; --accent-dim:rgba(212,175,55,0.15);
+  --green:#34d399; --green-dim:rgba(52,211,153,0.11);
+  --blue:#A78BFA; --blue-dim:rgba(167,139,250,0.14);
+  --red:#f87171; --red-dim:rgba(248,113,113,0.11);
+  --purple:#A78BFA; --purple-dim:rgba(167,139,250,0.11);
+  --shadow:rgba(0,0,0,0.6);
+  --font:'Coda',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --nav-h:56px;
+  /* Safe areas — critical for Face ID */
+  --sat:env(safe-area-inset-top,44px);
+  --sab:env(safe-area-inset-bottom,34px);
+  --sal:env(safe-area-inset-left,0px);
+  --sar:env(safe-area-inset-right,0px);
+  --r:10px; --r-lg:14px;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:#F5F0FF; --bg2:#EDE5FF; --bg3:#E0D4FF; --bg4:#CDBEFF;
+    --border:rgba(80,40,160,0.1); --border2:rgba(80,40,160,0.16); --border3:rgba(80,40,160,0.28);
+    --text:#1A0A2E; --text2:#3D2067; --text3:#8B7AAD;
+    --accent:#9A6E00; --accent-dim:rgba(154,110,0,0.12);
+    --green:#059669; --green-dim:rgba(5,150,105,0.1);
+    --blue:#6D28D9; --blue-dim:rgba(109,40,217,0.1);
+    --red:#dc2626; --red-dim:rgba(220,38,38,0.1);
+    --shadow:rgba(26,10,46,0.12);
+  }
+}
+/* Manual override classes */
+body.force-dark {
+  --bg:#0C0820; --bg2:#160D35; --bg3:#1E1445; --bg4:#2A1C5A;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
+  --text:#F0EBF8; --text2:#C4B8D8; --text3:#6B5B8A;
+  --accent:#D4AF37; --accent-dim:rgba(212,175,55,0.15);
+  --green:#34d399; --green-dim:rgba(52,211,153,0.11);
+  --blue:#A78BFA; --blue-dim:rgba(167,139,250,0.14);
+  --red:#f87171; --red-dim:rgba(248,113,113,0.11);
+  --shadow:rgba(0,0,0,0.6);
+}
+body.force-light {
+  --bg:#F5F0FF; --bg2:#EDE5FF; --bg3:#E0D4FF; --bg4:#CDBEFF;
+  --border:rgba(80,40,160,0.1); --border2:rgba(80,40,160,0.16); --border3:rgba(80,40,160,0.28);
+  --text:#1A0A2E; --text2:#3D2067; --text3:#8B7AAD;
+  --accent:#9A6E00; --accent-dim:rgba(154,110,0,0.12);
+  --green:#059669; --green-dim:rgba(5,150,105,0.1);
+  --blue:#6D28D9; --blue-dim:rgba(109,40,217,0.1);
+  --red:#dc2626; --red-dim:rgba(220,38,38,0.1);
+  --shadow:rgba(26,10,46,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html{height:100%;background:var(--bg);}
+body{
+  min-height:100%;min-height:100dvh;
+  background:var(--bg);color:var(--text);
+  font-family:var(--font);
+  overscroll-behavior:none;
+  /* Prevent content from going under system UI */
+  padding-left:var(--sal);
+  padding-right:var(--sar);
+}
+
+/* ── APP SHELL ── */
+#app{
+  position:fixed;
+  /* Top: below dynamic island/notch */
+  top:var(--sat);
+  left:var(--sal);
+  right:var(--sar);
+  /* Bottom: above nav bar */
+  bottom:calc(var(--nav-h) + var(--sab));
+  overflow:hidden;
+}
+
+/* ── SCREENS ── */
+.screen{
+  position:absolute;inset:0;
+  overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  display:none;
+}
+.screen.active{display:block;}
+.px{padding:0 16px;}
+
+/* ── NAV ── */
+.nav{
+  position:fixed;
+  bottom:0;left:var(--sal);right:var(--sar);
+  /* Height = nav content + home indicator */
+  height:calc(var(--nav-h) + var(--sab));
+  /* Push content up above home indicator */
+  padding-bottom:var(--sab);
+  background:color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  border-top:0.5px solid var(--border);
+  display:flex;
+  align-items:flex-start;
+  z-index:100;
+}
+.nb{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding-top:10px;padding-bottom:4px;
+  gap:3px;border:none;background:none;cursor:pointer;
+  font-family:var(--mono);font-size:7.5px;font-weight:500;
+  letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--text3);transition:color .15s;
+}
+.nb svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+.nb.active{color:var(--blue);}
+
+/* ── OVERLAYS ── */
+.overlay{
+  position:fixed;
+  /* Full screen including safe areas */
+  top:0;left:0;right:0;bottom:0;
+  background:var(--bg);
+  z-index:200;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  transform:translateY(100%);
+  transition:transform .3s cubic-bezier(.16,1,.3,1);
+  will-change:transform;
+}
+.overlay.open{transform:translateY(0);}
+/* What's-new bottom sheet */
+.wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
+.wnbackdrop.open{opacity:1;pointer-events:auto;}
+.wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg);z-index:299;border-radius:16px 16px 0 0;border-top:.5px solid var(--border);max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;}
+.wnsheet.open{transform:translateY(0);}
+.wntag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-right:6px;flex-shrink:0;}
+.wntag-new{background:var(--accent-dim);color:var(--accent);}
+.wntag-fix{background:rgba(77,158,255,.12);color:var(--blue);}
+.wntag-improved{background:rgba(52,199,89,.12);color:var(--green,#34c759);}
+.oi{
+  /* Top padding: safe area + back button space */
+  padding-top:calc(var(--sat) + 16px);
+  padding-left:calc(16px + var(--sal));
+  padding-right:calc(16px + var(--sar));
+  /* Bottom: safe area + extra breathing room */
+  padding-bottom:calc(var(--sab) + 40px);
+}
+.back-btn{
+  display:flex;align-items:center;gap:6px;
+  font-size:14px;font-weight:500;color:var(--text2);
+  background:none;border:none;cursor:pointer;
+  font-family:var(--font);
+  padding:8px 0 20px;
+  /* Tap target at least 44px */
+  min-height:44px;
+}
+.back-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;}
+
+/* ── TYPOGRAPHY ── */
+.eyebrow{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;}
+.screen-title{font-size:32px;font-weight:800;color:var(--text);letter-spacing:-.5px;line-height:1;}
+.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text3);margin-bottom:6px;}
+.overlay-title{font-size:28px;font-weight:800;color:var(--text);letter-spacing:-.3px;margin-bottom:3px;}
+.overlay-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:20px;}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r-lg);
+  padding:11px 13px;margin-bottom:7px;}
+.card-flush{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r-lg);
+  overflow:hidden;margin-bottom:7px;}
+
+/* ── METRICS ── */
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
+.metric{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r);padding:10px 11px;}
+.metric.am{background:var(--accent-dim);border-color:rgba(212,175,55,.25);}
+.metric.gr{background:var(--green-dim);border-color:rgba(52,211,153,.2);}
+.metric.bl{background:var(--blue-dim);border-color:rgba(167,139,250,.2);}
+.mlbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;}
+.mval{font-size:26px;font-weight:800;line-height:1;color:var(--text);letter-spacing:-.02em;}
+.mval.am{color:var(--accent);}
+.mval.gr{color:var(--green);}
+.mval.bl{color:var(--blue);}
+.munit{font-size:11px;font-weight:500;color:var(--text2);}
+.msub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;}
+
+/* ── PHASE BAR ── */
+.pbar-wrap{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.pbar-fill{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.16,1,.3,1);}
+
+/* ── INTENSITY PIP ── */
+.pip{width:3px;flex-shrink:0;border-radius:2px;}
+.pip-easy{background:var(--green);}
+.pip-moderate{background:var(--blue);}
+.pip-hard{background:var(--red);}
+.pip-mixed{background:var(--accent);}
+
+/* ── BADGES ── */
+.badge{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.06em;
+  padding:3px 8px;border-radius:20px;text-transform:uppercase;white-space:nowrap;}
+.bd-done{background:var(--green-dim);color:var(--green);}
+.bd-today{background:var(--accent-dim);color:var(--accent);}
+.bd-race{background:var(--red-dim);color:var(--red);}
+.bd-easy{background:var(--green-dim);color:var(--green);}
+.bd-mod{background:var(--blue-dim);color:var(--blue);}
+.bd-hard{background:var(--red-dim);color:var(--red);}
+.bd-mixed{background:var(--accent-dim);color:var(--accent);}
+.bd-pend{background:var(--bg3);color:var(--text3);}
+
+/* ── WEEK STRIP ── */
+.wstrip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;scrollbar-width:none;}
+.wstrip::-webkit-scrollbar{display:none;}
+.dchip{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 8px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg2);
+  cursor:pointer;min-width:40px;}
+.dchip.today{border-color:var(--accent);background:var(--accent-dim);}
+.dchip.done{border-color:var(--green);background:var(--green-dim);}
+.dchip-name{font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);}
+.dchip.today .dchip-name{color:var(--accent);}
+.dchip.done .dchip-name{color:var(--green);}
+.dchip-dot{width:5px;height:5px;border-radius:50%;background:var(--text3);}
+.dchip.today .dchip-dot{background:var(--accent);}
+.dchip.done .dchip-dot{background:var(--green);}
+
+/* ── SESSION ROWS ── */
+.srow{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:.5px solid var(--border);}
+.srow:last-child{border-bottom:none;}
+.srow-info{flex:1;min-width:0;}
+.srow-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:2px;}
+.srow-meta{font-family:var(--mono);font-size:9px;color:var(--text3);}
+
+/* ── PLAN ROWS ── */
+.prow{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;
+  padding:9px 0;border-bottom:.5px solid var(--border);cursor:pointer;}
+.prow:last-child{border-bottom:none;}
+.prow:active{opacity:.7;}
+.pday-name{font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.4;}
+.pday-date{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:1px;}
+.prow-session{font-size:12px;font-weight:600;color:var(--text);line-height:1.3;
+  display:flex;align-items:flex-start;gap:6px;}
+.prow-session.race{color:var(--red);}
+
+/* ── LOG HISTORY ── */
+.lrow{padding:10px 0;border-bottom:.5px solid var(--border);cursor:pointer;}
+.lrow:last-child{border-bottom:none;}
+.lrow-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;}
+.lrow-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;}
+.lrow-week{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;}
+.lrow-stats{display:flex;gap:10px;flex-wrap:wrap;}
+.lrow-stat{font-family:var(--mono);font-size:10px;color:var(--text2);}
+.lrow-note{font-size:11px;color:var(--text3);margin-top:4px;line-height:1.4;}
+.chevron{font-size:14px;color:var(--text3);}
+
+/* ── FILTER CHIPS ── */
+.frow{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
+.frow::-webkit-scrollbar{display:none;}
+.fchip{flex-shrink:0;font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.06em;
+  text-transform:uppercase;padding:5px 11px;border-radius:20px;border:.5px solid var(--border);
+  background:transparent;color:var(--text3);cursor:pointer;}
+.fchip.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
+
+/* ── PLAN TABS ── */
+.ptabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
+.ptabs::-webkit-scrollbar{display:none;}
+.ptab{flex-shrink:0;font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.06em;
+  text-transform:uppercase;padding:5px 11px;border-radius:20px;border:.5px solid var(--border);
+  background:transparent;color:var(--text3);cursor:pointer;}
+.ptab.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
+.ptab.race{color:var(--red);}
+.ptab.race.active{background:var(--red-dim);border-color:rgba(240,101,101,.25);}
+
+/* ── BUTTONS ── */
+.btn{font-family:var(--font);font-size:14px;font-weight:600;padding:12px 18px;
+  border-radius:var(--r);border:.5px solid var(--border2);background:transparent;
+  color:var(--text);cursor:pointer;width:100%;text-align:center;transition:background .15s;}
+.btn:active{opacity:.75;}
+.btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);}
+.btn-accent{background:var(--accent);color:#000;border-color:var(--accent);}
+.btn-row{display:flex;gap:8px;}
+.btn-row .btn{flex:1;}
+.btn-sm{font-size:11px;padding:6px 12px;border-radius:8px;width:auto;font-weight:600;}
+
+/* ── FORMS ── */
+.fg{margin-bottom:12px;}
+.flbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text3);margin-bottom:5px;display:block;}
+select,input[type=text],input[type=number],textarea{
+  width:100%;background:var(--bg3);border:.5px solid var(--border2);border-radius:8px;
+  color:var(--text);font-family:var(--font);font-size:14px;padding:10px 12px;
+  appearance:none;-webkit-appearance:none;outline:none;}
+select:focus,input:focus,textarea:focus{border-color:var(--border3);}
+textarea{resize:none;min-height:60px;line-height:1.5;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+/* ── FEEL BUTTONS ── */
+.feel-row{display:flex;gap:5px;}
+.feel-btn{flex:1;height:44px;border-radius:8px;border:.5px solid var(--border);
+  background:var(--bg2);font-family:var(--mono);font-size:12px;font-weight:700;
+  color:var(--text3);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:border-color .15s,background .15s,color .15s;}
+.feel-btn.sel{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
+
+/* ── BREAKDOWN ── */
+.bk-block{margin-bottom:18px;}
+.bk-header{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.bk-header::before{content:'';display:block;width:14px;height:2px;border-radius:1px;flex-shrink:0;}
+.bk-header.warmup{color:var(--accent);} .bk-header.warmup::before{background:var(--accent);}
+.bk-header.main{color:var(--blue);} .bk-header.main::before{background:var(--blue);}
+.bk-header.cooldown{color:var(--green);} .bk-header.cooldown::before{background:var(--green);}
+.bk-item{padding:9px 0;border-bottom:.5px solid var(--border);}
+.bk-item:last-child{border-bottom:none;}
+.bk-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:2px;}
+.bk-name{font-size:13px;font-weight:600;color:var(--text);flex:1;line-height:1.3;}
+.bk-detail{font-family:var(--mono);font-size:10px;color:var(--blue);flex-shrink:0;white-space:nowrap;}
+.bk-cue{font-size:11px;color:var(--text3);line-height:1.4;}
+.bk-note{font-size:11px;color:var(--text2);padding:6px 0;border-bottom:.5px solid var(--border);}
+.bk-warn{background:var(--red-dim);border:.5px solid rgba(240,101,101,.15);
+  border-radius:8px;padding:9px 12px;margin-top:8px;}
+.bk-warn-item{font-size:11px;color:var(--red);margin-bottom:2px;}
+.bk-warn-item:last-child{margin-bottom:0;}
+.opt-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.opt-tab{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.06em;
+  text-transform:uppercase;padding:5px 10px;border-radius:20px;border:.5px solid var(--border);
+  background:transparent;color:var(--text3);cursor:pointer;}
+.opt-tab.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
+
+/* ── STAT BOXES (log detail) ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;}
+.stat-box{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;}
+.stat-box.bl{background:var(--blue-dim);border-color:rgba(77,158,255,.2);}
+.stat-box.am{background:var(--accent-dim);border-color:rgba(255,107,53,.2);}
+.stat-lbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text3);margin-bottom:5px;}
+.stat-val{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.3px;}
+.stat-val.bl{color:var(--blue);}
+.stat-val.am{color:var(--accent);}
+.stat-unit{font-size:11px;font-weight:500;color:var(--text2);}
+
+/* ── LOGGING CATEGORY TABS ── */
+.cat-tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;}
+.cat-tab{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:6px 11px;border-radius:20px;border:.5px solid var(--border);background:transparent;
+  color:var(--text3);cursor:pointer;transition:all .15s;}
+.cat-tab.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
+.cat-tab.run.active{background:var(--blue-dim);color:var(--blue);border-color:rgba(77,158,255,.3);}
+.cat-tab.strength.active{background:var(--red-dim);color:var(--red);border-color:rgba(240,101,101,.3);}
+.cat-tab.erg.active{background:var(--purple-dim);color:var(--purple);border-color:rgba(167,139,250,.3);}
+.cat-tab.mixed.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(255,107,53,.3);}
+
+/* ── SPLIT TABLE ── */
+.split-tbl{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px;}
+.split-tbl th{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text3);padding:4px 6px;text-align:left;border-bottom:.5px solid var(--border);}
+.split-tbl td{padding:4px 4px;border-bottom:.5px solid var(--border);}
+.split-tbl tr:last-child td{border-bottom:none;}
+.split-tbl input{background:transparent;border:none;outline:none;color:var(--text);
+  font-family:var(--mono);font-size:11px;width:100%;min-width:0;padding:0;}
+.split-tbl input::placeholder{color:var(--text3);}
+.add-row{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text3);background:none;border:.5px dashed var(--border2);border-radius:6px;
+  padding:6px 12px;cursor:pointer;width:100%;margin-bottom:8px;}
+
+/* ── STRENGTH ── */
+.ex-block{background:var(--bg3);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;}
+.ex-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.ex-name-input{flex:1;background:transparent;border:none;border-bottom:.5px solid var(--border2);
+  outline:none;color:var(--text);font-family:var(--font);font-size:13px;font-weight:600;padding:2px 0;}
+.ex-name-input::placeholder{color:var(--text3);}
+.set-row{display:grid;grid-template-columns:20px 1fr 1fr auto;gap:5px;align-items:center;
+  padding:4px 0;border-bottom:.5px solid var(--border);}
+.set-row:last-child{border-bottom:none;}
+.set-num{font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;}
+.set-inp{background:var(--bg2);border:.5px solid var(--border);border-radius:6px;
+  padding:5px 6px;color:var(--text);font-family:var(--mono);font-size:12px;
+  outline:none;width:100%;text-align:center;}
+.set-inp::placeholder{color:var(--text3);}
+.del-btn{font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;}
+.unit-toggle{display:flex;border:.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px;}
+.unit-opt{flex:1;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;padding:6px;text-align:center;cursor:pointer;color:var(--text3);
+  background:transparent;border:none;}
+.unit-opt.active{background:var(--bg3);color:var(--text);}
+.set-hdr{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text3);display:grid;grid-template-columns:20px 1fr 1fr auto;gap:5px;padding:3px 0;}
+
+/* ── ERG ── */
+.erg-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+.erg-box{background:var(--bg3);border-radius:8px;padding:10px;}
+.erg-box label{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text3);display:block;margin-bottom:4px;}
+.erg-box input{background:transparent;border:none;border-bottom:.5px solid var(--border2);
+  outline:none;color:var(--text);font-family:var(--mono);font-size:15px;font-weight:600;
+  padding:2px 0;width:100%;}
+.erg-box input::placeholder{color:var(--text3);}
+
+/* ── MIXED / STATIONS ── */
+.station{background:var(--bg3);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;
+  border-left:2px solid var(--border2);}
+.station.run{border-left-color:var(--blue);}
+.station.erg{border-left-color:var(--purple);}
+.station.body{border-left-color:var(--accent);}
+.station-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.station-sel{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 8px;border-radius:6px;border:.5px solid var(--border2);background:var(--bg2);
+  color:var(--text2);cursor:pointer;appearance:none;outline:none;}
+
+/* ── SESSION BUILDER ── */
+.bld-block{background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);
+  padding:11px;margin-bottom:8px;}
+.bld-blk-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.bld-blk-type{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;}
+.bld-blk-type.warmup{color:var(--accent);}
+.bld-blk-type.main{color:var(--blue);}
+.bld-blk-type.cooldown{color:var(--green);}
+.bld-item{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px 0;
+  border-bottom:.5px solid var(--border);}
+.bld-item:last-child{border-bottom:none;}
+.bld-fields{display:flex;flex-direction:column;gap:5px;}
+.bld-inp{background:var(--bg3);border:.5px solid var(--border);border-radius:6px;
+  padding:7px 10px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;width:100%;}
+.bld-inp::placeholder{color:var(--text3);}
+.bld-inp.cue{font-size:11px;color:var(--text2);}
+
+/* ── CHARTS ── */
+.chart-wrap{position:relative;height:150px;margin-bottom:6px;}
+
+/* ── IMPORT ── */
+.drop-zone{border:1.5px dashed var(--border2);border-radius:var(--r-lg);
+  padding:28px 20px;text-align:center;cursor:pointer;transition:background .15s;}
+.drop-zone:active{background:var(--bg2);}
+
+/* ── TEMPLATE ITEMS ── */
+.tmpl-item{display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:.5px solid var(--border);cursor:pointer;}
+.tmpl-item:last-child{border-bottom:none;}
+.tmpl-item:active{opacity:.7;}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;line-height:1.6;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:calc(var(--nav-h) + var(--sab) + 10px);left:50%;
+  transform:translateX(-50%) translateY(6px);
+  background:var(--text);color:var(--bg);font-family:var(--mono);font-size:11px;font-weight:600;
+  padding:9px 18px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;
+  pointer-events:none;white-space:nowrap;z-index:300;letter-spacing:.04em;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── TYPOGRAPHY REFINEMENTS ── */
+body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+.screen-title{font-size:28px;font-weight:800;letter-spacing:-0.01em;line-height:1.05;}
+.overlay-title{font-size:24px;font-weight:800;letter-spacing:-0.01em;}
+.eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:3px;}
+.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.mval{font-size:26px;font-weight:800;line-height:1;letter-spacing:-0.02em;}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:0.04em;}
+.srow-name{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:2px;}
+.bk-name{font-size:13px;font-weight:800;color:var(--text);flex:1;line-height:1.3;}
+.lrow-title{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;}
+
+/* ── LOGO ── */
+.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
+.logo-svg{flex-shrink:0;}
+
+::-webkit-scrollbar{width:2px;height:2px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TODAY -->
+<div id="screen-today" class="screen active">
+  <div class="px" style="padding-top:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="logo-row">
+        <img src="R%20Star%20App%20Icon.png" width="40" height="40" style="border-radius:10px;flex-shrink:0;">
+        <div>
+          <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;line-height:1.1;color:var(--text);">Rev3</div>
+          <div class="eyebrow" id="today-date" style="margin-top:1px;"></div>
+        </div>
+      </div>
+      <button onclick="toggleTheme()" style="width:34px;height:34px;background:var(--bg2);border:.5px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;" id="theme-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    </div>
+    <div class="mg" id="today-metrics"></div>
+    <div class="sec-lbl">This week</div>
+    <div class="wstrip" id="week-strip"></div>
+    <div class="sec-lbl">Today's session</div>
+    <div class="card" id="today-session" style="cursor:pointer;"></div>
+    <div id="review-banner"></div>
+    <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
+    <div id="recovery-card" style="margin-bottom:4px;"></div>
+    <div class="sec-lbl">12-week progress</div>
+    <div class="card" id="phase-bars"></div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div id="screen-log" class="screen">
+  <div class="px" style="padding-top:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div><div class="eyebrow">Record</div><div class="screen-title">Log</div></div>
+      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
+    </div>
+    <div class="card">
+      <div class="g2" style="margin-bottom:10px;">
+        <div class="fg" style="margin-bottom:0;"><label class="flbl">Week</label>
+          <select id="f-week">
+            <option value="1">W1 · Mar 30</option><option value="2">W2 · Apr 6</option>
+            <option value="3">W3 · Apr 13</option><option value="4">W4 · Apr 20</option>
+            <option value="5" selected>W5 · Apr 27</option><option value="6">W6 · May 4</option>
+            <option value="7">W7 · May 11</option><option value="8">W8 · May 18</option>
+            <option value="9">W9 · May 25</option><option value="10">W10 · Jun 1</option>
+            <option value="11">W11 · Jun 8</option><option value="12">W12 · Jun 15</option>
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:0;"><label class="flbl">Day</label>
+          <select id="f-day">
+            <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+            <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label class="flbl">Intensity</label>
+        <select id="f-intensity">
+          <option value="easy">Easy</option><option value="moderate">Moderate</option>
+          <option value="hard">Hard</option><option value="mixed">Mixed</option>
+        </select>
+      </div>
+      <div class="flbl" style="margin-bottom:6px;">Category</div>
+      <div class="cat-tabs" id="cat-tabs">
+        <button class="cat-tab run active" onclick="setCat('run',this)">Run</button>
+        <button class="cat-tab strength" onclick="setCat('strength',this)">Strength</button>
+        <button class="cat-tab erg" onclick="setCat('erg',this)">Erg</button>
+        <button class="cat-tab mixed" onclick="setCat('mixed',this)">Mixed</button>
+        <button class="cat-tab" onclick="setCat('other',this)">Other</button>
+      </div>
+      <div class="fg"><label class="flbl">Session name</label>
+        <select id="f-session" onchange="renderMetrics()"></select>
+      </div>
+      <div id="metric-area"></div>
+      <div class="fg"><label class="flbl">How did it feel?</label>
+        <div class="feel-row">
+          <button class="feel-btn" onclick="setFeel(1,this)">Low</button>
+          <button class="feel-btn" onclick="setFeel(2,this)">Tough</button>
+          <button class="feel-btn" onclick="setFeel(3,this)">OK</button>
+          <button class="feel-btn" onclick="setFeel(4,this)">Good</button>
+          <button class="feel-btn" onclick="setFeel(5,this)">Great</button>
+        </div>
+      </div>
+      <div class="fg"><label class="flbl">Notes</label>
+        <textarea id="f-notes" placeholder="Any additional observations…"></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveSession()">Save session</button>
+        <button class="btn" onclick="clearForm()">Clear</button>
+      </div>
+    </div>
+    <div class="sec-lbl" style="margin-top:4px;">Recent</div>
+    <div class="card" id="recent-log"></div>
+  </div>
+</div>
+
+<!-- PLAN -->
+<div id="screen-plan" class="screen">
+  <div class="px" style="padding-top:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div><div class="eyebrow">Programme</div><div class="screen-title">Plan</div></div>
+      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
+    </div>
+    <div class="ptabs" id="plan-tabs"></div>
+    <div class="sec-lbl" id="plan-vol"></div>
+    <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
+    <div class="card" id="plan-days"></div>
+    <button class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <div style="margin-top:16px;">
+      <div class="eyebrow" style="margin-bottom:6px;">Race tools</div>
+      <div class="card" onclick="openHyroxCalc()" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--accent-dim);border:.5px solid rgba(212,175,55,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5v2.5"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:700;">HYROX Race Calculator</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Build your race plan · 8 runs + 8 stations</div>
+          </div>
+          <div style="font-size:18px;color:var(--text3);">›</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div id="screen-stats" class="screen">
+  <div class="px" style="padding-top:8px;">
+    <div style="margin-bottom:16px;"><div class="eyebrow">Analysis</div><div class="screen-title">Stats</div></div>
+    <div class="mg" id="stats-metrics"></div>
+    <div class="sec-lbl">Weekly volume (<span id="vol-unit-lbl">km</span>)</div>
+    <div class="card"><div class="chart-wrap"><canvas id="chart-volume"></canvas></div></div>
+    <div class="sec-lbl">Pace trend</div>
+    <div class="card"><div class="chart-wrap"><canvas id="chart-pace"></canvas></div></div>
+    <div class="sec-lbl">Feel score by week</div>
+    <div class="card"><div class="chart-wrap"><canvas id="chart-feel"></canvas></div></div>
+    <div class="sec-lbl">Completion rate</div>
+    <div class="card" id="completion-bars"></div>
+  </div>
+</div>
+
+<!-- MORE -->
+<div id="screen-more" class="screen">
+  <div class="px" style="padding-top:8px;">
+    <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div></div>
+    <div class="sec-lbl">Session builder</div>
+    <div class="card">
+      <div class="btn-row" style="margin-bottom:0;">
+        <button class="btn" onclick="openBuilder(null,null)">+ New session</button>
+        <button class="btn" onclick="openTemplates()">My templates</button>
+      </div>
+    </div>
+    <div class="sec-lbl">AI Training</div>
+    <div class="card" style="background:linear-gradient(135deg,rgba(77,158,255,0.08),rgba(255,107,53,0.08));border-color:rgba(77,158,255,0.2);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#000;letter-spacing:-.02em;">AI</span></div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;">AI Session Builder</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Generate sessions · extend your plan · build from scratch</div>
+        </div>
+      </div>
+      <button class="btn btn-accent" onclick="openAI()">Build with AI →</button>
+    </div>
+    <div class="sec-lbl">Personal Coach</div>
+    <div class="card" id="coach-card" onclick="openCoach()" style="cursor:pointer;background:linear-gradient(135deg,rgba(212,175,55,0.08),rgba(167,139,250,0.08));border-color:rgba(212,175,55,0.2);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
+        <div style="flex:1;">
+          <div id="coach-card-name" style="font-size:14px;font-weight:700;">Set up your coach</div>
+          <div id="coach-card-sub" style="font-family:var(--mono);font-size:9px;color:var(--text3);">Personalized AI coaching powered by Claude</div>
+        </div>
+        <div style="font-size:18px;color:var(--text3);">›</div>
+      </div>
+      <div id="coach-card-memory"></div>
+    </div>
+    <div class="sec-lbl">Cloud Sync</div>
+    <div class="card" id="drive-card" style="min-height:60px;"></div>
+    <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Notifications</div>
+    <div class="card" id="notif-card" style="min-height:60px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Units</div>
+    <div class="card" id="units-settings-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:2px;">Running distance</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Paces and distances</div>
+        </div>
+        <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
+          <button id="unit-run-km" onclick="setUnitRun('km')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KM</button>
+          <button id="unit-run-mi" onclick="setUnitRun('mi')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">MI</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:2px;">Weight</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Lifts and body weight</div>
+        </div>
+        <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
+          <button id="unit-wt-kg" onclick="setUnitWeight('kg')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KG</button>
+          <button id="unit-wt-lbs" onclick="setUnitWeight('lbs')"
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">LBS</button>
+        </div>
+      </div>
+    </div>
+    <div class="sec-lbl" style="margin-top:4px;">App Setup</div>
+    <div class="card">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
+        Re-run the setup guide or reset the app to a clean slate for a new user.
+      </div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="openOnboarding()">Setup guide</button>
+        <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmFactoryReset()">Factory reset</button>
+      </div>
+    </div>
+    <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
+    <div class="card">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);" onclick="exportData()">Export backup</button>
+        <button class="btn" onclick="document.getElementById('import-data-input').click()">Import backup</button>
+      </div>
+      <input type="file" id="import-data-input" accept=".json" style="display:none" onchange="importDataFile(this.files[0]);this.value=''">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
+        Export saves all sessions, custom plan sessions, and templates.<br>
+        Import merges without removing existing data.
+      </div>
+      <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmClear()">Clear all data</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<!-- NAV -->
+<nav class="nav">
+  <button class="nb active" onclick="nav('today',this)">
+    <svg viewBox="0 0 24 24"><path d="M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Today
+  </button>
+  <button class="nb" onclick="nav('log',this)">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log
+  </button>
+  <button class="nb" onclick="nav('plan',this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Plan
+  </button>
+  <button class="nb" onclick="nav('stats',this)">
+    <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Stats
+  </button>
+  <button class="nb" onclick="nav('more',this)">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>More
+  </button>
+</nav>
