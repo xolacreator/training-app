@@ -2249,6 +2249,22 @@ const notifPrefs = {
   coach:   localStorage.getItem('ht-notif-coach')   !== 'off',
 };
 let coachMode = null;
+
+const ICONS = {
+  race:       `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="2" x2="5" y2="18"/><path d="M5 2l10 3.5L5 9"/></svg>`,
+  fitness:    `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,10 5,10 7,4 9,16 12,8 14,10 19,10"/></svg>`,
+  strength:   `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="10" x2="17" y2="10"/><rect x="1.5" y="7.5" width="2" height="5" rx="0.5"/><rect x="16.5" y="7.5" width="2" height="5" rx="0.5"/><rect x="3.5" y="8.5" width="2" height="3" rx="0.5"/><rect x="14.5" y="8.5" width="2" height="3" rx="0.5"/></svg>`,
+  custom:     `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="18" y2="5"/><line x1="2" y1="10" x2="18" y2="10"/><line x1="2" y1="15" x2="18" y2="15"/><circle cx="7" cy="5" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="9" cy="15" r="2"/></svg>`,
+  target:     `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="19"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="19" y2="10"/></svg>`,
+  bolt:       `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="12,2 7,11 11,11 8,18"/></svg>`,
+  cycle:      `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a6 6 0 0 1 6-6"/><polyline points="10,1 10,4 13,4"/><path d="M16 10a6 6 0 0 1-6 6"/><polyline points="10,19 10,16 7,16"/></svg>`,
+  layers:     `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="14" height="3" rx="1"/><rect x="5.5" y="10" width="9" height="3" rx="1"/><rect x="8" y="6" width="4" height="3" rx="1"/></svg>`,
+  sun:        `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="3.5"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="18"/><line x1="2" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="18" y2="10"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="13.66" y1="13.66" x2="15.07" y2="15.07"/><line x1="4.93" y1="15.07" x2="6.34" y2="13.66"/><line x1="13.66" y1="6.34" x2="15.07" y2="4.93"/></svg>`,
+  chart:      `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="17" x2="18" y2="17"/><rect x="4" y="9" width="3" height="8" rx="0.5"/><rect x="8.5" y="5" width="3" height="12" rx="0.5"/><rect x="13" y="11" width="3" height="6" rx="0.5"/></svg>`,
+  calendar:   `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="8" x2="17" y2="8"/><line x1="7" y1="3" x2="7" y2="8"/><line x1="13" y1="3" x2="13" y2="8"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="6" y1="14.5" x2="9" y2="14.5"/></svg>`,
+  trending:   `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,15 7,9 11,12 18,4"/><polyline points="14,4 18,4 18,8"/></svg>`,
+  message:    `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5l3 3 3-3h3a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1z"/></svg>`,
+};
 let splits = [];
 let exercises = [];
 let stations = [];
@@ -5306,7 +5322,7 @@ function maybeShowNudges() {
       if (daysSince >= 3) {
         sessionStorage.setItem('sn-shown', '1');
         setTimeout(() => showNotif(
-          'Time to log a session 💪',
+          'Time to log a session',
           `It's been ${Math.floor(daysSince)} days since your last logged session. Keep the streak going.`,
           'session-reminder'
         ), 2000);
@@ -5320,7 +5336,7 @@ function maybeShowNudges() {
     if (!last || (Date.now() - last) > 7 * 86400000) {
       sessionStorage.setItem('cn-shown', '1');
       setTimeout(() => showNotif(
-        `Check in with ${coachProfile.name} 🎯`,
+        `Check in with ${coachProfile.name}`,
         "You haven't chatted with your coach this week. A quick check-in keeps you on track.",
         'coach-nudge'
       ), 3500);
@@ -5353,11 +5369,11 @@ function renderCoachModePicker() {
   if (!el || !coachProfile) return;
   const p = coachProfile;
   const modes = [
-    { id:'checkin',  icon:'☀️', label:'Daily check-in',        sub:'Recovery + upcoming session breakdown' },
-    { id:'review',   icon:'📊', label:'Review my training',    sub:'Analyze recent sessions and progress' },
-    { id:'program',  icon:'📋', label:'Talk programming',      sub:'Current or future training plans' },
-    { id:'motivate', icon:'🔥', label:'Motivate me',           sub:'Get fired up for what\'s ahead' },
-    { id:'ask',      icon:'💬', label:'Ask anything',          sub:'Open conversation with your coach' },
+    { id:'checkin',  icon:ICONS.sun,      label:'Daily check-in',     sub:'Recovery + upcoming session breakdown' },
+    { id:'review',   icon:ICONS.chart,    label:'Review my training', sub:'Analyze recent sessions and progress' },
+    { id:'program',  icon:ICONS.calendar, label:'Talk programming',   sub:'Current or future training plans' },
+    { id:'motivate', icon:ICONS.trending, label:'Motivate me',        sub:'Get fired up for what\'s ahead' },
+    { id:'ask',      icon:ICONS.message,  label:'Ask anything',       sub:'Open conversation with your coach' },
   ];
   el.innerHTML = `
     <div style="padding:8px 0 20px;">
@@ -5366,7 +5382,7 @@ function renderCoachModePicker() {
     </div>
     ${modes.map(m => `
       <div onclick="selectCoachMode('${m.id}')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--bg2);border:.5px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <span style="font-size:20px;width:28px;text-align:center;">${m.icon}</span>
+        <div style="width:20px;height:20px;flex-shrink:0;color:var(--text2);">${m.icon}</div>
         <div style="flex:1;">
           <div style="font-size:13px;font-weight:700;color:var(--text1);">${m.label}</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${m.sub}</div>
@@ -5818,7 +5834,7 @@ function maybeShowMorningCheckin() {
   // Fire browser notification if permission granted and pref on
   if (notifPrefs.morning && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     showNotif(
-      "Morning check-in ☀️",
+      "Morning check-in",
       "Log your sleep and recovery data to keep your coach up to date.",
       'morning-checkin'
     );
@@ -5913,15 +5929,15 @@ function renderOnboardStep() {
 
     // Goal category cards — always reset sub-selections on category change
     const goalCategoryCards = [
-      ['race',     '🏁', 'Race Performance',       'Train toward a specific race with a target finish time'],
-      ['fitness',  '⚡', 'General Fitness',         'Build endurance, strength and conditioning'],
-      ['strength', '🏋️', 'Strength & Conditioning', 'Improve a specific lift or build an overall strength base'],
-      ['custom',   '🛠', 'Custom Plan',             'Start blank — design sessions with the AI builder'],
+      ['race',     ICONS.race,     'Race Performance',       'Train toward a specific race with a target finish time'],
+      ['fitness',  ICONS.fitness,  'General Fitness',         'Build endurance, strength and conditioning'],
+      ['strength', ICONS.strength, 'Strength & Conditioning', 'Improve a specific lift or build an overall strength base'],
+      ['custom',   ICONS.custom,   'Custom Plan',             'Start blank — design sessions with the AI builder'],
     ].map(([v,icon,label,desc]) => `
       <div class="card" onclick="_obAnswers.goalCategory='${v}';_obAnswers.raceType='';_obAnswers.goal='';_obAnswers.planType='';_obAnswers.strengthType='';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';renderOnboardStep();"
            style="cursor:pointer;margin-bottom:8px;${gc===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="font-size:20px;">${icon}</div>
+          <div style="width:20px;height:20px;flex-shrink:0;color:var(--text2);">${icon}</div>
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:700;">${label}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
@@ -5958,16 +5974,16 @@ function renderOnboardStep() {
       strengthCards = `
         <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
         ${[
-          ['lift',           '🎯', 'Specific Lift Goal',       'Focus training around improving one movement — squat, bench, deadlift or OHP'],
-          ['powerlifting',   '🏋️', 'Powerlifting Base',        'Build the big three: squat, bench press and deadlift together'],
-          ['athletic',       '⚡', 'Athletic Strength',        'Compound lifts plus conditioning — strength that works in real life'],
-          ['hybrid-strength','🔄', 'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength programme'],
-          ['preseason',      '🛠', 'Pre-Season Foundation',    'Build strength and work capacity before a racing or competition block'],
+          ['lift',           ICONS.target,   'Specific Lift Goal',       'Focus training around improving one movement — squat, bench, deadlift or OHP'],
+          ['powerlifting',   ICONS.strength, 'Powerlifting Base',        'Build the big three: squat, bench press and deadlift together'],
+          ['athletic',       ICONS.bolt,     'Athletic Strength',        'Compound lifts plus conditioning — strength that works in real life'],
+          ['hybrid-strength',ICONS.cycle,    'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength programme'],
+          ['preseason',      ICONS.layers,   'Pre-Season Foundation',    'Build strength and work capacity before a racing or competition block'],
         ].map(([v,icon,label,desc]) => `
           <div class="card" onclick="_obAnswers.strengthType='${v}';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';_obAnswers.goal='';renderOnboardStep();"
                style="cursor:pointer;margin-bottom:8px;${st===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
             <div style="display:flex;align-items:center;gap:10px;">
-              <div style="font-size:18px;">${icon}</div>
+              <div style="width:20px;height:20px;flex-shrink:0;color:var(--text2);">${icon}</div>
               <div style="flex:1;">
                 <div style="font-size:13px;font-weight:700;">${label}</div>
                 <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
