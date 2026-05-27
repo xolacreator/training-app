@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Coda:wght@400;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* Dark (default) — deep purple · gold accent */
+  /* Dark (default) - deep purple · gold accent */
   --bg:#0C0820; --bg2:#160D35; --bg3:#1E1445; --bg4:#2A1C5A;
   --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14); --border3:rgba(255,255,255,0.26);
   --text:#F0EBF8; --text2:#C4B8D8; --text3:#6B5B8A;
@@ -25,7 +25,7 @@
   --font:'Coda',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
-  /* Safe areas — critical for Face ID */
+  /* Safe areas - critical for Face ID */
   --sat:env(safe-area-inset-top,44px);
   --sab:env(safe-area-inset-bottom,34px);
   --sal:env(safe-area-inset-left,0px);
@@ -580,7 +580,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-plan" class="screen">
   <div class="px" style="padding-top:8px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div><div class="eyebrow">Programme</div><div class="screen-title">Plan</div></div>
+      <div><div class="eyebrow">Program</div><div class="screen-title">Plan</div></div>
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
@@ -1041,9 +1041,9 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </button>
     <div id="coach-chat-header"></div>
   </div>
-  <!-- Messages — this is the only scrolling region -->
+  <!-- Messages - this is the only scrolling region -->
   <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
-  <!-- Input bar — always pinned to bottom, full width -->
+  <!-- Input bar - always pinned to bottom, full width -->
   <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <textarea id="coach-input" rows="2" placeholder="Reply to your coach…"
@@ -1063,7 +1063,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-// DATA — PLAN
+// DATA - PLAN
 // ═══════════════════════════════════════════════════════════════════════════
 const PLAN = {
   1:{ph:1,label:'W1',range:'Mar 30 – Apr 5',vol:'~25km · 88% easy/mod · 12% hard',sessions:[
@@ -1177,12 +1177,12 @@ const PLAN = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATA — SESSION LIBRARY (key sessions with full breakdowns)
+// DATA - SESSION LIBRARY (key sessions with full breakdowns)
 // ═══════════════════════════════════════════════════════════════════════════
 const LIB = {
 '4':{
   'Mon':{options:[
-    {label:'Option A — Fitstop PERFORM',subtitle:'Starter + 7|15|7 min',intensity:'Hard',blocks:[
+    {label:'Option A - Fitstop PERFORM',subtitle:'Starter + 7|15|7 min',intensity:'Hard',blocks:[
       {type:'main',title:'Main Session',items:[
         {name:'Starter 6 min: Pull Up hard sets',detail:'5 reps',cue:'Hard effort. Find a hard set of 5.'},
         {name:'Team WFT: Cal Ski + DB Front Squat / Cal Row + AKB Swing',detail:'',cue:'Moderate. Log distances.'},
@@ -1190,7 +1190,7 @@ const LIB = {
         {name:'Optional: Pendlay Row / Fast Box Step Up',detail:'2–3 rounds',cue:'Power focus.'},
       ]},
     ],warnings:['⚠ Right wrist: straps throughout']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy walk on treadmill',detail:'5 min',cue:'RPE 3–4.'},
         {name:'Leg swings front-to-back',detail:'12 each leg',cue:'Wall-supported. Progressive range.'},
@@ -1199,8 +1199,8 @@ const LIB = {
         {name:'Easy jog warm-in',detail:'3 min',cue:'RPE 4.'},
       ]},
       {type:'main',title:'Main Set',items:[
-        {name:'Zone 2 steady run',detail:'50 min',cue:'Zone 2 / RPE 6 / 5:10–5:45/km. If HR drifts — slow down.'},
-        {name:'Metronome drill (first 10 min)',detail:'170–172 BPM',cue:'180 BPM aggravated left knee — stay at 170–172.'},
+        {name:'Zone 2 steady run',detail:'50 min',cue:'Zone 2 / RPE 6 / 5:10–5:45/km. If HR drifts - slow down.'},
+        {name:'Metronome drill (first 10 min)',detail:'170–172 BPM',cue:'180 BPM aggravated left knee - stay at 170–172.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'85–90% float. Walk-back recovery.'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
@@ -1212,15 +1212,15 @@ const LIB = {
     ],notes:['💡 Volume at 50 min Zone 2. Keep genuinely easy.'],warnings:['⚠ Left knee: bike at Zone 2 on high-pain days']},
   ]},
   'Tue':{options:[
-    {label:'Option A — Fitstop LIFT',subtitle:'8|16|8 min + Finisher',intensity:'Moderate',blocks:[
+    {label:'Option A - Fitstop LIFT',subtitle:'8|16|8 min + Finisher',intensity:'Moderate',blocks:[
       {type:'main',title:'Main Session',items:[
         {name:'Block 1: Incline DB Bench / DB Tricep Kickback / Push Up',detail:'',cue:'Moderate.'},
         {name:'Block 2: Deadlift warm-up E2:30min / Band Crab Walk',detail:'',cue:'Monitor low back on deadlift.'},
         {name:'Block 3: Pistol Box Step Down / Dual KB RDL / Ball Cossack Lunge',detail:'',cue:'Moderate.'},
         {name:'Finisher: Hanging Knees to Chest / Superman / Half Burpee',detail:'4 min',cue:'Hard.'},
       ]},
-    ],notes:['💡 Build block begins — progressive overload on main lifts.'],warnings:['⚠ Low back: brace before every deadlift rep']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
+    ],notes:['💡 Build block begins - progressive overload on main lifts.'],warnings:['⚠ Low back: brace before every deadlift rep']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'50 min',cue:'Zone 2 / RPE 6 / 5:10–5:45/km.'},
         {name:'Metronome drill (first 10 min)',detail:'170–172 BPM',cue:'Left knee: stay at 170–172.'},
@@ -1229,7 +1229,7 @@ const LIB = {
     ],warnings:['⚠ Left knee: bike at Zone 2 on high-pain days']},
   ]},
   'Wed':{options:[
-    {label:'Option A — Tempo Run',subtitle:'25 min @ 4:10–4:20/km',intensity:'Moderate/Hard',blocks:[
+    {label:'Option A - Tempo Run',subtitle:'25 min @ 4:10–4:20/km',intensity:'Moderate/Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'1 km',cue:'RPE 5.'},
         {name:'Leg swings + hip circles',detail:'10 reps each',cue:'Relaxed.'},
@@ -1249,43 +1249,43 @@ const LIB = {
         {name:"Child's pose",detail:'60 sec',cue:''},
       ]},
     ],notes:['💡 Week 4 tempo: pace moves toward 4:10–4:20/km.'],warnings:['⚠ Left knee: drop to Zone 2 if any medial pain']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Average fatigue · 35–40 min',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Average fatigue · 35–40 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'35–40 min',cue:'Zone 2 / RPE 6.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'85–90% float.'},
       ]},
     ]},
-    {label:'Option C — Pure Zone 2',subtitle:'Heavy fatigue · 30–35 min',intensity:'Easy',blocks:[
+    {label:'Option C - Pure Zone 2',subtitle:'Heavy fatigue · 30–35 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'30–35 min',cue:'Zone 2 / RPE 5–6.'},
       ]},
     ]},
   ]},
   'Thu':{options:[
-    {label:'Option A — Fitstop',subtitle:'Recovery effort · 50 min',intensity:'Easy–Moderate',blocks:[
+    {label:'Option A - Fitstop',subtitle:'Recovery effort · 50 min',intensity:'Easy–Moderate',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Fitstop PERFORM or LIFT',detail:'50 min',cue:"70–75% effort. Tell coach it's a recovery day."},
       ]},
     ],notes:['💡 If Fitstop Mon + Tue: Option B or C is better.']},
-    {label:'Option B — Zone 2 Run',subtitle:'45 min',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 Run',subtitle:'45 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'40 min',cue:'Zone 2 / RPE 6.'},
         {name:'Aerobic strides',detail:'4 × 80m',cue:'Walk-back recovery.'},
       ]},
-    ],notes:['💡 Never skip Thursday — easy movement aids recovery.'],warnings:['⚠ Left knee: seat height near-full extension']},
-    {label:'Option C — Easy Bike',subtitle:'Zone 2 · 40 min',intensity:'Easy',blocks:[
+    ],notes:['💡 Never skip Thursday - easy movement aids recovery.'],warnings:['⚠ Left knee: seat height near-full extension']},
+    {label:'Option C - Easy Bike',subtitle:'Zone 2 · 40 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Easy bike Zone 2',detail:'40 min',cue:'Zone 2 / RPE 6 / 80–90 RPM.'},
       ]},
     ]},
   ]},
   'Fri':{options:[
-    {label:'Option A — Fitstop LIFT',subtitle:'8|16|8 min + Finisher',intensity:'Moderate',blocks:[
+    {label:'Option A - Fitstop LIFT',subtitle:'8|16|8 min + Finisher',intensity:'Moderate',blocks:[
       {type:'main',title:'Main Set',items:[
-        {name:'Fitstop LIFT — see Tuesday',detail:'50 min',cue:'Moderate. Legs good going into Saturday.'},
+        {name:'Fitstop LIFT - see Tuesday',detail:'50 min',cue:'Moderate. Legs good going into Saturday.'},
       ]},
     ],notes:['💡 Base phase: when in doubt Friday, choose easier.']},
-    {label:'Option B — Solo Strength Sub',subtitle:'35 min',intensity:'Moderate',blocks:[
+    {label:'Option B - Solo Strength Sub',subtitle:'35 min',intensity:'Moderate',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Trap bar deadlift',detail:'4 × 5 reps',cue:'RPE 7–8. Brace hard.'},
         {name:'Incline DB press',detail:'4 × 8 reps',cue:'RPE 7.'},
@@ -1293,14 +1293,14 @@ const LIB = {
         {name:'Copenhagen plank',detail:'3 × 20 sec each',cue:'Adductor + hip stability.'},
       ]},
     ],warnings:['⚠ Right wrist: straps on lat pulldown']},
-    {label:'Option C — Easy Walk or Rest',subtitle:'30 min',intensity:'Easy',blocks:[
+    {label:'Option C - Easy Walk or Rest',subtitle:'30 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Easy walk outdoors',detail:'30 min',cue:'RPE 3. Saturday > Friday.'},
       ]},
     ]},
   ]},
   'Sat':{options:[
-    {label:'COMPROMISED RUN — Extended Course',subtitle:'THE quality session',intensity:'Hard',blocks:[
+    {label:'COMPROMISED RUN - Extended Course',subtitle:'THE quality session',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'1 km',cue:'Zone 2.'},
         {name:'Hip 90/90 stretch',detail:'30 sec each position',cue:'Left hip priority.'},
@@ -1316,7 +1316,7 @@ const LIB = {
         {name:'Burpee Broad Jump',detail:'20 reps',cue:'RPE 6–7. Land soft.'},
         {name:'Run',detail:'500m',cue:'RPE 6–7.'},
         {name:'Walking Lunge (Single DB)',detail:'30 reps total',cue:'Controlled. Stability and rhythm.'},
-        {name:'Run',detail:'500m',cue:'RPE 6–7. Final run — how does form hold?'},
+        {name:'Run',detail:'500m',cue:'RPE 6–7. Final run - how does form hold?'},
         {name:'Wall Balls',detail:'25 reps',cue:'Unbroken. Smooth descent.'},
         {name:'Easy cool-down run',detail:'800m',cue:'Zone 2.'},
       ]},
@@ -1346,7 +1346,7 @@ const LIB = {
         {name:'Build strides',detail:'4 × 100m',cue:'65% / 75% / 85% / 90%. Full walk-back.'},
         {name:'Standing rest',detail:'3 min',cue:'Non-negotiable.'},
       ]},
-      {type:'main',title:'Main Set — 4×800m',items:[
+      {type:'main',title:'Main Set - 4×800m',items:[
         {name:'Rep 1',detail:'800m',cue:'3:35–3:45/km / RPE 8. Conservative opener.'},
         {name:'Rep 2',detail:'800m',cue:'3:33–3:43/km / RPE 8. Settle in.'},
         {name:'Rep 3',detail:'800m',cue:'3:33–3:43/km / RPE 8. Stimulus rep.'},
@@ -1357,7 +1357,7 @@ const LIB = {
         {name:'Easy jog',detail:'800m',cue:'RPE 4.'},
         {name:'Full stretch sequence',detail:'10 min',cue:'Hips + hamstrings.'},
       ]},
-    ],notes:['💡 Record every split — Phase 1 VO2max benchmark.','💡 Phase 2 W9: 5×800m at faster pace.'],warnings:['⚠ Left knee: high cadence is protective']},
+    ],notes:['💡 Record every split - Phase 1 VO2max benchmark.','💡 Phase 2 W9: 5×800m at faster pace.'],warnings:['⚠ Left knee: high cadence is protective']},
   ]},
   'Wed':{options:[
     {label:'PEAK TEMPO',subtitle:'28 min @ 4:10–4:20/km',intensity:'Hard',blocks:[
@@ -1376,8 +1376,8 @@ const LIB = {
         {name:'Easy jog',detail:'800m',cue:'RPE 4.'},
         {name:'Full stretch sequence',detail:'8 min',cue:'Left then Right priorities.'},
       ]},
-    ],notes:['💡 PEAK TEMPO: 28 min is the longest of Phase 1. Record average pace — Phase 1 ceiling.'],warnings:['⚠ Left knee: drop to Zone 2 if medial pain']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'35–40 min',intensity:'Easy',blocks:[
+    ],notes:['💡 PEAK TEMPO: 28 min is the longest of Phase 1. Record average pace - Phase 1 ceiling.'],warnings:['⚠ Left knee: drop to Zone 2 if medial pain']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'35–40 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'35–40 min',cue:'Zone 2 / RPE 6.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'85–90% float.'},
@@ -1387,14 +1387,14 @@ const LIB = {
 },
 '7':{
   'Sat':{options:[
-    {label:'Option A — TRACK: 6×600m VO2max',subtitle:"Phase 2 Week 1 quality session",intensity:'Hard',blocks:[
+    {label:'Option A - TRACK: 6×600m VO2max',subtitle:"Phase 2 Week 1 quality session",intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'1 km',cue:'RPE 4–5.'},
         {name:'A-skips',detail:'2 × 20m',cue:'Tall posture, high knee, dorsiflexed.'},
         {name:'Build strides',detail:'4 × 100m',cue:'65% / 75% / 85% / 90%.'},
         {name:'Standing rest',detail:'3–4 min',cue:'Non-negotiable.'},
       ]},
-      {type:'main',title:'Main Set — 6×600m',items:[
+      {type:'main',title:'Main Set - 6×600m',items:[
         {name:'Rep 1',detail:'600m',cue:'3:45–3:55/km / RPE 8. Conservative opener.'},
         {name:'Rep 2',detail:'600m',cue:'3:42–3:52/km / RPE 8. Settle in.'},
         {name:'Rep 3',detail:'600m',cue:'3:40–3:50/km / RPE 8. Stimulus rep.'},
@@ -1408,7 +1408,7 @@ const LIB = {
         {name:'Full stretch sequence',detail:'10 min',cue:'Left then Right priorities.'},
       ]},
     ],notes:['💡 600m @ 3:40–3:50/km ≈ 2:10–2:25. VO2max sweet spot.','💡 Log every split. Compare to W9 (5×800m).'],warnings:['⚠ Left knee: high cadence at speed is protective']},
-    {label:'Option B — Compromised Run',subtitle:'Race pace legs',intensity:'Hard',blocks:[
+    {label:'Option B - Compromised Run',subtitle:'Race pace legs',intensity:'Hard',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Easy run',detail:'800m',cue:'Zone 2.'},
         {name:'SkiErg',detail:'3 min',cue:'Race pace. Beat Phase 1 baseline. Log distance.'},
@@ -1422,7 +1422,7 @@ const LIB = {
     ],warnings:['⚠ Low back: brace before every SkiErg pull','⚠ Right wrist: straps throughout']},
   ]},
   'Wed':{options:[
-    {label:'Option A — Tempo Run',subtitle:'28–30 min @ 4:10–4:20/km',intensity:'Moderate',blocks:[
+    {label:'Option A - Tempo Run',subtitle:'28–30 min @ 4:10–4:20/km',intensity:'Moderate',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'1 km',cue:'RPE 5.'},
         {name:'Build strides',detail:'3 × 80m',cue:'65% / 75% / 80%.'},
@@ -1437,7 +1437,7 @@ const LIB = {
         {name:'Easy jog + stretch',detail:'800m + 8 min',cue:'RPE 4.'},
       ]},
     ],notes:['💡 RULE: Never do tempo if it compromises Saturday quality.'],warnings:['⚠ Left knee: drop to Zone 2 if medial pain']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'35–40 min',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'35–40 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'35–40 min',cue:'Zone 2 / RPE 6.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'85–90% float.'},
@@ -1446,23 +1446,23 @@ const LIB = {
   ]},
   'Sun':{options:[
     {label:'Recovery + Mobility',subtitle:'Non-negotiable · 45–60 min',intensity:'Low',blocks:[
-      {type:'main',title:'Part 1 — Breathing',items:[
+      {type:'main',title:'Part 1 - Breathing',items:[
         {name:'Crocodile belly breathing',detail:'3 min',cue:'Into belly. Full exhale.'},
         {name:'Box breathing 4-4-4-4',detail:'3 min',cue:'Inhale 4, hold 4, exhale 4, hold 4.'},
         {name:'4-7-8 breath',detail:'4 min',cue:'Inhale 4, hold 7, exhale 8.'},
       ]},
-      {type:'main',title:'Part 2 — Hips & Spine',items:[
+      {type:'main',title:'Part 2 - Hips & Spine',items:[
         {name:'Supine knees-to-chest + Spinal twist',detail:'45–60 sec each',cue:'RIGHT spinal twist priority.'},
         {name:'Foam roll thoracic spine',detail:'90 sec',cue:'T4–T10.'},
         {name:'Foam roll right glute',detail:'90 sec',cue:'Right-side priority.'},
       ]},
-      {type:'main',title:'Part 3 — Left Hip & Knee',items:[
-        {name:'Hip 90/90 stretch',detail:'60 sec × 2',cue:'LEFT — actively push into ER.'},
-        {name:'Pigeon pose',detail:'90 sec each',cue:'LEFT — full weight over hip.'},
+      {type:'main',title:'Part 3 - Left Hip & Knee',items:[
+        {name:'Hip 90/90 stretch',detail:'60 sec × 2',cue:'LEFT - actively push into ER.'},
+        {name:'Pigeon pose',detail:'90 sec each',cue:'LEFT - full weight over hip.'},
         {name:'Copenhagen plank',detail:'20 sec each',cue:'Adductor + hip stability.'},
         {name:'Terminal knee extension (band)',detail:'15 reps LEFT',cue:'VMO activation.'},
       ]},
-      {type:'main',title:'Part 4 — Right Wrist',items:[
+      {type:'main',title:'Part 4 - Right Wrist',items:[
         {name:'Wrist circles + Prayer + Extensor stretch',detail:'30–45 sec each',cue:'Right wrist priority.'},
       ]},
     ],notes:['💡 Rate pain 1–10: Low Back / Left Knee / Right Wrist.'],warnings:['⚠ If any scored 6+: note it, modify next week, consider physio']},
@@ -1470,12 +1470,12 @@ const LIB = {
 },
 '9':{
   'Wed':{options:[
-    {label:'Option A — VO2max: 4×600m',subtitle:'@ 3:35–3:45/km · 2nd quality session',intensity:'Hard',blocks:[
+    {label:'Option A - VO2max: 4×600m',subtitle:'@ 3:35–3:45/km · 2nd quality session',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog + A-skips + build strides',detail:'1km / 2×20m / 4×100m',cue:'65/75/85/90%. Full walk-back.'},
         {name:'Standing rest',detail:'3–4 min',cue:'Non-negotiable.'},
       ]},
-      {type:'main',title:'Main Set — 4×600m',items:[
+      {type:'main',title:'Main Set - 4×600m',items:[
         {name:'Rep 1',detail:'600m',cue:'3:45–3:50/km / RPE 8. Conservative.'},
         {name:'Rep 2',detail:'600m',cue:'3:40–3:47/km / RPE 8. VO2max window.'},
         {name:'Rep 3',detail:'600m',cue:'3:38–3:45/km / RPE 8. Stimulus rep.'},
@@ -1484,8 +1484,8 @@ const LIB = {
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy jog + stretch',detail:'800m + 8 min',cue:''},
       ]},
-    ],notes:["💡 Saturday is 5×800m — both train VO2max system.","💡 If reps feel harder than expected — drop to Option B. Protect Saturday."],warnings:['⚠ Left knee: high cadence at speed is protective']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'If fatigued',intensity:'Easy',blocks:[
+    ],notes:["💡 Saturday is 5×800m - both train VO2max system.","💡 If reps feel harder than expected - drop to Option B. Protect Saturday."],warnings:['⚠ Left knee: high cadence at speed is protective']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'If fatigued',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'35–40 min',cue:'Zone 2 / RPE 6.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'85–90% float.'},
@@ -1493,12 +1493,12 @@ const LIB = {
     ]},
   ]},
   'Sat':{options:[
-    {label:'Option A — TRACK: 5×800m VO2max',subtitle:'PEAK VO2max session of Phase 2',intensity:'Hard',blocks:[
+    {label:'Option A - TRACK: 5×800m VO2max',subtitle:'PEAK VO2max session of Phase 2',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog + A-skips + build strides',detail:'1km / 2×20m / 4×100m',cue:'Full walk-back.'},
         {name:'Standing rest',detail:'3–4 min',cue:'Non-negotiable.'},
       ]},
-      {type:'main',title:'Main Set — 5×800m',items:[
+      {type:'main',title:'Main Set - 5×800m',items:[
         {name:'Rep 1',detail:'800m',cue:'3:45–3:55/km / RPE 8. Conservative. 800m ≈ 3:00–3:10.'},
         {name:'Rep 2',detail:'800m',cue:'3:40–3:50/km / RPE 8. Settle in.'},
         {name:'Rep 3',detail:'800m',cue:'3:40–3:50/km / RPE 8. Stimulus rep.'},
@@ -1510,8 +1510,8 @@ const LIB = {
         {name:'Easy jog',detail:'800m',cue:'Mandatory after VO2max work.'},
         {name:'Full stretch + 4-7-8 breathing',detail:'10 min + 5 min',cue:'Parasympathetic reset.'},
       ]},
-    ],notes:['💡 Hardest Saturday of the block. 2:30 rest is full recovery — do not shorten.','💡 Compare to W5 4×800m. Same RPE at faster pace = VO2max ceiling rising.'],warnings:['⚠ Left knee: high cadence is protective']},
-    {label:'Option B — Compromised Run (Full)',subtitle:'Race pace · peak load',intensity:'Hard',blocks:[
+    ],notes:['💡 Hardest Saturday of the block. 2:30 rest is full recovery - do not shorten.','💡 Compare to W5 4×800m. Same RPE at faster pace = VO2max ceiling rising.'],warnings:['⚠ Left knee: high cadence is protective']},
+    {label:'Option B - Compromised Run (Full)',subtitle:'Race pace · peak load',intensity:'Hard',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Easy run',detail:'1 km',cue:'Zone 2.'},
         {name:'SkiErg',detail:'3 min',cue:'Race pace. Log distance.'},
@@ -1528,7 +1528,7 @@ const LIB = {
 },
 '10':{
   'Wed':{options:[
-    {label:'Option A — Threshold: 2×15min',subtitle:'@ 4:00–4:10/km · 2nd quality session',intensity:'Hard',blocks:[
+    {label:'Option A - Threshold: 2×15min',subtitle:'@ 4:00–4:10/km · 2nd quality session',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'1.5 km',cue:'RPE 5. Longer warm-up before threshold.'},
         {name:'Build strides',detail:'3 × 100m',cue:'70% / 80% / 90%.'},
@@ -1538,14 +1538,14 @@ const LIB = {
         {name:'Easy warm-in',detail:'10 min',cue:'Zone 2 / RPE 6. Fully settled.'},
         {name:'Threshold block 1',detail:'15 min',cue:'4:00–4:10/km / RPE 8. Harder than tempo.'},
         {name:'Active recovery jog',detail:'3 min',cue:'Zone 2. Keep moving.'},
-        {name:'Threshold block 2',detail:'15 min',cue:"4:00–4:10/km / RPE 8. Hold pace — don't fade."},
+        {name:'Threshold block 2',detail:'15 min',cue:"4:00–4:10/km / RPE 8. Hold pace - don't fade."},
         {name:'Easy recovery jog',detail:'10 min',cue:'Zone 2.'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy jog + stretch',detail:'800m + 8 min',cue:''},
       ]},
     ],notes:['💡 2×15min threshold is the single most effective HYROX running session.'],warnings:['⚠ Left knee: high cadence at threshold is protective']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'If fatigued',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'If fatigued',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'40 min',cue:'Zone 2 / RPE 6.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'85–90% float.'},
@@ -1553,13 +1553,13 @@ const LIB = {
     ]},
   ]},
   'Sat':{options:[
-    {label:'Option A — 5K Time Trial',subtitle:'Low pressure fitness check',intensity:'Hard',blocks:[
+    {label:'Option A - 5K Time Trial',subtitle:'Low pressure fitness check',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'800m',cue:'RPE 4.'},
         {name:'Dynamic drills + build strides',detail:'4 × 100m',cue:'65/75/85/90%. Full walk-back.'},
-        {name:'Standing rest',detail:'5 min',cue:'Low pressure — data collection.'},
+        {name:'Standing rest',detail:'5 min',cue:'Low pressure - data collection.'},
       ]},
-      {type:'main',title:'Main Set — 5K by km',items:[
+      {type:'main',title:'Main Set - 5K by km',items:[
         {name:'Km 1',detail:'1 km',cue:'3:50–3:55/km. Conservative.'},
         {name:'Km 2',detail:'1 km',cue:'3:45–3:50/km. Find rhythm.'},
         {name:'Km 3',detail:'1 km',cue:'3:42–3:48/km. Assess.'},
@@ -1574,24 +1574,24 @@ const LIB = {
 },
 '11':{
   'Wed':{options:[
-    {label:'Option A — Race Pace: 4×1000m',subtitle:'@ 3:40–3:48/km · sharpening before race sim',intensity:'Hard',blocks:[
+    {label:'Option A - Race Pace: 4×1000m',subtitle:'@ 3:40–3:48/km · sharpening before race sim',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'1.5 km',cue:'RPE 5. Long warm-up before race pace work.'},
         {name:'Dynamic drills + build strides',detail:'2 × 20m drills / 4 × 100m',cue:'65/75/85/92%. Full walk-back.'},
         {name:'Standing rest',detail:'3–4 min',cue:'Non-negotiable before race pace.'},
       ]},
-      {type:'main',title:'Main Set — 4×1000m',items:[
+      {type:'main',title:'Main Set - 4×1000m',items:[
         {name:'Rep 1',detail:'1000m',cue:'3:45–3:50/km / RPE 8.5. Conservative entry.'},
         {name:'Rep 2',detail:'1000m',cue:'3:42–3:47/km / RPE 9. Find race rhythm.'},
         {name:'Rep 3',detail:'1000m',cue:'3:40–3:45/km / RPE 9. Stimulus rep. Hold form.'},
-        {name:'Rep 4',detail:'1000m',cue:'Match rep 1. Controlled finish — Saturday is the peak session.'},
+        {name:'Rep 4',detail:'1000m',cue:'Match rep 1. Controlled finish - Saturday is the peak session.'},
         {name:'Rest between reps',detail:'3 min full walk',cue:'Full recovery. Do not shorten.'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy jog + stretch',detail:'800m + 10 min',cue:'Hip flexor priority.'},
       ]},
     ],notes:['💡 Protect your legs for Saturday\'s Race Simulation. Hit the paces but don\'t dig a hole.'],warnings:['⚠ Left knee: high cadence is protective at race pace']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Active recovery option',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Active recovery option',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'35–40 min',cue:'RPE 5–6. Save energy for Saturday.'},
         {name:'Strides',detail:'4 × 80m',cue:'Controlled float. Walk-back.'},
@@ -1599,8 +1599,8 @@ const LIB = {
     ],notes:['💡 Take Option B if fatigued. Saturday\'s race sim is the priority session.']},
   ]},
   'Sat':{options:[
-    {label:'Option A — Full Race Simulation',subtitle:'THE rehearsal · peak session of Phase 2',intensity:'Hard',blocks:[
-      {type:'main',title:'Race Simulation — Full HYROX Format',items:[
+    {label:'Option A - Full Race Simulation',subtitle:'THE rehearsal · peak session of Phase 2',intensity:'Hard',blocks:[
+      {type:'main',title:'Race Simulation - Full HYROX Format',items:[
         {name:'Station 1: SkiErg',detail:'1000m',cue:'Race pace. Log time.'},
         {name:'Run leg × 8',detail:'1 km each',cue:'3:40–3:45/km between every station.'},
         {name:'Station 2: Sled Push',detail:'50m',cue:'Hard. Short steps, drive hips.'},
@@ -1615,7 +1615,7 @@ const LIB = {
         {name:'Easy walk + full mobility',detail:'10 min + 20 min',cue:'Extended. Race sim recovery.'},
       ]},
     ],notes:['💡 Treat it like race day. Log every station and run split.'],warnings:['⚠ Left knee: hip ER on all lunge patterns','⚠ Right wrist: straps throughout']},
-    {label:'Option B — Track: 4×1000m',subtitle:'Race pace intervals',intensity:'Hard',blocks:[
+    {label:'Option B - Track: 4×1000m',subtitle:'Race pace intervals',intensity:'Hard',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'4 × 1000m',detail:'~3:45 each',cue:'3:40–3:45/km / RPE 9. 3 min full rest between reps.'},
       ]},
@@ -1632,7 +1632,7 @@ const LIB = {
     ],notes:['💡 Trust the process. Go get it.']},
   ]},
   'Wed':{options:[
-    {label:'Zone 2 Only — Taper',subtitle:'30 min + 4 strides · no quality',intensity:'Easy',blocks:[
+    {label:'Zone 2 Only - Taper',subtitle:'30 min + 4 strides · no quality',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'30 min',cue:'Zone 2 / RPE 5–6. Legs feeling good is the goal.'},
         {name:'Aerobic strides',detail:'4 × 80m',cue:'No quality work this week.'},
@@ -1642,7 +1642,7 @@ const LIB = {
 },
 '1':{
   'Sat':{options:[
-    {label:'Option A — TRACK: 6×400m Aerobic Speed',subtitle:'Track session · ~45 min total',intensity:'Hard',blocks:[
+    {label:'Option A - TRACK: 6×400m Aerobic Speed',subtitle:'Track session · ~45 min total',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'10 min',cue:'RPE 4–5. Gradual build.'},
         {name:'Dynamic drills',detail:'A-skips, B-skips, leg swings',cue:'2 × 20m each drill.'},
@@ -1656,8 +1656,8 @@ const LIB = {
         {name:'Easy jog',detail:'5 min',cue:'RPE 3. HR under 120.'},
         {name:'Hip flexor + hamstring stretch',detail:'60 sec each side',cue:'Left hip priority.'},
       ]},
-    ],notes:['💡 Week 1 — base entry. Goal is rhythm and aerobic feel, not max effort.'],warnings:['⚠ Left knee: high cadence protects the joint at pace']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic build · 50 min',intensity:'Moderate',blocks:[
+    ],notes:['💡 Week 1 - base entry. Goal is rhythm and aerobic feel, not max effort.'],warnings:['⚠ Left knee: high cadence protects the joint at pace']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic build · 50 min',intensity:'Moderate',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6 / 5:10–5:45/km. Conversational effort.'},
         {name:'Aerobic strides',detail:'4 × 80m',cue:'Float at 85–90%. Walk-back recovery.'},
@@ -1665,7 +1665,7 @@ const LIB = {
     ],notes:['💡 Choose Option B if legs feel heavy or you missed a mid-week session.']},
   ]},
   'Wed':{options:[
-    {label:'Option A — Tempo Run',subtitle:'20–22 min continuous tempo',intensity:'Moderate',blocks:[
+    {label:'Option A - Tempo Run',subtitle:'20–22 min continuous tempo',intensity:'Moderate',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'8 min',cue:'RPE 4. Gradual.'},
         {name:'Leg swings + hip circles',detail:'10 each',cue:'Activate hips.'},
@@ -1678,7 +1678,7 @@ const LIB = {
         {name:'Calf + glute stretch',detail:'45 sec each',cue:''},
       ]},
     ],notes:['💡 First tempo of the block. Aim to feel comfortable at this pace.']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic + speed',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic + speed',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6. Easy and aerobic.'},
         {name:'Strides',detail:'4 × 80m',cue:'Controlled acceleration. Not sprinting.'},
@@ -1688,7 +1688,7 @@ const LIB = {
 },
 '2':{
   'Sat':{options:[
-    {label:'Option A — COMPROMISED RUN: Short Course',subtitle:'Strength then run · 60–70 min total',intensity:'Hard',blocks:[
+    {label:'Option A - COMPROMISED RUN: Short Course',subtitle:'Strength then run · 60–70 min total',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy row or ski',detail:'5 min',cue:'RPE 4. Wake up the body.'},
         {name:'Glute bridges + hip circles',detail:'2 × 12 reps',cue:'Activate glutes before loading.'},
@@ -1699,7 +1699,7 @@ const LIB = {
         {name:'Burpee Broad Jump',detail:'3 × 8 reps',cue:'Explosive landing. Soft knees.'},
       ]},
       {type:'main',title:'Compromised Run',items:[
-        {name:'Run immediately after strength block',detail:'20 min continuous',cue:'Zone 3 / RPE 7–7.5. Legs will feel heavy — that\'s the point.'},
+        {name:'Run immediately after strength block',detail:'20 min continuous',cue:'Zone 3 / RPE 7–7.5. Legs will feel heavy - that\'s the point.'},
         {name:'Target pace',detail:'4:45–5:00/km',cue:'Adjust for fatigue. Effort over pace here.'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
@@ -1707,7 +1707,7 @@ const LIB = {
         {name:'Hip flexor + hamstring',detail:'60 sec each',cue:'Left hip priority.'},
       ]},
     ],notes:['💡 This simulates HYROX race conditions. The run after fatigue is the skill.'],warnings:['⚠ Right wrist: use straps on all loaded movements']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6. Comfortable and aerobic.'},
         {name:'Aerobic strides',detail:'4 × 80m',cue:'Controlled float. Walk-back recovery.'},
@@ -1715,7 +1715,7 @@ const LIB = {
     ],notes:['💡 Take Option B if fatigued from the week.']},
   ]},
   'Wed':{options:[
-    {label:'Option A — Tempo Run',subtitle:'22–24 min continuous tempo',intensity:'Moderate',blocks:[
+    {label:'Option A - Tempo Run',subtitle:'22–24 min continuous tempo',intensity:'Moderate',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'8 min',cue:'RPE 4.'},
         {name:'Dynamic drills',detail:'A-skips, leg swings',cue:'2 × 20m each.'},
@@ -1726,8 +1726,8 @@ const LIB = {
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy jog + stretch',detail:'5 min + 5 min',cue:'Hip flexor and calf focus.'},
       ]},
-    ],notes:['💡 Week 2 — add 2 minutes to last week\'s tempo. Same pace, more volume.']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 45 min',intensity:'Easy',blocks:[
+    ],notes:['💡 Week 2 - add 2 minutes to last week\'s tempo. Same pace, more volume.']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic · 45 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6.'},
         {name:'Strides',detail:'4 × 80m',cue:'Float effort. Walk-back.'},
@@ -1737,7 +1737,7 @@ const LIB = {
 },
 '3':{
   'Sat':{options:[
-    {label:'Option A — TRACK: 8×400m Aerobic Speed',subtitle:'Track session · ~55 min total',intensity:'Hard',blocks:[
+    {label:'Option A - TRACK: 8×400m Aerobic Speed',subtitle:'Track session · ~55 min total',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'10 min',cue:'RPE 4–5.'},
         {name:'Dynamic drills + build strides',detail:'2 rounds',cue:'A-skips, B-skips, 3 × 60m build.'},
@@ -1750,8 +1750,8 @@ const LIB = {
         {name:'Easy jog',detail:'5–8 min',cue:'RPE 3.'},
         {name:'Full lower body stretch',detail:'10 min',cue:'Hip flexor, hamstring, calf priority.'},
       ]},
-    ],notes:['💡 Week 3 — volume step-up. Same pace as Week 1, 2 more reps.'],warnings:['⚠ Left knee: monitor at pace. Back off if pain above 3/10.']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
+    ],notes:['💡 Week 3 - volume step-up. Same pace as Week 1, 2 more reps.'],warnings:['⚠ Left knee: monitor at pace. Back off if pain above 3/10.']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic · 50 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6.'},
         {name:'Strides',detail:'4 × 80m',cue:'Float at 85–90%.'},
@@ -1759,7 +1759,7 @@ const LIB = {
     ]},
   ]},
   'Wed':{options:[
-    {label:'Option A — Tempo Run',subtitle:'24–26 min continuous tempo',intensity:'Moderate',blocks:[
+    {label:'Option A - Tempo Run',subtitle:'24–26 min continuous tempo',intensity:'Moderate',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'8 min',cue:'RPE 4.'},
         {name:'Dynamic drills',detail:'A-skips, leg swings, glute activation',cue:''},
@@ -1770,8 +1770,8 @@ const LIB = {
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy jog + stretch',detail:'5 min + 8 min',cue:'Full lower body.'},
       ]},
-    ],notes:['💡 Week 3 tempo — slight pace progression from Week 2 if feeling good.']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic · 45 min',intensity:'Easy',blocks:[
+    ],notes:['💡 Week 3 tempo - slight pace progression from Week 2 if feeling good.']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic · 45 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6.'},
         {name:'Strides',detail:'5 × 80m',cue:'One extra rep vs. Week 2.'},
@@ -1781,9 +1781,9 @@ const LIB = {
 },
 '6':{
   'Sat':{options:[
-    {label:'5K TIME TEST — Full Effort',subtitle:'Deload week peak · race simulation',intensity:'Hard',blocks:[
+    {label:'5K TIME TEST - Full Effort',subtitle:'Deload week peak · race simulation',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
-        {name:'Easy jog',detail:'10 min',cue:'RPE 4–5. Keep it easy — you\'re racing today.'},
+        {name:'Easy jog',detail:'10 min',cue:'RPE 4–5. Keep it easy - you\'re racing today.'},
         {name:'Dynamic drills',detail:'A-skips, leg swings',cue:'2 × 20m each. Activate without fatigue.'},
         {name:'Build strides',detail:'4 × 80m',cue:'Progressive. Final one at 95%. Full rest between.'},
         {name:'2 min standing rest',detail:'',cue:'HR down before the effort.'},
@@ -1792,43 +1792,43 @@ const LIB = {
         {name:'5K full effort',detail:'Full race pace',cue:'Go from the gun. Even pace first km, then build. Target sub-20:00.'},
         {name:'Km 1',detail:'Target ~4:05/km',cue:'Controlled but committed. Don\'t go out too hot.'},
         {name:'Km 2–4',detail:'Target 4:00–4:05/km',cue:'Lock in. RPE 9. Hold form.'},
-        {name:'Km 5',detail:'Empty the tank',cue:'Final 400m — leave nothing. Go!'},
+        {name:'Km 5',detail:'Empty the tank',cue:'Final 400m - leave nothing. Go!'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy walk + jog',detail:'5 min walk + 5 min easy jog',cue:'Flush lactate. No rushing.'},
         {name:'Full body stretch',detail:'15 min',cue:'Hip flexor, quad, hamstring, calf, glute.'},
       ]},
-    ],notes:['💡 Sub 18:00 = excellent. 18:00–19:00 = strong. 19:00–20:00 = good base. Log your splits — this is your baseline for Phase 2.'],warnings:['⚠ Deload week — you should feel fresh. If legs are still heavy, take Option B.']},
-    {label:'Option B — Zone 2 Easy Run',subtitle:'Skip the test if unwell or injured',intensity:'Easy',blocks:[
+    ],notes:['💡 Sub 18:00 = excellent. 18:00–19:00 = strong. 19:00–20:00 = good base. Log your splits - this is your baseline for Phase 2.'],warnings:['⚠ Deload week - you should feel fresh. If legs are still heavy, take Option B.']},
+    {label:'Option B - Zone 2 Easy Run',subtitle:'Skip the test if unwell or injured',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 easy run',detail:'40 min',cue:'RPE 5–6. No quality. Save it for next week.'},
       ]},
     ],notes:['💡 Don\'t force the test. A bad test gives false data.']},
   ]},
   'Wed':{options:[
-    {label:'Zone 2 Only — Deload',subtitle:'Easy aerobic · 40 min · no intensity',intensity:'Easy',blocks:[
+    {label:'Zone 2 Only - Deload',subtitle:'Easy aerobic · 40 min · no intensity',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
-        {name:'Zone 2 easy run',detail:'40 min',cue:'RPE 5–6 max. This is a deload — protect the legs for Saturday\'s test.'},
+        {name:'Zone 2 easy run',detail:'40 min',cue:'RPE 5–6 max. This is a deload - protect the legs for Saturday\'s test.'},
         {name:'Cadence check',detail:'170+ BPM',cue:'Short stride, relaxed effort.'},
       ]},
-    ],notes:['💡 Deload week — keep the engine ticking, don\'t stress it.']},
+    ],notes:['💡 Deload week - keep the engine ticking, don\'t stress it.']},
   ]},
 },
 '8':{
   'Sat':{options:[
-    {label:'Option A — Comp Run Extended or Track 8×400m',subtitle:'Phase 2 volume build · pick your format',intensity:'Hard',blocks:[
+    {label:'Option A - Comp Run Extended or Track 8×400m',subtitle:'Phase 2 volume build · pick your format',intensity:'Hard',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'10 min',cue:'RPE 4–5.'},
         {name:'Dynamic drills',detail:'A-skips, leg swings, hip circles',cue:'2 × 20m each.'},
         {name:'Build strides',detail:'3 × 60m',cue:'85–95%. Full walk-back rest.'},
       ]},
-      {type:'main',title:'Option A1 — Compromised Run Extended',items:[
+      {type:'main',title:'Option A1 - Compromised Run Extended',items:[
         {name:'SkiErg',detail:'3 × 300m',cue:'RPE 7–8. 90 sec rest.'},
         {name:'Sled Push or DB Squat',detail:'3 × 10 reps',cue:'Moderate load. Drive through heels.'},
         {name:'Burpee Broad Jump',detail:'3 × 10 reps',cue:'Explosive. Soft landing.'},
         {name:'Compromised run',detail:'25 min continuous',cue:'Zone 3 / RPE 7.5 / 4:40–5:00/km. Go immediately after strength.'},
       ]},
-      {type:'main',title:'Option A2 — Track: 8×400m',items:[
+      {type:'main',title:'Option A2 - Track: 8×400m',items:[
         {name:'8 × 400m',detail:'~88–92 sec each',cue:'Zone 4 / RPE 8.5. 90 sec rest between reps. Aim for consistent splits.'},
         {name:'Cadence cue',detail:'177–180 BPM',cue:'Short, quick steps throughout.'},
       ]},
@@ -1836,8 +1836,8 @@ const LIB = {
         {name:'Easy jog',detail:'5 min',cue:'RPE 3.'},
         {name:'Hip flexor + hamstring',detail:'60 sec each side',cue:'Left hip priority.'},
       ]},
-    ],notes:['💡 Week 8 — Phase 2 volume block. The comp run option is race-specific. Track option builds pure aerobic speed.'],warnings:['⚠ Right wrist: straps on all pulling/loaded movements','⚠ Left knee: monitor cadence at pace']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic if fatigued',intensity:'Easy',blocks:[
+    ],notes:['💡 Week 8 - Phase 2 volume block. The comp run option is race-specific. Track option builds pure aerobic speed.'],warnings:['⚠ Right wrist: straps on all pulling/loaded movements','⚠ Left knee: monitor cadence at pace']},
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic if fatigued',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'50 min',cue:'RPE 5–6 / 5:10–5:45/km.'},
         {name:'Aerobic strides',detail:'5 × 80m',cue:'Float at 85–90%. Walk-back recovery.'},
@@ -1845,27 +1845,27 @@ const LIB = {
     ],notes:['💡 Take Option B if Week 7 left you depleted.']},
   ]},
   'Wed':{options:[
-    {label:'Option A — Zone 2 + Strides or Tempo 30min',subtitle:'Mid-week quality',intensity:'Moderate',blocks:[
+    {label:'Option A - Zone 2 + Strides or Tempo 30min',subtitle:'Mid-week quality',intensity:'Moderate',blocks:[
       {type:'warmup',title:'Warm-Up',items:[
         {name:'Easy jog',detail:'8 min',cue:'RPE 4.'},
         {name:'Dynamic drills',detail:'Leg swings, hip circles',cue:''},
       ]},
-      {type:'main',title:'Option A1 — Tempo 30min',items:[
+      {type:'main',title:'Option A1 - Tempo 30min',items:[
         {name:'Continuous tempo run',detail:'30 min',cue:'Zone 3 / RPE 7 / 4:25–4:35/km. Longest tempo of Phase 2 entry.'},
       ]},
-      {type:'main',title:'Option A2 — Zone 2 + Strides',items:[
+      {type:'main',title:'Option A2 - Zone 2 + Strides',items:[
         {name:'Zone 2 run',detail:'45 min',cue:'RPE 5–6. Easy and aerobic.'},
         {name:'Strides',detail:'5 × 80m',cue:'Controlled acceleration. Walk-back recovery.'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
         {name:'Easy jog + stretch',detail:'5 min + 8 min',cue:'Lower body priority.'},
       ]},
-    ],notes:['💡 Week 8 mid-week — go by feel. Tempo if legs are good, Zone 2 if they need recovery.']},
+    ],notes:['💡 Week 8 mid-week - go by feel. Tempo if legs are good, Zone 2 if they need recovery.']},
   ]},
 },
 };
 
-// Generic session breakdowns — used when no specific LIB week+day entry exists.
+// Generic session breakdowns - used when no specific LIB week+day entry exists.
 // Covers recurring session types so every day in every week has a breakdown.
 const GENERIC = {
   perform: {options:[
@@ -1884,7 +1884,7 @@ const GENERIC = {
         {name:'Hip flexor lunge',detail:'45 sec each side',cue:'Left hip priority.'},
       ]},
     ],notes:['💡 Log all machine distances and peak loads every session.'],warnings:['⚠ Right wrist: straps on all pulling / loaded movements']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Easy aerobic alternative · 40–45 min',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Easy aerobic alternative · 40–45 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'40–45 min',cue:'RPE 5–6 / 5:10–5:45/km.'},
         {name:'Aerobic strides',detail:'4 × 80m',cue:'85–90% float. Walk-back recovery.'},
@@ -1909,15 +1909,15 @@ const GENERIC = {
         {name:'Thoracic opener',detail:'45 sec',cue:'Foam roller or doorframe.'},
       ]},
     ],notes:['💡 Log loads every session. Progressive overload is the goal.'],warnings:['⚠ Right wrist: straps on pulling movements','⚠ Left knee: control on all single-leg work']},
-    {label:'Option B — Zone 2 + Strides',subtitle:'Aerobic alternative',intensity:'Easy',blocks:[
+    {label:'Option B - Zone 2 + Strides',subtitle:'Aerobic alternative',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Zone 2 steady run',detail:'40 min',cue:'RPE 5–6.'},
         {name:'Strides',detail:'4 × 80m',cue:'Controlled float. Walk-back recovery.'},
       ]},
     ]},
-    {label:'Option C — Rest',subtitle:'Full rest day',intensity:'Easy',blocks:[
+    {label:'Option C - Rest',subtitle:'Full rest day',intensity:'Easy',blocks:[
       {type:'main',title:'Rest',items:[
-        {name:'Full rest or gentle walk',detail:'20 min optional',cue:'Active recovery only — no training load.'},
+        {name:'Full rest or gentle walk',detail:'20 min optional',cue:'Active recovery only - no training load.'},
       ]},
     ]},
   ]},
@@ -1928,7 +1928,7 @@ const GENERIC = {
         {name:'Leg swings + hip circles',detail:'10 each',cue:''},
       ]},
       {type:'main',title:'Main Set',items:[
-        {name:'Zone 2 steady run',detail:'40–50 min',cue:'RPE 5–6 / 5:10–5:45/km. Conversational. If HR drifts above 150 — slow down.'},
+        {name:'Zone 2 steady run',detail:'40–50 min',cue:'RPE 5–6 / 5:10–5:45/km. Conversational. If HR drifts above 150 - slow down.'},
         {name:'Cadence check',detail:'170–175 BPM',cue:'Short, light steps. Cadence is protective.'},
       ]},
       {type:'cooldown',title:'Cool-Down',items:[
@@ -1936,7 +1936,7 @@ const GENERIC = {
         {name:'Hip flexor + calf',detail:'45 sec each side',cue:''},
       ]},
     ],notes:['💡 Zone 2 is the foundation of your aerobic base. Easy and consistent beats hard and sporadic.']},
-    {label:'Option B — Easy Bike',subtitle:'Low-impact aerobic · 40–50 min',intensity:'Easy',blocks:[
+    {label:'Option B - Easy Bike',subtitle:'Low-impact aerobic · 40–50 min',intensity:'Easy',blocks:[
       {type:'main',title:'Main Set',items:[
         {name:'Easy bike / spin',detail:'40–50 min',cue:'RPE 5. Legs spinning, not grinding. Zone 2 equivalent.'},
       ]},
@@ -1954,24 +1954,24 @@ const GENERIC = {
         {name:'Thoracic rotation',detail:'10 each side',cue:'Seated or quadruped.'},
         {name:'4-7-8 breathing',detail:'5 rounds',cue:'Parasympathetic reset. Especially important after hard weeks.'},
       ]},
-    ],notes:["💡 Recovery sessions are training. Don't skip them — this is when adaptation happens."]},
+    ],notes:["💡 Recovery sessions are training. Don't skip them - this is when adaptation happens."]},
   ]},
   bike: {options:[
     {label:'Easy Bike or Rest',subtitle:'Low-impact aerobic or full rest',intensity:'Easy',blocks:[
-      {type:'main',title:'Option A — Easy Bike',items:[
+      {type:'main',title:'Option A - Easy Bike',items:[
         {name:'Easy bike / spin',detail:'30–45 min',cue:'RPE 4–5. Legs spinning easily. No grinding.'},
         {name:'Cadence',detail:'80–90 RPM',cue:'Light effort. Active recovery. Legs should feel better after than before.'},
       ]},
-      {type:'main',title:'Option B — Rest',items:[
+      {type:'main',title:'Option B - Rest',items:[
         {name:'Full rest',detail:'',cue:'Take it if the body needs it. No guilt.'},
         {name:'Light walk (optional)',detail:'15–20 min',cue:'Keep circulation moving without adding load.'},
       ]},
-    ],notes:['💡 Thu is a buffer day. Protect the quality of Saturday\'s session — do not go hard today.']},
+    ],notes:['💡 Thu is a buffer day. Protect the quality of Saturday\'s session - do not go hard today.']},
   ]},
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATA — SEED SESSIONS
+// DATA - SEED SESSIONS
 // ═══════════════════════════════════════════════════════════════════════════
 const SEED = [
   {week:'1',day:'Mon',session:'Fitstop PERFORM / Zone 2+Strides',intensity:'mixed',pace:'',dist:'',hr:'',dur:'',feel:4,notes:'Option B.',ts:1743379200000,gid:'s1-1'},
@@ -2026,7 +2026,7 @@ const HYROX_BASE = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ASSESSMENT SESSIONS — Week 1 performance tests that set training targets
+// ASSESSMENT SESSIONS - Week 1 performance tests that set training targets
 // ═══════════════════════════════════════════════════════════════════════════
 const ASSESSMENT_SESSIONS = [
   {
@@ -2036,7 +2036,7 @@ const ASSESSMENT_SESSIONS = [
     category: 'Run',
     intensity: 'hard',
     duration: '35 min',
-    what: 'Run as far as possible in exactly 20 minutes at maximum sustainable effort — the highest pace you can hold without slowing.',
+    what: 'Run as far as possible in exactly 20 minutes at maximum sustainable effort - the highest pace you can hold without slowing.',
     instructions: [
       'Warm up 10 min easy (Zone 1 jog)',
       'Flat course: track, treadmill, or flat road',
@@ -2055,7 +2055,7 @@ const ASSESSMENT_SESSIONS = [
     category: 'Strength',
     intensity: 'moderate',
     duration: '50 min',
-    what: 'Find your 5-rep maximum for the two key lifts used throughout the programme. This sets all subsequent loading targets.',
+    what: 'Find your 5-rep maximum for the two key lifts used throughout the program. This sets all subsequent loading targets.',
     instructions: [
       '15 min warm-up: hip mobility + light barbell',
       'Back squat: build to a challenging 5-rep set (could do 6 but not 7)',
@@ -2063,10 +2063,10 @@ const ASSESSMENT_SESSIONS = [
       'Bench press: build to a challenging 5-rep set',
       'Record the weight for each lift',
     ],
-    tip: 'Estimated 1RM = 5RM × 1.15. Programme uses 70% for volume work and 80% for strength sets.',
+    tip: 'Estimated 1RM = 5RM × 1.15. Program uses 70% for volume work and 80% for strength sets.',
     fields: [
-      { id: 'squat_5rm_kg', label: 'Back squat — 5RM weight', unit: 'kg', placeholder: 'e.g. 80', type: 'number', step: '1' },
-      { id: 'bench_5rm_kg', label: 'Bench press — 5RM weight', unit: 'kg', placeholder: 'e.g. 65', type: 'number', step: '1' },
+      { id: 'squat_5rm_kg', label: 'Back squat - 5RM weight', unit: 'kg', placeholder: 'e.g. 80', type: 'number', step: '1' },
+      { id: 'bench_5rm_kg', label: 'Bench press - 5RM weight', unit: 'kg', placeholder: 'e.g. 65', type: 'number', step: '1' },
     ],
   },
   {
@@ -2076,7 +2076,7 @@ const ASSESSMENT_SESSIONS = [
     category: 'Erg',
     intensity: 'hard',
     duration: '20 min',
-    what: 'Row 2000m at maximum effort. The HYROX row station is 1km — this gives a reliable baseline for race pacing and training splits.',
+    what: 'Row 2000m at maximum effort. The HYROX row station is 1km - this gives a reliable baseline for race pacing and training splits.',
     instructions: [
       'Warm up 5 min easy row',
       'Set the erg display to 2000m',
@@ -2320,7 +2320,7 @@ const COACH_SETUP_STEPS = [
     {val:'detailed', label:'Full breakdown',  desc:'Deep analysis and reasoning'},
   ]},
   {id:'limitations', q:"Any injuries or physical limitations?",      sub:"Your coach works around these and flags warning signs",   type:'text',   placeholder:'e.g. Left knee tendinopathy. Or: None currently.'},
-  {id:'priority',    q:"What are you currently working toward?",     sub:"Your coach uses this to frame every conversation",        type:'text',   placeholder:'e.g. Building run base before quality phase. Weak on SkiErg — need technique work.'},
+  {id:'priority',    q:"What are you currently working toward?",     sub:"Your coach uses this to frame every conversation",        type:'text',   placeholder:'e.g. Building run base before quality phase. Weak on SkiErg - need technique work.'},
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2432,7 +2432,7 @@ function exportData() {
   } catch(e) { toast('Export failed'); }
 }
 
-// Import from a backup file — merges without overwriting existing entries
+// Import from a backup file - merges without overwriting existing entries
 function importDataFile(file) {
   if (!file) return;
   const reader = new FileReader();
@@ -2443,7 +2443,7 @@ function importDataFile(file) {
         Array.isArray(raw) ? raw : (raw.sessions || [])
       );
 
-      // Merge sessions — skip any gid already present
+      // Merge sessions - skip any gid already present
       const existingGids = new Set(sessions.map(s => s.gid).filter(Boolean));
       const added = importedSessions.filter(s => !existingGids.has(s.gid));
       sessions = [...added, ...sessions].sort((a,b) => b.ts - a.ts);
@@ -2465,7 +2465,7 @@ function importDataFile(file) {
         } catch(e) {}
       }
 
-      // Merge templates — skip names already present
+      // Merge templates - skip names already present
       if (Array.isArray(raw.templates) && raw.templates.length) {
         try {
           const cur = JSON.parse(localStorage.getItem('ht-tmpl') || '[]');
@@ -2565,13 +2565,13 @@ function renderToday() {
     <div class="metric"><div class="mlbl">Sessions logged</div>
       <div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
     <div class="metric bl"><div class="mlbl">Peak tempo</div>
-      <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'—'}<span class="munit">${paceUnit()}</span></div>
+      <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'-'}<span class="munit">${paceUnit()}</span></div>
       <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'}</div></div>
     <div class="metric gr"><div class="mlbl">W${currentPlanWeek} logged</div>
       <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week</div></div>
   `;
 
-  // Week strip — current week, today highlighted by day-of-week
+  // Week strip - current week, today highlighted by day-of-week
   const pw = PLAN[currentPlanWeek];
   const wkLogged = sessions.filter(s=>s.week===String(currentPlanWeek)).map(s=>s.day);
   document.getElementById('week-strip').innerHTML = pw.sessions.map(p => {
@@ -2583,7 +2583,7 @@ function renderToday() {
     </div>`;
   }).join('');
 
-  // Today's session — match by day of week, fall back to last in week
+  // Today's session - match by day of week, fall back to last in week
   const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
   document.getElementById('today-session').onclick = () =>
     openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
@@ -2600,7 +2600,7 @@ function renderToday() {
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
   `;
 
-  // Review banner — shown when Strava imports need feel rating
+  // Review banner - shown when Strava imports need feel rating
   const toReview = pendingReview.filter(gid => sessions.find(s => s.gid === gid && !s.feel));
   const banner = document.getElementById('review-banner');
   if (banner) {
@@ -2625,7 +2625,7 @@ function renderToday() {
     }
   }
 
-  // Phase bars — current week highlighted
+  // Phase bars - current week highlighted
   const cols=['#34d399','#34d399','#4D9EFF','#556','#FF6B35','#556','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#f87171'];
   let bars='';
   for(let w=1;w<=12;w++){
@@ -2634,7 +2634,7 @@ function renderToday() {
     bars+=`<div style="display:grid;grid-template-columns:32px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
       <div style="font-family:var(--mono);font-size:8px;color:${isNow?'var(--accent)':'var(--text3)'};">W${w}${isNow?' ←':''}</div>
       <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.max(w>currentPlanWeek&&done===0?0:2,pct)}%;background:${cols[w-1]};"></div></div>
-      <div style="font-family:var(--mono);font-size:8px;text-align:right;color:${cols[w-1]};">${w>currentPlanWeek&&done===0?'—':pct+'%'}</div>
+      <div style="font-family:var(--mono);font-size:8px;text-align:right;color:${cols[w-1]};">${w>currentPlanWeek&&done===0?'-':pct+'%'}</div>
     </div>`;
   }
   document.getElementById('phase-bars').innerHTML=bars;
@@ -2810,8 +2810,8 @@ function renderStation(s,idx){
       <button class="del-btn" onclick="rmStation(${idx})" style="margin-left:auto;">✕</button>
     </div>
     <div class="g2" style="gap:6px;">
-      <div><label class="flbl">${m1}</label><input type="text" class="set-inp" value="${s.v1||''}" placeholder="—" oninput="stCh(${idx},'v1',this.value)" style="width:100%;"></div>
-      <div><label class="flbl">${m2}</label><input type="text" class="set-inp" value="${s.v2||''}" placeholder="—" oninput="stCh(${idx},'v2',this.value)" style="width:100%;"></div>
+      <div><label class="flbl">${m1}</label><input type="text" class="set-inp" value="${s.v1||''}" placeholder="-" oninput="stCh(${idx},'v1',this.value)" style="width:100%;"></div>
+      <div><label class="flbl">${m2}</label><input type="text" class="set-inp" value="${s.v2||''}" placeholder="-" oninput="stCh(${idx},'v2',this.value)" style="width:100%;"></div>
     </div>
   </div>`;
 }
@@ -2823,7 +2823,7 @@ function stCh(i,f,v){stations[i][f]=v;}
 function buildOtherMetrics(){
   return `<div class="g2" style="margin-bottom:10px;">
     <div><label class="flbl">Duration (min)</label><input type="number" id="f-dur" placeholder="45"></div>
-    <div><label class="flbl">Avg HR (bpm)</label><input type="number" id="f-hr" placeholder="—"></div>
+    <div><label class="flbl">Avg HR (bpm)</label><input type="number" id="f-hr" placeholder="-"></div>
   </div>`;
 }
 
@@ -2847,7 +2847,7 @@ function buildNotes(){
     if(parts.length)lines.push('Erg: '+parts.join(' · '));
   }
   if(cat==='mixed'&&stations.length){
-    stations.forEach(s=>{const v=[s.v1,s.v2].filter(Boolean).join(' / ');lines.push(`${s.type}: ${v||'—'}`);});
+    stations.forEach(s=>{const v=[s.v1,s.v2].filter(Boolean).join(' / ');lines.push(`${s.type}: ${v||'-'}`);});
   }
   const mn=document.getElementById('f-notes')?.value?.trim();
   if(mn)lines.push(mn);
@@ -2980,9 +2980,9 @@ function renderAssessmentBanner() {
     <div style="background:linear-gradient(135deg,rgba(212,175,55,.08),rgba(77,158,255,.06));border:.5px solid rgba(212,175,55,.25);border-radius:10px;padding:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div>
-          <div style="font-size:13px;font-weight:700;color:var(--accent);">Week 1 — Assessment</div>
+          <div style="font-size:13px;font-weight:700;color:var(--accent);">Week 1 - Assessment</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">
-            ${allDone ? 'All tests complete — baselines set' : `${doneCnt}/${ASSESSMENT_SESSIONS.length} tests complete`}
+            ${allDone ? 'All tests complete - baselines set' : `${doneCnt}/${ASSESSMENT_SESSIONS.length} tests complete`}
           </div>
         </div>
         ${allDone ? '<div style="font-size:18px;color:var(--accent);">✓</div>' : ''}
@@ -3236,7 +3236,7 @@ function renderBkHtml(week,day,sessionType,dl){
     html+=`<div class="opt-tabs" id="ot-${bkId}">`;
     dl.options.forEach((o,i)=>{
       const isA=o===matched;
-      html+=`<button class="opt-tab ${isA?'active':''}" onclick="switchOpt('${week}','${day}','${sessionType?.replace(/'/g,"\\'")||''}',${i},'${bkId}')">${o.label.split('—')[0].trim()}</button>`;
+      html+=`<button class="opt-tab ${isA?'active':''}" onclick="switchOpt('${week}','${day}','${sessionType?.replace(/'/g,"\\'")||''}',${i},'${bkId}')">${o.label.split('-')[0].trim()}</button>`;
     });
     html+=`</div>`;
   }
@@ -3411,7 +3411,7 @@ function renderStats(){
   document.getElementById('stats-metrics').innerHTML=`
     <div class="metric"><div class="mlbl">Sessions</div><div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
     <div class="metric"><div class="mlbl">Distance</div><div class="mval">${unitRun==='mi'?Math.round(totalKm*MI_PER_KM):Math.round(totalKm)}<span class="munit">${distUnit()}</span></div><div class="msub">logged runs</div></div>
-    <div class="metric am"><div class="mlbl">Avg feel</div><div class="mval am">${avgFeel?avgFeel.toFixed(1):'—'}</div><div class="msub">out of 5</div></div>
+    <div class="metric am"><div class="mlbl">Avg feel</div><div class="mval am">${avgFeel?avgFeel.toFixed(1):'-'}</div><div class="msub">out of 5</div></div>
     <div class="metric bl"><div class="mlbl">Weeks active</div><div class="mval bl">${Object.values(wc).filter(v=>v>0).length}<span class="munit">/12</span></div><div class="msub"></div></div>
   `;
 
@@ -3587,13 +3587,13 @@ function toggleTheme(){
   const sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
   // Cycle: auto → force opposite → auto
   if(!saved){
-    // Currently auto — force opposite of system
+    // Currently auto - force opposite of system
     const forceTo=sysDark?'light':'dark';
     localStorage.setItem('ht-theme',forceTo);
     document.body.classList.remove('force-dark','force-light');
     document.body.classList.add('force-'+forceTo);
   } else {
-    // Currently forced — go back to auto
+    // Currently forced - go back to auto
     localStorage.removeItem('ht-theme');
     document.body.classList.remove('force-dark','force-light');
   }
@@ -3628,7 +3628,7 @@ function renderDataSummary(){
   const lines = [`${sessions.length} sessions · ${templates} template${templates!==1?'s':''} stored locally.`];
   if (lastSync)   lines.push(`Drive sync: ${fmt(lastSync)}`);
   if (lastExport) lines.push(`File backup: ${fmt(lastExport)}`);
-  if (!lastSync && !lastExport) lines.push('No backup yet — export or connect Drive');
+  if (!lastSync && !lastExport) lines.push('No backup yet - export or connect Drive');
   document.getElementById('data-summary').innerHTML = lines.join('<br>');
 }
 function confirmClear(){
@@ -3687,7 +3687,7 @@ function renderAIContext() {
     </div>` : ''}
     <div style="border-top:.5px solid var(--border);padding-top:8px;">
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Injury Flags (always respected)</div>
-      <div style="font-size:11px;color:var(--red);line-height:1.8;">Left knee — medial sensitivity · high cadence protective<br>Right wrist — straps required on all pulling movements<br>Low back — brace before deadlifts, SkiErg, sled work</div>
+      <div style="font-size:11px;color:var(--red);line-height:1.8;">Left knee - medial sensitivity · high cadence protective<br>Right wrist - straps required on all pulling movements<br>Low back - brace before deadlifts, SkiErg, sled work</div>
     </div>
   </div>`;
 }
@@ -3697,8 +3697,8 @@ function renderAIQuickPrompts() {
   if (!el) return;
   const w = currentPlanWeek;
   const prompts = [
-    `Build a W${w} track session — 3 options (VO2max / compromised run / fallback)`,
-    `Extend this week's training — add a quality session to fill a gap`,
+    `Build a W${w} track session - 3 options (VO2max / compromised run / fallback)`,
+    `Extend this week's training - add a quality session to fill a gap`,
     `Create a full deload week plan for W${Math.min(w+1,12)}`,
     `Generate a strength session targeting my weak areas + injury flags`,
     `What should I do differently based on my recent logged sessions?`,
@@ -3751,7 +3751,7 @@ async function runAI() {
     const data = await res.json();
     const text = data.content?.[0]?.text || '';
     const jMatch = text.match(/```json\n?([\s\S]+?)\n?```/) || text.match(/(\{[\s\S]*"options"[\s\S]*\})/);
-    if (!jMatch) throw new Error('No structured session in response — try rephrasing your request');
+    if (!jMatch) throw new Error('No structured session in response - try rephrasing your request');
     const sess = JSON.parse(jMatch[1]);
     aiGeneratedSession = sess;
     renderAIResult(sess, text);
@@ -3766,12 +3766,12 @@ function buildAISystemPrompt() {
   const blCtx = getBaselineContext();
   return `You are an expert performance and endurance coach AI embedded in a personal training app (Rev3).
 
-The athlete is following a 12-week structured programme toward their goal race or fitness target.
-Phase 1 (W1-W6): Base building — Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
+The athlete is following a 12-week structured program toward their goal race or fitness target.
+Phase 1 (W1-W6): Base building - Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
 Phase 2 (W7-W12): VO2max intervals, threshold work, race simulation, taper.
 ${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}
 
-INJURY FLAGS — always respect these:
+INJURY FLAGS - always respect these:
 - Left knee: medial sensitivity. High cadence (170-172 BPM) protective. Avoid 180+ BPM. Bike as Zone 2 alternative on flare-up days.
 - Right wrist: straps required on ALL pulling movements (lat pulldown, SkiErg, rowing, pull-ups).
 - Low back: brace before every deadlift, SkiErg pull, sled work.
@@ -3780,7 +3780,7 @@ Session structure rules:
 - Quality sessions (track, threshold, race sim) MUST have warm-up and cool-down blocks.
 - Always offer 2-3 options: A = target, B = modified/alternative, C = easy fallback.
 - Include RPE targets, pace targets, and rep distances/times in the "detail" field.
-- Coaching cues go in the "cue" field — technique, RPE, pacing strategy.
+- Coaching cues go in the "cue" field - technique, RPE, pacing strategy.
 - Notes = big-picture coaching points. Warnings = injury flags and cautions.
 
 Return a JSON block inside \`\`\`json ... \`\`\` with EXACTLY this structure:
@@ -3788,7 +3788,7 @@ Return a JSON block inside \`\`\`json ... \`\`\` with EXACTLY this structure:
   "_name": "Session name",
   "options": [
     {
-      "label": "Option A — Full description",
+      "label": "Option A - Full description",
       "subtitle": "Short description · duration or volume",
       "intensity": "Easy|Moderate|Hard|Mixed",
       "blocks": [
@@ -3838,7 +3838,7 @@ function renderAIResult(sess, rawText) {
   if (sess.options?.length > 1) {
     html += `<div class="opt-tabs" id="ai-opt-tabs">`;
     sess.options.forEach((o,i) =>
-      html += `<button class="opt-tab ${i===0?'active':''}" onclick="switchAIOpt(${i})">${(o.label||'').split('—')[0].trim()||'Option '+String.fromCharCode(65+i)}</button>`
+      html += `<button class="opt-tab ${i===0?'active':''}" onclick="switchAIOpt(${i})">${(o.label||'').split('-')[0].trim()||'Option '+String.fromCharCode(65+i)}</button>`
     );
     html += `</div>`;
   }
@@ -3872,7 +3872,7 @@ function aiLogNow() {
   if (!aiGeneratedSession) return;
   closeOv('ai-overlay');
   nav('log', document.querySelectorAll('.nb')[1]);
-  toast('AI session ready — fill in your metrics and save');
+  toast('AI session ready - fill in your metrics and save');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3924,7 +3924,7 @@ function connectDrive() {
   if (!cid) { toast('Paste your Google OAuth Client ID first'); return; }
   localStorage.setItem('ht-drive-cid', cid);
   driveClientId = cid;
-  // Redirect-based implicit flow — works in standalone PWA mode on iOS
+  // Redirect-based implicit flow - works in standalone PWA mode on iOS
   const redirect = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', cid);
@@ -3948,7 +3948,7 @@ async function driveGet(path, params) {
   const url = new URL('https://www.googleapis.com' + path);
   if (params) Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
   const r = await fetch(url, { headers: { Authorization: `Bearer ${driveToken}` } });
-  if (r.status === 401) { disconnectDrive(); throw new Error('Session expired — reconnect Drive'); }
+  if (r.status === 401) { disconnectDrive(); throw new Error('Session expired - reconnect Drive'); }
   if (!r.ok) throw new Error(`Drive API ${r.status}`);
   return r.json();
 }
@@ -4079,7 +4079,7 @@ function drivePayload() {
   };
 }
 
-// Debounced auto-push — called from saveData(), fires 6s after last write
+// Debounced auto-push - called from saveData(), fires 6s after last write
 function driveAutoSave() {
   if (!driveToken) return;
   clearTimeout(driveAutoTimer);
@@ -4187,7 +4187,7 @@ function initStrava() {
     // Navigate to More tab so user can see error state + reconnect
     setTimeout(() => {
       nav('more', document.querySelectorAll('.nb')[4]);
-      toast('Strava connection failed' + (reason ? ': ' + reason : '') + ' — try again');
+      toast('Strava connection failed' + (reason ? ': ' + reason : '') + ' - try again');
     }, 200);
   } else if (stravaHash) {
     try {
@@ -4207,14 +4207,14 @@ function initStrava() {
       // Navigate to More tab so user can see connected state, then sync
       setTimeout(() => {
         nav('more', document.querySelectorAll('.nb')[4]);
-        toast('Strava connected' + (stravaAthlete ? ' · ' + stravaAthlete : '') + ' — syncing…');
+        toast('Strava connected' + (stravaAthlete ? ' · ' + stravaAthlete : '') + ' - syncing…');
         syncFromStrava(false);
       }, 200);
     } catch(e) {
       stravaState = 'error';
       setTimeout(() => {
         nav('more', document.querySelectorAll('.nb')[4]);
-        toast('Strava auth failed — try again');
+        toast('Strava auth failed - try again');
       }, 200);
     }
   } else if (stravaAccess) {
@@ -4306,7 +4306,7 @@ async function syncFromStrava(silent = false) {
   stravaState = 'syncing'; renderStravaCard();
 
   try {
-    // Fetch from start of plan Week 1 only — earlier dates fill the page limit with pre-plan activities
+    // Fetch from start of plan Week 1 only - earlier dates fill the page limit with pre-plan activities
     const since = Math.floor(new Date(WMAP[0][1]).getTime() / 1000);
     const resp = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=200`,
@@ -4316,7 +4316,7 @@ async function syncFromStrava(silent = false) {
       stravaAccess = null;
       try { localStorage.removeItem('ht-strava-tok'); } catch(e) {}
       stravaState = 'error'; renderStravaCard();
-      if (!silent) toast('Strava session expired — reconnect');
+      if (!silent) toast('Strava session expired - reconnect');
       return;
     }
     const body = await resp.json();
@@ -4514,19 +4514,19 @@ function renderStravaCard() {
         </summary>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.0;margin-top:10px;">
 
-          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART A: Strava API credentials —</div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">- PART A: Strava API credentials -</div>
           1. Open <b>strava.com/settings/api</b> and sign in<br>
           2. Click <b>"Create &amp; Manage Your App"</b> (or view an existing one)<br>
           3. App Name and Website can be anything (e.g. "My Training App" / "example.com")<br>
           4. <b>Authorization Callback Domain</b>: type exactly <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">workers.dev</code><br>
-          5. Click <b>Save</b> — note your <b>Client ID</b> (a number) and <b>Client Secret</b> (a long string)
+          5. Click <b>Save</b> - note your <b>Client ID</b> (a number) and <b>Client Secret</b> (a long string)
 
           <div style="height:10px;"></div>
-          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART B: Deploy your Cloudflare Worker —</div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">- PART B: Deploy your Cloudflare Worker -</div>
           <div style="color:var(--text2);margin-bottom:4px;">Choose one method:</div>
 
           <details style="margin:4px 0;">
-            <summary style="color:var(--accent);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 1 — Terminal/Wrangler (recommended, ~5 min)</summary>
+            <summary style="color:var(--accent);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 1 - Terminal/Wrangler (recommended, ~5 min)</summary>
             <div style="padding:8px 0 0 8px;line-height:2.2;">
               Needs: <b>Node.js</b> (nodejs.org) and a terminal (macOS: Terminal, Windows: Command Prompt)<br><br>
               <b>1.</b> Install Wrangler:<br>
@@ -4552,24 +4552,24 @@ function renderStravaCard() {
           </details>
 
           <details style="margin:4px 0;">
-            <summary style="color:var(--text2);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 2 — Cloudflare Dashboard (no installs)</summary>
+            <summary style="color:var(--text2);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 2 - Cloudflare Dashboard (no installs)</summary>
             <div style="padding:8px 0 0 8px;line-height:2.2;">
-              <b>2A — Create a Worker</b><br>
+              <b>2A - Create a Worker</b><br>
               1. Go to <b>dash.cloudflare.com</b> and sign in (free account is fine)<br>
               2. In the left sidebar click <b>"Workers &amp; Pages"</b><br>
               3. Click the blue <b>"Create"</b> button (top right of the page)<br>
               4. Click <b>"Create Worker"</b> → click <b>"Deploy"</b> (just deploys the default hello-world)<br>
-              5. You'll see a success screen — click <b>"Edit code"</b> (blue button, centre of page)<br>
+              5. You'll see a success screen - click <b>"Edit code"</b> (blue button, center of page)<br>
               6. In the code editor: press <b>Ctrl+A</b> (Win) or <b>Cmd+A</b> (Mac) to select all, then <b>Delete</b><br>
               7. Paste in the full contents of <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">worker/index.js</code> from the GitHub repo<br>
               8. Click <b>"Save and deploy"</b> (top right of the editor)<br>
-              9. Note the URL shown below the Worker name — this is your Worker URL<br><br>
+              9. Note the URL shown below the Worker name - this is your Worker URL<br><br>
 
-              <b>2B — Add environment variables</b><br>
+              <b>2B - Add environment variables</b><br>
               1. Click the <b>"&lt; Workers &amp; Pages"</b> breadcrumb link (top left) to go back<br>
               2. Click your Worker's name in the list<br>
-              3. Click the <b>"Settings"</b> tab (in the tabs at the top of the Worker detail page — not the left sidebar)<br>
-              4. Scroll down to <b>"Variables and Secrets"</b> — click <b>"Add"</b> for each:<br>
+              3. Click the <b>"Settings"</b> tab (in the tabs at the top of the Worker detail page - not the left sidebar)<br>
+              4. Scroll down to <b>"Variables and Secrets"</b> - click <b>"Add"</b> for each:<br>
               <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;margin:4px 0;line-height:2.4;">
                 Name: <b>STRAVA_CLIENT_ID</b> · Type: Text · Value: your Client ID<br>
                 Name: <b>STRAVA_CLIENT_SECRET</b> · Type: Secret · Value: your Client Secret<br>
@@ -4577,7 +4577,7 @@ function renderStravaCard() {
               </div>
               5. Click <b>"Save and deploy"</b> after adding all three<br><br>
 
-              <b>2C — Create the KV namespace (data store)</b><br>
+              <b>2C - Create the KV namespace (data store)</b><br>
               1. Left sidebar → <b>"Workers &amp; Pages"</b> → click the <b>"KV"</b> tab at the top<br>
               2. Click <b>"Create namespace"</b> → Name: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">HEALTH_DATA</code> → click <b>"Add"</b><br>
               3. Left sidebar → Workers &amp; Pages → click your Worker name<br>
@@ -4588,10 +4588,10 @@ function renderStravaCard() {
           </details>
 
           <div style="height:10px;"></div>
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;font-size:10px;">— PART C: Finish up —</div>
+          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;font-size:10px;">- PART C: Finish up -</div>
           <b>Update Strava callback:</b> Back on <b>strava.com/settings/api</b>, change<br>
           <b>Authorization Callback Domain</b> to your Worker's domain only<br>
-          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code> — no https://)<br>
+          (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code> - no https://)<br>
           Click <b>Update</b><br><br>
           <b>Connect:</b> Paste your Worker URL in the field above → tap <b>Connect Strava</b>
         </div>
@@ -4610,13 +4610,13 @@ function renderStravaCard() {
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:700;">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
           <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
-            ${errored ? '⚠ Access token expired — reconnect to resume' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
+            ${errored ? '⚠ Access token expired - reconnect to resume' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
           </div>
         </div>
       </div>
       ${errored ? `
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:rgba(240,101,101,.08);border:.5px solid rgba(240,101,101,.2);border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.8;">
-          Strava access tokens expire every 6 hours. Tap Reconnect — it re-runs the same OAuth flow and refreshes your token automatically.
+          Strava access tokens expire every 6 hours. Tap Reconnect - it re-runs the same OAuth flow and refreshes your token automatically.
         </div>
         <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava →</button>
         <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
@@ -4767,7 +4767,7 @@ function renderRecoveryCard() {
 
   const displayScore = entry?.sleepScore || entry?.recoveryScore;
   if (entry && displayScore) {
-    // ── State 3: complete entry — collapsed one-liner ─────────────────────
+    // ── State 3: complete entry - collapsed one-liner ─────────────────────
     const diff    = baseline ? displayScore - baseline : null;
     const diffTxt = diff != null ? ` (${diff>=0?'+':''}${diff})` : '';
     const sc      = scoreColor(displayScore, baseline);
@@ -4813,7 +4813,7 @@ function renderRecoveryCard() {
           <div style="flex:1;">
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Sleep Score</div>
             <div style="display:flex;align-items:center;gap:4px;">
-              <input id="rc-score" type="number" min="0" max="100" placeholder="—"
+              <input id="rc-score" type="number" min="0" max="100" placeholder="-"
                 style="width:100%;font-family:var(--mono);font-size:20px;font-weight:700;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);text-align:center;-moz-appearance:textfield;">
               <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">/100</span>
             </div>
@@ -4827,7 +4827,7 @@ function renderRecoveryCard() {
       </div>`;
 
   } else {
-    // ── State 1: nothing logged — full manual form ────────────────────────
+    // ── State 1: nothing logged - full manual form ────────────────────────
     el.innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
@@ -4849,7 +4849,7 @@ function renderRecoveryCard() {
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Sleep Score</div>
             <div style="display:flex;align-items:center;gap:4px;">
-              <input id="rc-score" type="number" min="0" max="100" placeholder="—" value="${rcDraft.score}"
+              <input id="rc-score" type="number" min="0" max="100" placeholder="-" value="${rcDraft.score}"
                 style="width:100%;font-family:var(--mono);font-size:16px;font-weight:700;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:4px 6px;color:var(--text);text-align:center;-moz-appearance:textfield;">
               <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">/100</span>
             </div>
@@ -4858,17 +4858,17 @@ function renderRecoveryCard() {
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">HRV</div>
-            <input id="rc-hrv" type="number" min="0" max="200" placeholder="—" value="${rcDraft.hrv}"
+            <input id="rc-hrv" type="number" min="0" max="200" placeholder="-" value="${rcDraft.hrv}"
               style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
           </div>
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Resting HR</div>
-            <input id="rc-rhr" type="number" min="0" max="120" placeholder="—" value="${rcDraft.restingHR}"
+            <input id="rc-rhr" type="number" min="0" max="120" placeholder="-" value="${rcDraft.restingHR}"
               style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
           </div>
           <div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Body Bat.</div>
-            <input id="rc-bb" type="number" min="0" max="100" placeholder="—" value="${rcDraft.bodyBattery}"
+            <input id="rc-bb" type="number" min="0" max="100" placeholder="-" value="${rcDraft.bodyBattery}"
               style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:14px;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);-moz-appearance:textfield;">
           </div>
         </div>
@@ -4955,7 +4955,7 @@ function renderStravaSplits(s) {
   const splits = s.strava_splits;
   if (!laps && !splits) return '';
 
-  const paceStr = mps => mpsToMinKm(mps) || '—';
+  const paceStr = mps => mpsToMinKm(mps) || '-';
   let html = '';
 
   // Laps (interval reps / manual lap button)
@@ -4981,8 +4981,8 @@ function renderStravaSplits(s) {
         <td style="text-align:right;font-family:var(--mono);">${d}</td>
         <td style="text-align:right;font-family:var(--mono);">${t}</td>
         <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${p}</td>
-        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
-        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${lap.average_cadence  ? Math.round(lap.average_cadence)  : '—'}</td>` : ''}
+        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '-'}</td>` : ''}
+        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${lap.average_cadence  ? Math.round(lap.average_cadence)  : '-'}</td>` : ''}
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -5006,8 +5006,8 @@ function renderStravaSplits(s) {
         <td>${i+1}</td>
         <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${paceStr(sp.average_speed)}</td>
         <td style="text-align:right;font-family:var(--mono);">${fmtSecs(sp.moving_time || sp.elapsed_time)}</td>
-        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
-        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${sp.average_cadence  ? Math.round(sp.average_cadence)  : '—'}</td>` : ''}
+        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '-'}</td>` : ''}
+        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${sp.average_cadence  ? Math.round(sp.average_cadence)  : '-'}</td>` : ''}
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -5034,7 +5034,7 @@ function extractBestPace(splits) {
   if (full.length < 2) return null;
   // Pace in sec/km, sorted fastest first
   const paces = full.map(s => Math.round(1000 / s.average_speed)).sort((a,b) => a-b);
-  // Take fastest 40% — excludes warmup/cooldown dilution
+  // Take fastest 40% - excludes warmup/cooldown dilution
   const take = Math.max(1, Math.floor(paces.length * 0.4));
   const working = paces.slice(0, take);
   const med = working[Math.floor(working.length / 2)];
@@ -5149,7 +5149,7 @@ async function hyroxPullTraining(){
     isQualityRun(s.session, s.notes, s.intensity)
   ).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,10);
 
-  // No quality sessions — fall back to all runs with a nudge
+  // No quality sessions - fall back to all runs with a nudge
   if(!qualRuns.length){
     const allRuns=sessions.filter(s=>s.pace&&s.dist&&parseFloat(s.dist)>=3&&
       /(run|tempo|track|zone|interval)/i.test(s.session||''))
@@ -5160,7 +5160,7 @@ async function hyroxPullTraining(){
     const fat=[0.93,0.97,1.01,1.05,1.10,1.15,1.21,1.27];
     ['run1','run2','run3','run4','run5','run6','run7','run8'].forEach((id,i)=>{hyroxPlan.splits[id]=Math.round(avg*fat[i]);});
     saveHyrox();renderHyroxCalc();
-    toast('Using all runs — log tempo/track sessions for better accuracy');
+    toast('Using all runs - log tempo/track sessions for better accuracy');
     return;
   }
 
@@ -5222,7 +5222,7 @@ function renderCoachCard() {
             <div style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.75;margin-top:10px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
               ${mem.notes}
             </div>
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Last updated ${mem.lastUpdate||'—'}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Last updated ${mem.lastUpdate||'-'}</div>
           </details>`;
       } else {
         memEl.innerHTML = '';
@@ -5265,7 +5265,7 @@ async function requestNotifPermission() {
   const result = await Notification.requestPermission();
   renderNotifCard();
   if (result === 'granted') { toast('Notifications enabled ✓'); maybeShowNudges(); }
-  else toast('Notification permission denied — enable it in your browser settings');
+  else toast('Notification permission denied - enable it in your browser settings');
 }
 
 function setNotifPref(key, val) {
@@ -5400,7 +5400,7 @@ async function selectCoachMode(mode) {
 
   if (mode === 'checkin' || mode === 'review') {
     const prompt = mode === 'checkin'
-      ? 'Give me my daily check-in — cover my recovery data today, what\'s on my plan for the next session, and one key thing I should focus on. Be specific and direct.'
+      ? 'Give me my daily check-in - cover my recovery data today, what\'s on my plan for the next session, and one key thing I should focus on. Be specific and direct.'
       : 'Review my recent training. What\'s working, what\'s not, and what should I adjust?';
     coachMessages = [{role:'user', text: prompt}];
     coachTyping = true;
@@ -5409,8 +5409,8 @@ async function selectCoachMode(mode) {
     await _callCoachAPI();
   } else {
     const intros = {
-      program:  `Let's talk training. I've got your data in front of me — what's on your mind? Ask about this week, next phase, or anything with your programming.`,
-      motivate: `Let's go. Tell me what's ahead for you — I'll make sure you're ready for it.`,
+      program:  `Let's talk training. I've got your data in front of me - what's on your mind? Ask about this week, next phase, or anything with your programming.`,
+      motivate: `Let's go. Tell me what's ahead for you - I'll make sure you're ready for it.`,
       ask:      `I'm all yours. What do you want to talk about?`,
     };
     coachMessages = [{role:'assistant', text: intros[mode] || intros.ask}];
@@ -5624,7 +5624,7 @@ function buildCoachSystemPrompt() {
     const today = todayISO();
     return sessions.find(s => s.date && s.date >= today && !s.feel) || null;
   })();
-  const nextSessStr = nextSess ? `Next scheduled: W${nextSess.week} ${nextSess.day} — ${nextSess.session}` : '';
+  const nextSessStr = nextSess ? `Next scheduled: W${nextSess.week} ${nextSess.day} - ${nextSess.session}` : '';
 
   const raceDate  = p.raceDate || 'not set';
   const priority  = p.priority    ? `\nAthlete's current priority: "${p.priority}"` : '';
@@ -5698,7 +5698,7 @@ async function updateCoachMemory() {
         model: 'claude-haiku-4-5', max_tokens: 220,
         messages: [{
           role: 'user',
-          content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes — don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
+          content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes - don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
         }],
       }),
     });
@@ -5737,26 +5737,26 @@ const CHANGELOG = [
     label: '27 May 2026',
     items: [
       { tag: 'Improved', text: 'Garmin Shortcut: Sleep and Resting HR are now the only required metrics. HRV, Steps and VO₂max are optional.' },
-      { tag: 'New',      text: 'VO₂max predicted from 20-min run TT via Daniels VDOT — no device needed.' },
+      { tag: 'New',      text: 'VO₂max predicted from 20-min run TT via Daniels VDOT - no device needed.' },
     ],
   },
   {
     v: '2026-05-26',
     label: '26 May 2026',
     items: [
-      { tag: 'Improved', text: 'Cloudflare Worker setup guide overhauled — Wrangler CLI and Dashboard methods with exact button names' },
-      { tag: 'Fix',      text: 'GitHub username updated to xolacreator — no personal identifiers remain in the codebase' },
+      { tag: 'Improved', text: 'Cloudflare Worker setup guide overhauled - Wrangler CLI and Dashboard methods with exact button names' },
+      { tag: 'Fix',      text: 'GitHub username updated to xolacreator - no personal identifiers remain in the codebase' },
     ],
   },
   {
     v: '2026-05-25',
     label: '25 May 2026',
     items: [
-      { tag: 'New',      text: 'Onboarding wizard — 5-step setup: training goal, Strava, Garmin and AI coach' },
-      { tag: 'New',      text: 'Week 1 assessment tests — 20-min run TT, strength baseline and 2km row establish your personal pace zones and loading targets' },
-      { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach — replaces generic paces with your real numbers' },
-      { tag: 'Improved', text: 'Plan start date is fully configurable — any Monday, any user' },
-      { tag: 'Fix',      text: 'Strava reconnect fixed — was missing the app URL, causing OAuth to fail silently after token expiry' },
+      { tag: 'New',      text: 'Onboarding wizard - 5-step setup: training goal, Strava, Garmin and AI coach' },
+      { tag: 'New',      text: 'Week 1 assessment tests - 20-min run TT, strength baseline and 2km row establish your personal pace zones and loading targets' },
+      { tag: 'New',      text: 'Baselines flow into both the AI session builder and personal coach - replaces generic paces with your real numbers' },
+      { tag: 'Improved', text: 'Plan start date is fully configurable - any Monday, any user' },
+      { tag: 'Fix',      text: 'Strava reconnect fixed - was missing the app URL, causing OAuth to fail silently after token expiry' },
       { tag: 'New',      text: 'Garmin iOS Shortcut guide rewritten for iOS 26 action names (Find Health Samples, Sleep, Cardio Fitness)' },
       { tag: 'New',      text: 'Factory reset and Setup guide in More → App Setup' },
     ],
@@ -5766,7 +5766,7 @@ const CHANGELOG = [
 function checkForUpdates() {
   const lastSeen = localStorage.getItem('ht-last-seen-v');
   if (!lastSeen) {
-    // First launch — record version silently, show nothing
+    // First launch - record version silently, show nothing
     localStorage.setItem('ht-last-seen-v', APP_VERSION);
     return;
   }
@@ -5907,7 +5907,7 @@ function renderOnboardStep() {
         ${[
           ['Plan','Structured training plans tailored to your race or fitness goal'],
           ['Log','Record runs, strength, erg and mixed sessions with splits and data'],
-          ['Recover','Sleep and resting HR synced each morning — Recovery Score calculated automatically'],
+          ['Recover','Sleep and resting HR synced each morning - Recovery Score calculated automatically'],
           ['AI','Session builder and personal coach powered by Claude AI'],
         ].map(([k,v])=>`
           <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
@@ -5927,12 +5927,12 @@ function renderOnboardStep() {
     const sl  = _obAnswers.strengthLift  || '';
     const stg = _obAnswers.strengthTarget|| '';
 
-    // Goal category cards — always reset sub-selections on category change
+    // Goal category cards - always reset sub-selections on category change
     const goalCategoryCards = [
       ['race',     ICONS.race,     'Race Performance',       'Train toward a specific race with a target finish time'],
       ['fitness',  ICONS.fitness,  'General Fitness',         'Build endurance, strength and conditioning'],
       ['strength', ICONS.strength, 'Strength & Conditioning', 'Improve a specific lift or build an overall strength base'],
-      ['custom',   ICONS.custom,   'Custom Plan',             'Start blank — design sessions with the AI builder'],
+      ['custom',   ICONS.custom,   'Custom Plan',             'Start blank - design sessions with the AI builder'],
     ].map(([v,icon,label,desc]) => `
       <div class="card" onclick="_obAnswers.goalCategory='${v}';_obAnswers.raceType='';_obAnswers.goal='';_obAnswers.planType='';_obAnswers.strengthType='';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';renderOnboardStep();"
            style="cursor:pointer;margin-bottom:8px;${gc===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
@@ -5974,10 +5974,10 @@ function renderOnboardStep() {
       strengthCards = `
         <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
         ${[
-          ['lift',           ICONS.target,   'Specific Lift Goal',       'Focus training around improving one movement — squat, bench, deadlift or OHP'],
+          ['lift',           ICONS.target,   'Specific Lift Goal',       'Focus training around improving one movement - squat, bench, deadlift or OHP'],
           ['powerlifting',   ICONS.strength, 'Powerlifting Base',        'Build the big three: squat, bench press and deadlift together'],
-          ['athletic',       ICONS.bolt,     'Athletic Strength',        'Compound lifts plus conditioning — strength that works in real life'],
-          ['hybrid-strength',ICONS.cycle,    'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength programme'],
+          ['athletic',       ICONS.bolt,     'Athletic Strength',        'Compound lifts plus conditioning - strength that works in real life'],
+          ['hybrid-strength',ICONS.cycle,    'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength program'],
           ['preseason',      ICONS.layers,   'Pre-Season Foundation',    'Build strength and work capacity before a racing or competition block'],
         ].map(([v,icon,label,desc]) => `
           <div class="card" onclick="_obAnswers.strengthType='${v}';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';_obAnswers.goal='';renderOnboardStep();"
@@ -6085,8 +6085,8 @@ function renderOnboardStep() {
       planTypeCards = `
         <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Plan structure</div>
         ${[
-          ['hybrid','12-Week Guided Plan','Structured sessions every day — runs, strength, erg, race prep'],
-          ['custom','Build your own','Blank slate — design sessions using the AI builder'],
+          ['hybrid','12-Week Guided Plan','Structured sessions every day - runs, strength, erg, race prep'],
+          ['custom','Build your own','Blank slate - design sessions using the AI builder'],
         ].map(([v,label,desc])=>`
           <div class="card" onclick="_obAnswers.planType='${v}';renderOnboardStep();"
                style="cursor:pointer;margin-bottom:8px;${pt===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
@@ -6134,13 +6134,13 @@ function renderOnboardStep() {
 
       ${connected ? `
         <div style="background:rgba(52,199,89,.1);border:.5px solid rgba(52,199,89,.3);border-radius:8px;padding:12px;font-family:var(--mono);font-size:10px;color:#34c759;margin-bottom:16px;">
-          Connected${stravaAthlete ? ' · ' + stravaAthlete : ''} — activities will sync automatically
+          Connected${stravaAthlete ? ' · ' + stravaAthlete : ''} - activities will sync automatically
         </div>` : `
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:14px;line-height:1.9;">
           <b style="color:var(--text2);">What it does</b><br>
           Pulls runs, rides and strength sessions from Strava · matches them to your plan · auto-fills pace, HR and distance<br>
           <b style="color:var(--text2);">What you need first</b><br>
-          A Cloudflare Worker deployed with your Strava API credentials — see the full guide in More → Cloud Sync after setup
+          A Cloudflare Worker deployed with your Strava API credentials - see the full guide in More → Cloud Sync after setup
         </div>
         <div class="fg" style="margin-bottom:8px;">
           <label class="flbl">Your Worker URL</label>
@@ -6150,7 +6150,7 @@ function renderOnboardStep() {
         </div>
         <button class="btn" style="width:100%;color:var(--orange,#f56e2e);border-color:rgba(245,110,46,.25);margin-bottom:8px;font-size:13px;padding:13px;" onclick="obConnectStrava()">Connect Strava →</button>`}
 
-      <button class="btn ${connected?'btn-accent':''}" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=3;renderOnboardStep();">${connected?'Next →':'Skip — set up later in More →'}</button>
+      <button class="btn ${connected?'btn-accent':''}" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="_obStep=3;renderOnboardStep();">${connected?'Next →':'Skip - set up later in More →'}</button>
       <button class="btn" style="width:100%;" onclick="_obStep=1;renderOnboardStep()">← Back</button>`;
 
   } else if (_obStep === 3) {
@@ -6177,14 +6177,14 @@ function renderOnboardStep() {
 
       <div style="background:rgba(212,175,55,.08);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin:14px 0 14px;">
         <div style="font-family:var(--mono);font-size:9px;line-height:1.8;color:var(--text3);">
-          <b style="color:var(--accent);">Week 1 — Testing week</b><br>
+          <b style="color:var(--accent);">Week 1 - Testing week</b><br>
           Your plan starts with 3 performance tests (run TT, strength baseline, row TT).
           Open the <b>Plan tab → Week 1</b> to find them. Results set your pace zones, loading targets and erg splits automatically.
         </div>
       </div>
 
       <button class="btn btn-accent" style="width:100%;font-size:14px;padding:14px;margin-bottom:8px;" onclick="finishOnboarding()">
-        ${hasCoach ? 'All set — let\'s train →' : 'Skip and finish →'}
+        ${hasCoach ? 'All set - let\'s train →' : 'Skip and finish →'}
       </button>
       <button class="btn" style="width:100%;" onclick="_obStep=2;renderOnboardStep()">← Back</button>`;
   }
@@ -6200,7 +6200,7 @@ function obDateHint(iso) {
   if (day !== 1) {
     const diff = day === 0 ? 1 : (8 - day);
     const next = new Date(d); next.setDate(d.getDate() + diff);
-    return `Not a Monday — nearest Monday: ${next.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}`;
+    return `Not a Monday - nearest Monday: ${next.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}`;
   }
   return `Week 1: ${d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} → ${new Date(d.getTime()+6*86400000).toLocaleDateString('en-US',{day:'numeric',month:'short'})}`;
 }
@@ -6264,7 +6264,7 @@ function finishOnboarding() {
   localStorage.removeItem('ht-ob-return');
   closeOv('onboard-overlay');
   try { renderAll(); } catch(e) {}
-  toast('Setup complete — welcome to Training App');
+  toast('Setup complete - welcome to Training App');
 }
 
 function confirmFactoryReset() {
