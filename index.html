@@ -1046,8 +1046,9 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Input bar — always pinned to bottom, full width -->
   <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
-      <textarea id="coach-input" rows="2" placeholder="Reply to your coach…"
-        style="flex:1;min-width:0;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;"
+      <textarea id="coach-input" rows="1" placeholder="Reply to your coach…"
+        style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;max-height:80px;overflow-y:auto;line-height:1.45;"
+        oninput="autoGrowCoachInput(this)"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
       <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="flex-shrink:0;width:44px;height:44px;padding:0;font-size:20px;line-height:1;border-radius:var(--r);">↑</button>
     </div>
@@ -5331,6 +5332,32 @@ function maybeShowNudges() {
 // ═══════════════════════════════════════════════════════════════════════════
 // AI COACH
 // ═══════════════════════════════════════════════════════════════════════════
+function autoGrowCoachInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 80) + 'px';
+}
+
+(function initCoachKeyboard() {
+  if (!window.visualViewport) return;
+  let lastH = window.visualViewport.height;
+  window.visualViewport.addEventListener('resize', () => {
+    const overlay = document.getElementById('coach-overlay');
+    if (!overlay || !overlay.classList.contains('open')) return;
+    const vh = window.visualViewport.height;
+    overlay.style.height = vh + 'px';
+    overlay.style.top = window.visualViewport.offsetTop + 'px';
+    if (vh < lastH) {
+      // keyboard opened - scroll messages to bottom
+      const msgs = document.getElementById('coach-messages');
+      if (msgs) setTimeout(() => { msgs.scrollTop = msgs.scrollHeight; }, 50);
+    } else {
+      overlay.style.height = '';
+      overlay.style.top = '';
+    }
+    lastH = vh;
+  });
+})();
+
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
   const key = localStorage.getItem('ht-ai-key') || '';
@@ -5549,6 +5576,7 @@ async function sendCoachMessage() {
   const key = localStorage.getItem('ht-ai-key') || '';
   if (!key || !key.startsWith('sk-ant')) { toast('Add a Claude API key in AI Session Builder first'); return; }
   input.value = '';
+  input.style.height = '';
   coachMessages.push({role:'user', text});
   coachTyping = true;
   renderCoachMessages();
