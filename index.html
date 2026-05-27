@@ -2308,7 +2308,7 @@ const COACH_SETUP_STEPS = [
     {val:'marathon',label:'Marathon / Half',     desc:'Road race performance'},
     {val:'fitness', label:'General fitness',     desc:'Endurance + strength base'},
   ]},
-  {id:'raceDate',    q:"When is your next race or key date?",        sub:"Your coach will count down and plan around this",         type:'text',   placeholder:'e.g. Jun 20 2026, or HYROX Sydney Nov 2026'},
+  {id:'raceDate',    q:"Do you have a race or key event coming up?",   sub:"Gives your coach a target to train toward",              type:'racedate'},
   {id:'focus',       q:"Where do you need the most coaching?",       sub:"Your coach will emphasize this area",                    type:'choice', options:[
     {val:'running',   label:'Running pace',       desc:'Speed and endurance development'},
     {val:'stations',  label:'Station / strength', desc:'Technique and strength work'},
@@ -5459,7 +5459,22 @@ function renderCoachSetupStep() {
   const isLast = coachSetupStep === COACH_SETUP_STEPS.length - 1;
   let inner = '';
 
-  if (step.type === 'text') {
+  if (step.type === 'racedate') {
+    const inputStyle = `width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;`;
+    inner = `
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Event name</div>
+      <input type="text" id="coach-race-name" placeholder="e.g. HYROX Sydney, Boston Marathon"
+        value="${coachSetupAnswers.raceName||''}"
+        style="${inputStyle}margin-bottom:4px;"
+        onkeydown="if(event.key==='Enter')document.getElementById('coach-race-date').focus()">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:16px;">Optional - leave blank if no specific event</div>
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Race date</div>
+      <input type="date" id="coach-race-date"
+        value="${coachSetupAnswers.raceDate||''}"
+        style="${inputStyle}margin-bottom:4px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:16px;">Optional - leave blank if no specific date yet</div>
+      <button class="btn btn-accent" style="width:100%;" onclick="coachSetupNext()">${isLast?'Meet my coach →':'Next →'}</button>`;
+  } else if (step.type === 'text') {
     inner = `
       <input type="text" id="coach-text-input" placeholder="${step.placeholder}" value="${coachSetupAnswers[step.id]||''}"
         style="font-size:19px;font-weight:700;width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);margin-bottom:16px;"
@@ -5494,7 +5509,10 @@ function coachSetupChoice(val) {
 
 function coachSetupNext() {
   const step = COACH_SETUP_STEPS[coachSetupStep];
-  if (step.type === 'text') {
+  if (step.type === 'racedate') {
+    coachSetupAnswers.raceName = document.getElementById('coach-race-name')?.value?.trim() || '';
+    coachSetupAnswers.raceDate = document.getElementById('coach-race-date')?.value || '';
+  } else if (step.type === 'text') {
     const v = document.getElementById('coach-text-input')?.value?.trim();
     if (!v && step.id === 'name') { toast('Give your coach a name to continue'); return; }
     coachSetupAnswers[step.id] = v || '';
@@ -5626,7 +5644,20 @@ function buildCoachSystemPrompt() {
   })();
   const nextSessStr = nextSess ? `Next scheduled: W${nextSess.week} ${nextSess.day} - ${nextSess.session}` : '';
 
-  const raceDate  = p.raceDate || 'not set';
+  let raceCtx = 'not set';
+  if (p.raceName || p.raceDate) {
+    const parts = [];
+    if (p.raceName) parts.push(p.raceName);
+    if (p.raceDate) {
+      const rd = new Date(p.raceDate + 'T00:00:00');
+      const dateStr = rd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const weeksOut = Math.round((rd - new Date()) / (7 * 86400000));
+      const countStr = weeksOut > 0 ? `${weeksOut} week${weeksOut !== 1 ? 's' : ''} away` : weeksOut === 0 ? 'this week' : 'past';
+      parts.push(`${dateStr} (${countStr})`);
+    }
+    raceCtx = parts.join(' - ');
+  }
+  const raceDate = raceCtx;
   const priority  = p.priority    ? `\nAthlete's current priority: "${p.priority}"` : '';
   const limits    = p.limitations ? `\nInjuries/limitations: ${p.limitations}` : '';
   const bgStr     = backgroundMap[p.background] || p.background || '';
