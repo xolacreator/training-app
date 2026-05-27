@@ -5496,8 +5496,8 @@ function coachSetupNext() {
   const step = COACH_SETUP_STEPS[coachSetupStep];
   if (step.type === 'text') {
     const v = document.getElementById('coach-text-input')?.value?.trim();
-    if (!v) { toast('Enter a name to continue'); return; }
-    coachSetupAnswers[step.id] = v;
+    if (!v && step.id === 'name') { toast('Give your coach a name to continue'); return; }
+    coachSetupAnswers[step.id] = v || '';
   } else if (!coachSetupAnswers[step.id]) {
     toast('Pick an option to continue'); return;
   }
