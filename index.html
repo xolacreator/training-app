@@ -937,38 +937,57 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 </div>
 
 <!-- HYROX RACE CALCULATOR -->
-<div class="overlay" id="hyrox-overlay">
-  <div class="oi">
-    <button class="back-btn" onclick="closeOv('hyrox-overlay')">
+<div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- Fixed header -->
+  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+12px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
+    <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="margin-bottom:10px;">
       <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
     </button>
-    <div class="eyebrow">Race Simulation</div>
-    <div class="overlay-title" style="margin-bottom:4px;">HYROX Calculator</div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">8 runs · 8 stations · Rox Zone · edit any split</div>
-
-    <div class="sec-lbl">Target finish time</div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-      <input id="hx-goal" type="text" placeholder="1:30:00"
-        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:10px 8px;color:var(--text);"
-        onblur="hyroxGoalChange()">
-      <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;">Auto-Split</button>
-    </div>
-
-    <button class="btn" style="width:100%;margin-bottom:20px;color:var(--blue);border-color:rgba(167,139,250,.25);" onclick="hyroxPullTraining()">
-      ↑ Pull run splits from training log
-    </button>
-
-    <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding:0 4px;">
-      <span>Segment</span>
-      <div style="display:flex;gap:4px;">
-        <span style="width:50px;text-align:center;">Split</span>
-        <span style="width:54px;text-align:right;">Cumul.</span>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px;">
+      <div>
+        <div class="eyebrow">Race Simulation</div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;">HYROX Calculator</div>
       </div>
     </div>
-    <div id="hx-table"></div>
+    <!-- Category picker: Division | Gender -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <div style="display:flex;background:var(--bg2);border:.5px solid var(--border);border-radius:9px;padding:3px;flex:1;gap:3px;">
+        <button id="hx-div-open" onclick="hxSetDiv('open')" style="flex:1;border:none;border-radius:7px;padding:7px 0;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">Open</button>
+        <button id="hx-div-pro"  onclick="hxSetDiv('pro')"  style="flex:1;border:none;border-radius:7px;padding:7px 0;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">Pro</button>
+      </div>
+      <div style="display:flex;background:var(--bg2);border:.5px solid var(--border);border-radius:9px;padding:3px;flex:1;gap:3px;">
+        <button id="hx-gen-men"   onclick="hxSetGen('men')"   style="flex:1;border:none;border-radius:7px;padding:7px 0;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">Men</button>
+        <button id="hx-gen-women" onclick="hxSetGen('women')" style="flex:1;border:none;border-radius:7px;padding:7px 0;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">Women</button>
+      </div>
+    </div>
+    <!-- Goal time + Auto-Split -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <input id="hx-goal" type="text" inputmode="decimal" placeholder="1:30:00"
+        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:10px 8px;color:var(--text);"
+        onblur="hyroxGoalChange()">
+      <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;touch-action:manipulation;">Auto-Split</button>
+    </div>
+    <!-- Stats row -->
+    <div id="hx-stats" style="display:flex;gap:5px;"></div>
+  </div>
 
-    <div class="card" id="hx-summary" style="margin-top:12px;"></div>
-    <div style="height:32px;"></div>
+  <!-- Column headers -->
+  <div style="flex-shrink:0;display:flex;align-items:center;padding:7px calc(16px+var(--sar)) 7px calc(16px+var(--sal));background:var(--bg2);border-top:.5px solid var(--border);border-bottom:.5px solid var(--border);">
+    <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Segment</div>
+    <div style="width:64px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Split</div>
+    <div style="width:58px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Cumul.</div>
+  </div>
+
+  <!-- Scrollable segment table -->
+  <div id="hx-table" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px calc(16px+var(--sar)) 6px calc(16px+var(--sal));"></div>
+
+  <!-- Fixed footer -->
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+var(--sar)) calc(10px+var(--sab)) calc(16px+var(--sal));">
+    <div id="hx-summary"></div>
+    <button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);touch-action:manipulation;" onclick="hyroxPullTraining()">
+      ↑ Pull run splits from training log
+    </button>
   </div>
 </div>
 
@@ -2003,28 +2022,38 @@ const SEED = [
 // HYROX CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 const HYROX_SEGMENTS = [
-  {id:'run1',   label:'Run 1',            type:'run',     dist:'1 km'},
-  {id:'ski',    label:'SkiErg',           type:'station', dist:'1000 m'},
-  {id:'run2',   label:'Run 2',            type:'run',     dist:'1 km'},
-  {id:'sledp',  label:'Sled Push',        type:'station', dist:'50 m'},
-  {id:'run3',   label:'Run 3',            type:'run',     dist:'1 km'},
-  {id:'sledl',  label:'Sled Pull',        type:'station', dist:'50 m'},
-  {id:'run4',   label:'Run 4',            type:'run',     dist:'1 km'},
-  {id:'bbj',    label:'Burpee Broad Jmp', type:'station', dist:'50 m'},
-  {id:'run5',   label:'Run 5',            type:'run',     dist:'1 km'},
-  {id:'row',    label:'Rowing',           type:'station', dist:'1000 m'},
-  {id:'run6',   label:'Run 6',            type:'run',     dist:'1 km'},
-  {id:'carry',  label:'Farmers Carry',    type:'station', dist:'200 m'},
-  {id:'run7',   label:'Run 7',            type:'run',     dist:'1 km'},
-  {id:'lunges', label:'Sandbag Lunges',   type:'station', dist:'200 m'},
+  {id:'run1',   label:'Run 1',            type:'run',        dist:'1 km'},
+  {id:'ski',    label:'SkiErg',           type:'station',    dist:'1000 m'},
+  {id:'run2',   label:'Run 2',            type:'run',        dist:'1 km'},
+  {id:'sledp',  label:'Sled Push',        type:'station',    dist:'50 m'},
+  {id:'run3',   label:'Run 3',            type:'run',        dist:'1 km'},
+  {id:'sledl',  label:'Sled Pull',        type:'station',    dist:'50 m'},
+  {id:'run4',   label:'Run 4',            type:'run',        dist:'1 km'},
+  {id:'bbj',    label:'Burpee Broad Jmp', type:'station',    dist:'80 m'},
+  {id:'run5',   label:'Run 5',            type:'run',        dist:'1 km'},
+  {id:'row',    label:'Rowing',           type:'station',    dist:'1000 m'},
+  {id:'run6',   label:'Run 6',            type:'run',        dist:'1 km'},
+  {id:'carry',  label:'Farmers Carry',    type:'station',    dist:'200 m'},
+  {id:'run7',   label:'Run 7',            type:'run',        dist:'1 km'},
+  {id:'lunges', label:'Sandbag Lunges',   type:'station',    dist:'100 m'},
   {id:'run8',   label:'Run 8',            type:'run',        dist:'1 km'},
-  {id:'wball',  label:'Wall Balls',       type:'station',    dist:'75 reps'},
+  {id:'wball',  label:'Wall Balls',       type:'station',    dist:'100 reps'},
   {id:'roxzone',label:'Rox Zone',         type:'transition', dist:'8 transitions'},
 ];
-const HYROX_BASE = {
-  run1:270,ski:270,run2:270,sledp:210,run3:270,sledl:150,run4:270,
-  bbj:270,run5:270,row:255,run6:270,carry:90,run7:270,lunges:300,
-  run8:270,wball:270,roxzone:300
+// Base split ratios per category (scaled to any goal time by Auto-Split)
+const HYROX_BASES = {
+  open_men:   {run1:270,ski:270,run2:270,sledp:210,run3:270,sledl:150,run4:270,bbj:270,run5:270,row:255,run6:270,carry:90, run7:270,lunges:300,run8:270,wball:330,roxzone:300},
+  open_women: {run1:300,ski:285,run2:300,sledp:210,run3:300,sledl:150,run4:300,bbj:300,run5:300,row:270,run6:300,carry:105,run7:300,lunges:315,run8:300,wball:345,roxzone:300},
+  pro_men:    {run1:225,ski:285,run2:225,sledp:270,run3:225,sledl:195,run4:225,bbj:255,run5:225,row:270,run6:225,carry:105,run7:225,lunges:330,run8:225,wball:360,roxzone:240},
+  pro_women:  {run1:255,ski:270,run2:255,sledp:210,run3:255,sledl:150,run4:255,bbj:255,run5:255,row:255,run6:255,carry:90, run7:255,lunges:300,run8:255,wball:330,roxzone:270},
+};
+const HYROX_BASE = HYROX_BASES.open_men;
+// Actual station loads per category
+const HYROX_WEIGHTS = {
+  open_men:   {sledp:'152kg · 50m', sledl:'103kg · 50m', carry:'2×24kg · 200m', lunges:'20kg · 100m', wball:'6kg · 100 reps'},
+  open_women: {sledp:'102kg · 50m', sledl:'78kg · 50m',  carry:'2×16kg · 200m', lunges:'10kg · 100m', wball:'4kg · 100 reps'},
+  pro_men:    {sledp:'202kg · 50m', sledl:'153kg · 50m', carry:'2×32kg · 200m', lunges:'30kg · 100m', wball:'9kg · 100 reps'},
+  pro_women:  {sledp:'152kg · 50m', sledl:'103kg · 50m', carry:'2×24kg · 200m', lunges:'20kg · 100m', wball:'6kg · 100 reps'},
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5063,15 +5092,46 @@ async function fetchStravaDetail(gids, tok) {
   return changed;
 }
 
+function getHyroxBase(){
+  const k=(hyroxPlan.cat?.div||'open')+'_'+(hyroxPlan.cat?.gen||'men');
+  return HYROX_BASES[k]||HYROX_BASES.open_men;
+}
+
+function hxSetDiv(div){
+  if(!hyroxPlan.cat)hyroxPlan.cat={div:'open',gen:'men'};
+  hyroxPlan.cat.div=div;
+  hyroxDistribute();
+}
+
+function hxSetGen(gen){
+  if(!hyroxPlan.cat)hyroxPlan.cat={div:'open',gen:'men'};
+  hyroxPlan.cat.gen=gen;
+  hyroxDistribute();
+}
+
 function openHyroxCalc(){
   try{const sv=JSON.parse(localStorage.getItem('ht-hyrox')||'null');if(sv&&sv.splits)hyroxPlan=sv;}catch(e){}
-  if(!hyroxPlan)hyroxPlan={goalSecs:5400,splits:{...HYROX_BASE}};
+  if(!hyroxPlan)hyroxPlan={goalSecs:5400,cat:{div:'open',gen:'men'},splits:{...HYROX_BASES.open_men}};
+  if(!hyroxPlan.cat)hyroxPlan.cat={div:'open',gen:'men'};
+  if(!hyroxPlan.splits.roxzone)hyroxPlan.splits.roxzone=300;
   renderHyroxCalc();
   openOv('hyrox-overlay');
 }
 
 function renderHyroxCalc(){
   document.getElementById('hx-goal').value=hxFmtLong(hyroxPlan.goalSecs);
+  const div=hyroxPlan.cat?.div||'open';
+  const gen=hyroxPlan.cat?.gen||'men';
+  const catKey=div+'_'+gen;
+  const weights=HYROX_WEIGHTS[catKey]||{};
+
+  // Category button states
+  const on ='background:var(--accent);color:#000;';
+  const off='background:transparent;color:var(--text3);';
+  ['open','pro'].forEach(d=>{const el=document.getElementById('hx-div-'+d);if(el)el.style.cssText+=d===div?on:off;});
+  ['men','women'].forEach(g=>{const el=document.getElementById('hx-gen-'+g);if(el)el.style.cssText+=g===gen?on:off;});
+
+  // Segment rows
   let cum=0, html='';
   HYROX_SEGMENTS.forEach(seg=>{
     const secs=hyroxPlan.splits[seg.id]||0;
@@ -5079,49 +5139,47 @@ function renderHyroxCalc(){
     const isRun=seg.type==='run', isTrans=seg.type==='transition';
     const bg=isTrans?'var(--accent-dim)':isRun?'var(--blue-dim)':'var(--green-dim)';
     const dot=isTrans?'var(--accent)':isRun?'var(--blue)':'var(--green)';
-    html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);margin-bottom:3px;background:${bg};${isTrans?'margin-top:6px;':''}">
-      <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0;opacity:.9;"></div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${seg.label}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${seg.dist}</div>
-      </div>
-      <input type="text" value="${hxFmt(secs)}"
-        style="width:50px;text-align:center;font-family:var(--mono);font-size:13px;font-weight:700;background:var(--bg2);border:.5px solid var(--border);border-radius:6px;color:var(--text);padding:5px 2px;"
-        onblur="hxEditSplit('${seg.id}',this.value)">
-      <div style="width:54px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--text3);">${hxFmtLong(cum)}</div>
-    </div>`;
+    const distLabel=weights[seg.id]||seg.dist;
+    html+='<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--r);margin-bottom:3px;background:'+bg+';">'
+      +'<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+dot+';"></div>'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+seg.label+'</div>'
+        +'<div style="font-family:var(--mono);font-size:9px;color:var(--text3);">'+distLabel+'</div>'
+      +'</div>'
+      +'<input type="text" inputmode="decimal" value="'+hxFmt(secs)+'"'
+        +' style="width:64px;text-align:center;font-family:var(--mono);font-size:16px;font-weight:700;background:var(--bg);border:.5px solid var(--border2);border-radius:6px;color:var(--text);padding:6px 2px;-webkit-appearance:none;touch-action:manipulation;"'
+        +' onblur="hxEditSplit(\''+seg.id+'\',this.value)">'
+      +'<div style="width:58px;text-align:right;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);">'+hxFmtLong(cum)+'</div>'
+      +'</div>';
   });
   document.getElementById('hx-table').innerHTML=html;
-  const total=hxTotal(), diff=total-hyroxPlan.goalSecs;
-  const diffStr=(diff>=0?'+':'')+hxFmtLong(Math.abs(diff));
-  const dc=diff<=0?'var(--green)':diff<=60?'var(--accent)':'var(--red)';
+
+  // Stats header
   const runTotal=HYROX_SEGMENTS.filter(s=>s.type==='run').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
-  const fnTotal=HYROX_SEGMENTS.filter(s=>s.type==='station').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
-  const rxTotal=HYROX_SEGMENTS.filter(s=>s.type==='transition').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
-  const avgRun=Math.round(runTotal/8);
-  const statBox=(label,val,color)=>`<div style="flex:1;background:var(--bg3);border-radius:8px;padding:10px 8px;text-align:center;">
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">${label}</div>
-    <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${color||'var(--text)'};">${val}</div>
-  </div>`;
-  document.getElementById('hx-summary').innerHTML=`
-    <div style="display:flex;gap:6px;margin-bottom:10px;">
-      ${statBox('Avg Run',hxFmt(avgRun),'var(--blue)')}
-      ${statBox('Running',hxFmtLong(runTotal),'var(--blue)')}
-      ${statBox('Functional',hxFmtLong(fnTotal),'var(--green)')}
-      ${statBox('Rox Zone',hxFmtLong(rxTotal),'var(--accent)')}
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-      <span style="font-size:12px;color:var(--text2);">Total splits</span>
-      <span style="font-family:var(--mono);font-size:15px;font-weight:700;">${hxFmtLong(total)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-      <span style="font-size:12px;color:var(--text2);">Target</span>
-      <span style="font-family:var(--mono);font-size:15px;font-weight:700;">${hxFmtLong(hyroxPlan.goalSecs)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:.5px solid var(--border);">
-      <span style="font-size:12px;color:var(--text2);">vs Goal</span>
-      <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:${dc};">${diffStr}</span>
-    </div>`;
+  const fnTotal =HYROX_SEGMENTS.filter(s=>s.type==='station').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
+  const rxTotal =HYROX_SEGMENTS.filter(s=>s.type==='transition').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
+  const avgRun  =Math.round(runTotal/8);
+  const sb=(l,v,c)=>'<div style="flex:1;background:var(--bg2);border-radius:8px;padding:8px 4px;text-align:center;">'
+    +'<div style="font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">'+l+'</div>'
+    +'<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:'+c+';">'+v+'</div>'
+    +'</div>';
+  document.getElementById('hx-stats').innerHTML=
+    sb('Avg Run',hxFmt(avgRun),'var(--blue)')+
+    sb('Running',hxFmtLong(runTotal),'var(--blue)')+
+    sb('Functional',hxFmtLong(fnTotal),'var(--green)')+
+    sb('Rox Zone',hxFmtLong(rxTotal),'var(--accent)');
+
+  // Footer
+  const total=hxTotal(), diff=total-hyroxPlan.goalSecs;
+  const dc=diff<=0?'var(--green)':diff<=60?'var(--accent)':'var(--red)';
+  const diffStr=(diff>=0?'+':'')+hxFmtLong(Math.abs(diff));
+  document.getElementById('hx-summary').innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;">'
+    +'<div style="font-family:var(--mono);font-size:11px;color:var(--text3);">Total '
+      +'<span style="font-size:17px;font-weight:700;color:var(--text);margin-left:4px;">'+hxFmtLong(total)+'</span></div>'
+    +'<div style="font-family:var(--mono);font-size:11px;color:var(--text3);">vs Goal '
+      +'<span style="font-size:17px;font-weight:700;color:'+dc+';margin-left:4px;">'+diffStr+'</span></div>'
+    +'</div>';
 }
 
 function hyroxGoalChange(){
@@ -5130,9 +5188,10 @@ function hyroxGoalChange(){
 }
 
 function hyroxDistribute(){
-  const base=HYROX_SEGMENTS.reduce((s,seg)=>s+HYROX_BASE[seg.id],0);
-  const scale=hyroxPlan.goalSecs/base;
-  HYROX_SEGMENTS.forEach(seg=>{hyroxPlan.splits[seg.id]=Math.round(HYROX_BASE[seg.id]*scale);});
+  const base=getHyroxBase();
+  const baseTotal=HYROX_SEGMENTS.reduce((s,seg)=>s+(base[seg.id]||0),0);
+  const scale=hyroxPlan.goalSecs/baseTotal;
+  HYROX_SEGMENTS.forEach(seg=>{hyroxPlan.splits[seg.id]=Math.round((base[seg.id]||0)*scale);});
   saveHyrox();renderHyroxCalc();
   toast('Splits set for '+hxFmtLong(hyroxPlan.goalSecs));
 }
