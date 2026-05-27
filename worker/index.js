@@ -128,7 +128,6 @@ export default {
       const wantLatest = url.searchParams.get('latest') === 'true';
       let date = url.searchParams.get('date');
       if (wantLatest || !date) {
-        // Look up the most recently stored date for this token
         const latestDate = await env.HEALTH_DATA.get(`health:${token}:latest`);
         if (!latestDate) {
           return new Response(JSON.stringify({ ok: false, reason: 'not_found' }),
