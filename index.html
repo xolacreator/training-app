@@ -944,12 +944,12 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </button>
     <div class="eyebrow">Race Simulation</div>
     <div class="overlay-title" style="margin-bottom:4px;">HYROX Calculator</div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">8 runs · 8 stations · edit any split</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">8 runs · 8 stations · Rox Zone · edit any split</div>
 
     <div class="sec-lbl">Target finish time</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
       <input id="hx-goal" type="text" placeholder="1:30:00"
-        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px 8px;color:var(--text);"
+        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:10px 8px;color:var(--text);"
         onblur="hyroxGoalChange()">
       <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;">Auto-Split</button>
     </div>
@@ -2024,7 +2024,7 @@ const HYROX_SEGMENTS = [
 const HYROX_BASE = {
   run1:270,ski:270,run2:270,sledp:210,run3:270,sledl:150,run4:270,
   bbj:270,run5:270,row:255,run6:270,carry:90,run7:270,lunges:300,
-  run8:270,wball:270,roxzone:90
+  run8:270,wball:270,roxzone:300
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5095,7 +5095,21 @@ function renderHyroxCalc(){
   const total=hxTotal(), diff=total-hyroxPlan.goalSecs;
   const diffStr=(diff>=0?'+':'')+hxFmtLong(Math.abs(diff));
   const dc=diff<=0?'var(--green)':diff<=60?'var(--accent)':'var(--red)';
+  const runTotal=HYROX_SEGMENTS.filter(s=>s.type==='run').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
+  const fnTotal=HYROX_SEGMENTS.filter(s=>s.type==='station').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
+  const rxTotal=HYROX_SEGMENTS.filter(s=>s.type==='transition').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
+  const avgRun=Math.round(runTotal/8);
+  const statBox=(label,val,color)=>`<div style="flex:1;background:var(--bg3);border-radius:8px;padding:10px 8px;text-align:center;">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">${label}</div>
+    <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${color||'var(--text)'};">${val}</div>
+  </div>`;
   document.getElementById('hx-summary').innerHTML=`
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      ${statBox('Avg Run',hxFmt(avgRun),'var(--blue)')}
+      ${statBox('Running',hxFmtLong(runTotal),'var(--blue)')}
+      ${statBox('Functional',hxFmtLong(fnTotal),'var(--green)')}
+      ${statBox('Rox Zone',hxFmtLong(rxTotal),'var(--accent)')}
+    </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <span style="font-size:12px;color:var(--text2);">Total splits</span>
       <span style="font-family:var(--mono);font-size:15px;font-weight:700;">${hxFmtLong(total)}</span>
