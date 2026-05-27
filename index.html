@@ -949,9 +949,9 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Target finish time</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
       <input id="hx-goal" type="text" placeholder="1:30:00"
-        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px 8px;color:var(--text);"
+        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px 8px;color:var(--text);"
         onblur="hyroxGoalChange()">
-      <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;">Auto-split</button>
+      <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;">Auto-Split</button>
     </div>
 
     <button class="btn" style="width:100%;margin-bottom:20px;color:var(--blue);border-color:rgba(167,139,250,.25);" onclick="hyroxPullTraining()">
@@ -1047,7 +1047,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <textarea id="coach-input" rows="2" placeholder="Reply to your coach…"
-        style="flex:1;min-width:0;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;"
+        style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
       <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="flex-shrink:0;width:44px;height:44px;padding:0;font-size:20px;line-height:1;border-radius:var(--r);">↑</button>
     </div>
@@ -2018,11 +2018,12 @@ const HYROX_SEGMENTS = [
   {id:'lunges', label:'Sandbag Lunges',   type:'station', dist:'200 m'},
   {id:'run8',   label:'Run 8',            type:'run',     dist:'1 km'},
   {id:'wball',  label:'Wall Balls',       type:'station', dist:'75 reps'},
+  {id:'roxzone',label:'Rox Zone',         type:'transition', dist:'8 transitions'},
 ];
 const HYROX_BASE = {
   run1:270,ski:270,run2:270,sledp:210,run3:270,sledl:150,run4:270,
   bbj:270,run5:270,row:255,run6:270,carry:90,run7:270,lunges:300,
-  run8:270,wball:270
+  run8:270,wball:270,roxzone:90
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3738,7 +3739,7 @@ async function runAI() {
         'anthropic-dangerous-allow-browser': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2400,
         system: buildAISystemPrompt(),
         messages: [{ role: 'user', content: buildAIUserMessage(prompt) }],
@@ -5090,9 +5091,11 @@ function renderHyroxCalc(){
   HYROX_SEGMENTS.forEach(seg=>{
     const secs=hyroxPlan.splits[seg.id]||0;
     cum+=secs;
-    const isRun=seg.type==='run';
-    html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);margin-bottom:3px;background:${isRun?'var(--blue-dim)':'var(--green-dim)'};">
-      <div style="width:8px;height:8px;border-radius:50%;background:${isRun?'var(--blue)':'var(--green)'};flex-shrink:0;opacity:.9;"></div>
+    const isRun=seg.type==='run', isTrans=seg.type==='transition';
+    const bg=isTrans?'var(--accent-dim)':isRun?'var(--blue-dim)':'var(--green-dim)';
+    const dot=isTrans?'var(--accent)':isRun?'var(--blue)':'var(--green)';
+    html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);margin-bottom:3px;background:${bg};${isTrans?'margin-top:6px;':''}">
+      <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0;opacity:.9;"></div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${seg.label}</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${seg.dist}</div>
@@ -5394,6 +5397,11 @@ function renderCoachModePicker() {
 }
 
 async function selectCoachMode(mode) {
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) {
+    toast('Add a Claude API key in AI Session Builder first');
+    return;
+  }
   coachMode = mode;
   document.getElementById('coach-input-row').style.display = '';
   document.getElementById('coach-input').placeholder = 'Reply to your coach…';
@@ -5425,7 +5433,7 @@ async function _callCoachAPI() {
       method: 'POST',
       headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
       body: JSON.stringify({
-        model: 'claude-haiku-4-5', max_tokens: 700,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 700,
         system: buildCoachSystemPrompt(),
         messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
       }),
@@ -5726,7 +5734,7 @@ async function updateCoachMemory() {
       method: 'POST',
       headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
       body: JSON.stringify({
-        model: 'claude-haiku-4-5', max_tokens: 220,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 220,
         messages: [{
           role: 'user',
           content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes - don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
