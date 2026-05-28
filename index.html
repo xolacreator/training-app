@@ -4261,8 +4261,8 @@ function disconnectStrava() {
 }
 
 async function stravaGetToken() {
-  if (!stravaAccess) return null;
-  if (Date.now() < stravaExpiry - 60000) return stravaAccess; // still valid
+  if (!stravaAccess && !stravaRefresh) return null; // not connected at all
+  if (stravaAccess && Date.now() < stravaExpiry - 60000) return stravaAccess; // still valid
   if (!stravaRefresh || !stravaWorker) return null;
   try {
     const resp = await fetch(`${stravaWorker}/refresh`, {
@@ -4332,7 +4332,10 @@ async function syncFromStrava(silent = false) {
       { headers: { Authorization: `Bearer ${tok}` } }
     );
     if (resp.status === 401) {
+      // Token rejected — try refreshing once before showing an error
       stravaAccess = null;
+      const retryTok = await stravaGetToken();
+      if (retryTok) { return syncFromStrava(silent); }
       try { localStorage.removeItem('ht-strava-tok'); } catch(e) {}
       stravaState = 'error'; renderStravaCard();
       if (!silent) toast('Strava session expired — reconnect');
