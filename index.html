@@ -660,6 +660,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Notifications</div>
     <div class="card" id="notif-card" style="min-height:60px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Strength Programming</div>
+    <div class="card" id="strength-programming-card" style="min-height:60px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Units</div>
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -3777,12 +3779,13 @@ async function runAI() {
 
 function buildAISystemPrompt() {
   const blCtx = getBaselineContext();
-  return `You are an expert performance and endurance coach AI embedded in a personal training app (Rev3).
+  const strengthCtx = buildStrengthMethodContext();
+  return `You are an expert performance and strength coach AI embedded in a personal training app (Rev3).
 
 The athlete is following a 12-week structured programme toward their goal race or fitness target.
 Phase 1 (W1-W6): Base building — Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
 Phase 2 (W7-W12): VO2max intervals, threshold work, race simulation, taper.
-${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}
+${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}${strengthCtx ? '\n'+strengthCtx+'\n' : ''}
 
 INJURY FLAGS — always respect these:
 - Left knee: medial sensitivity. High cadence (170-172 BPM) protective. Avoid 180+ BPM. Bike as Zone 2 alternative on flare-up days.
@@ -4702,6 +4705,148 @@ function renderMoreSettings() {
   setBtn('unit-run-mi',  unitRun === 'mi');
   setBtn('unit-wt-kg',   sUnit   === 'kg');
   setBtn('unit-wt-lbs',  sUnit   === 'lbs');
+  renderStrengthProgrammingCard();
+}
+
+function renderStrengthProgrammingCard() {
+  const card = document.getElementById('strength-programming-card');
+  if (!card) return;
+  const p = coachProfile || {};
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || '';
+  const hyApp  = p.hypertrophyApproach || '';
+
+  const pill = (val, label, cur, fn) =>
+    `<button onclick="${fn}('${val}')" style="padding:7px 11px;font-family:var(--mono);font-size:10px;font-weight:700;border:none;cursor:pointer;border-radius:6px;transition:all .15s;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+
+  const methodPills = [
+    ['auto','Auto'],['westside','Westside'],['jts','JTS'],['kabuki','Kabuki'],
+  ].map(([v,l]) => pill(v,l,method,'setStrengthMethod')).join('');
+
+  const splitPills = [
+    ['ppl','PPL'],['upper-lower','Upper / Lower'],['total-body','Total Body'],['body-part','Body Part'],
+  ].map(([v,l]) => pill(v,l,split,'setTrainingSplit')).join('');
+
+  const hyPills = [
+    ['israetel','Israetel (RP)'],['schoenfeld','Schoenfeld'],['peters','J. Peters'],['bennett','J. Bennett'],
+  ].map(([v,l]) => pill(v,l,hyApp,'setHypertrophyApproach')).join('');
+
+  card.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Strength Methodology</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">Framework used to program lifting sessions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${methodPills}</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Training Split</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">How sessions are structured across the week</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${splitPills}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Hypertrophy Approach</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">Expert methodology used by the coach for muscle-building sessions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${hyPills}</div>
+    </div>`;
+}
+
+function setStrengthMethod(v) {
+  if (!coachProfile) coachProfile = {};
+  coachProfile.strengthMethod = v;
+  try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+  renderStrengthProgrammingCard();
+}
+function setTrainingSplit(v) {
+  if (!coachProfile) coachProfile = {};
+  coachProfile.trainingSplit = v;
+  try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+  renderStrengthProgrammingCard();
+}
+function setHypertrophyApproach(v) {
+  if (!coachProfile) coachProfile = {};
+  coachProfile.hypertrophyApproach = v;
+  try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+  renderStrengthProgrammingCard();
+}
+
+function buildStrengthMethodContext() {
+  const p = coachProfile;
+  if (!p) return '';
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || '';
+  const hyApp  = p.hypertrophyApproach || '';
+
+  const methodDefs = {
+    westside:`STRENGTH METHODOLOGY: Westside Conjugate (Louis Simmons)
+- MAX EFFORT (ME) days: Work up to a 1-3RM on a rotating main exercise. Rotate every 1-3 weeks to prevent accommodation. Use competition lifts AND special exercises (box squat, cambered bar, floor press, etc.).
+- DYNAMIC EFFORT (DE) days: 8-12 sets × 1-3 reps at 50-60% 1RM with MAXIMAL acceleration intent. Goal is speed and rate of force development, not fatigue.
+- ACCESSORY WORK: High-volume GPP targeting individual weak points — reverse hypers, GHR, face pulls, band pull-aparts, ab work.
+- ACCOMMODATING RESISTANCE: Bands and chains to eliminate dead spots and increase tension at lockout.
+- STRUCTURE: ME Lower / ME Upper / DE Lower / DE Upper, 4 days/week.
+- Program ME sessions around a rotating 1-3RM, prescribe DE sets with explicit percentages, select accessories for the athlete's weak points.`,
+
+    jts:`STRENGTH METHODOLOGY: Juggernaut Training Systems (Chad Wesley Smith / JTS)
+- BLOCK PERIODIZATION: Accumulation block (high volume, 60-70% 1RM) → Intensification block (moderate volume, 75-85% 1RM) → Realization block (low volume, 87-95%+, peak/test).
+- AUTOREGULATION: RPE-based loading throughout. RPE 8 = 2 reps in reserve. Adjust daily load to match readiness. Never grind ugly reps.
+- TECHNICAL STANDARDS: Competition technique on every rep — no "training form." Technique breakdowns are a signal to stop the set.
+- VOLUME WAVES: Volume increases within a block week-over-week, then drops sharply entering the next block at higher intensity.
+- CONCURRENT QUALITIES: Strength, speed-strength and technique developed simultaneously with shifting emphasis each block.
+- Note the current block phase in each session. Use RPE targets (e.g. "work to @8"). Build toward a Realization week test or PR attempt.`,
+
+    kabuki:`STRENGTH METHODOLOGY: Kabuki Strength Lab (Chris Duffin)
+- MOVEMENT QUALITY FIRST: The "wedge" (hip-hinge entry, lat engagement, upper back bracing) is established before any load. No load added until position is consistent.
+- PRESSURE BREATHING & BRACING: 360° intra-abdominal pressure — expand against a belt, not just suck in. "Push out in all directions before you initiate." Brace is set before unracking and maintained throughout.
+- BIOMECHANICAL INDIVIDUALISATION: Hip socket depth, femur length and torso proportions dictate optimal squat stance and deadlift approach. There is no universal technique — find what allows the athlete to express their structure.
+- SPECIALTY BARS: Safety squat bar (SSB), cambered bar, duffalo bar and bow bar each train specific positions and weaknesses without compromising spinal loading.
+- LOADING PHILOSOPHY: Position quality is non-negotiable at any load. A missed position is a missed rep even if the weight moved.
+- Include explicit position cues in every heavy session, programme specialty bar variants to address weak positions, note bracing and wedge checkpoints.`,
+  };
+
+  const hyDefs = {
+    israetel:`HYPERTROPHY METHODOLOGY: Mike Israetel / Renaissance Periodization (RP)
+- VOLUME LANDMARKS: MEV = minimum effective volume (muscle growth just begins); MAV = most productive volume range (target zone); MRV = maximum recoverable volume (ceiling before recovery fails).
+- MESOCYCLE STRUCTURE: 4-6 week blocks. Start at MEV, add 1-2 sets per muscle group per week, peak near MRV, then a full deload week. Repeat at higher baseline next mesocycle.
+- FREQUENCY: 2-4× per muscle group per week. Higher frequency improves protein synthesis frequency without requiring huge single-session volumes.
+- STIMULUS-TO-FATIGUE RATIO (SFR): Prioritise exercises with high SFR — maximum stimulus for minimum systemic fatigue. Compounds at the start of sessions; isolation with high SFR at the end.
+- PROGRESSIVE OVERLOAD: Load, volume, density — all are valid overload vectors. Track sets per muscle group weekly.
+- Note mesocycle week and cumulative weekly sets per muscle. Programme deloads every 4-6 weeks. Adjust volume based on recovery feedback.`,
+
+    schoenfeld:`HYPERTROPHY METHODOLOGY: Brad Schoenfeld (Evidence-Based)
+- THREE MECHANISMS: Mechanical tension (primary — achieved through loaded stretch under load and peak contraction); metabolic stress (cell swelling, pump, lactate); muscle damage (eccentric emphasis, novel movements).
+- VOLUME: ~10-20 working sets per muscle group per week. Less for beginners; up to 20 for advanced athletes in prime hypertrophy phases.
+- REP RANGES: All rep ranges (5-30+) stimulate hypertrophy. 6-12 reps most time-efficient. Vary ranges across the week for complete stimulus spectrum.
+- REST INTERVALS: 2-3 minutes between working sets. Longer rest = more volume per session = more growth. Do NOT rush rest for hypertrophy.
+- MIND-MUSCLE CONNECTION: Deliberate focus on contracting the target muscle increases EMG activation. Slow the rep if needed to establish it.
+- Prescribe varied rep ranges, include loaded-stretch exercises (incline curl, RDL, overhead tricep extension), note explicit rest intervals, programme 2-3× weekly frequency per muscle.`,
+
+    peters:`HYPERTROPHY METHODOLOGY: Jordan Peters (Inside-Out / HFT)
+- INSIDE-OUT PRINCIPLE: Deep stabilisers and proximal muscles are the foundation — core, rotator cuff, hip stabilisers must be developed before peripheral volume is increased. Structural integrity before aesthetic volume.
+- HIGH FREQUENCY TRAINING (HFT): Train muscle groups 4-6× per week at low-to-moderate per-session volume. Accumulated weekly volume is higher, with better recovery between bouts than single high-volume sessions.
+- ECCENTRIC EMPHASIS: Every rep has a controlled 3-4 second eccentric. Maximum mechanical tension and muscle damage occur on the lowering phase. Never drop or bounce reps.
+- QUALITY OVER FAILURE: Technical perfection on every rep, stopped comfortably before failure. Frequent failure training creates excessive fatigue that prevents the frequency HFT requires.
+- STRUCTURAL BALANCE: Assess opposing muscle ratios (rear/anterior delt, hamstring/quad, bicep/tricep). Bring lagging structural muscles up before adding more volume to strong points.
+- Programme with explicit eccentric tempo (e.g. "4 sec descent"), high weekly frequency for each muscle, moderate per-session volume, and structural balance supersets.`,
+
+    bennett:`HYPERTROPHY METHODOLOGY: Joe Bennett (Hypertrophy Coach)
+- INTENT-BASED TRAINING: The quality of contraction matters as much as the weight. Mental engagement with the working muscle is non-negotiable. If you can't feel it, the weight is wrong or the setup is wrong.
+- CONTRACTION QUALITY: "Chase the contraction, not the weight." Reduce load to whatever allows the target muscle to be felt working through the full range of motion.
+- PROXIMITY TO FAILURE: Working sets should end within 2-4 reps of muscular failure. The final reps before failure are where the primary growth stimulus lives. Most sets should be hard.
+- BIOMECHANICAL FIT: Exercise selection is individual. A movement that creates a strong mind-muscle connection and correct resistance curve for one person may be wrong for another. Find YOUR exercises.
+- BODY-PART SPECIFICITY: Dedicated sessions target muscle groups from multiple angles. Include a stretch-position exercise, a contracted-position exercise, and a mid-range compound for each muscle.
+- Include feel-based cues for each exercise ("feel the lat stretch at the bottom," "squeeze at lockout"), note the biomechanical purpose of each movement, use RPE + subjective feel descriptors.`,
+  };
+
+  const splitDefs = {
+    'ppl':         'TRAINING SPLIT: Push / Pull / Legs\nPush day (chest, shoulders, triceps) → Pull day (back, biceps, rear delts) → Legs (quads, hamstrings, glutes, calves). Can run 3 or 6 days/week. Each muscle group trained 2× per week on the 6-day version.',
+    'upper-lower': 'TRAINING SPLIT: Upper / Lower\n2 upper body sessions + 2 lower body sessions per week. Upper days superset push and pull movements; lower days alternate squat-pattern and hinge-pattern. Efficient 4-day structure.',
+    'total-body':  'TRAINING SPLIT: Total Body\nEvery session trains all major muscle groups. Lower volume per muscle per session, but frequency is 3-4× per week. Prioritise compound movements — one major push, pull, squat and hinge per session.',
+    'body-part':   'TRAINING SPLIT: Body Part Split\nOne or two muscle groups per session with high dedicated volume. Classic formats: Chest · Back · Shoulders · Arms · Legs, or Chest/Tris · Back/Bis · Legs · Shoulders · Arms. Each muscle group trained 1× per week with maximal volume.',
+  };
+
+  const parts = [];
+  if (method !== 'auto' && methodDefs[method]) parts.push(methodDefs[method]);
+  if (hyApp && hyDefs[hyApp]) parts.push(hyDefs[hyApp]);
+  if (split && splitDefs[split]) parts.push(splitDefs[split]);
+  return parts.join('\n\n');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5695,6 +5840,7 @@ function buildCoachSystemPrompt() {
     'strength-athletic':'build athletic strength with conditioning',
     'strength-hybrid-strength':'develop hybrid endurance and lifting performance',
     'strength-preseason':'build a strength foundation before a competition block',
+    'strength-hypertrophy':'maximise muscle growth and body composition',
   };
   const strengthLiftMap = {squat:'squat',bench:'bench press',deadlift:'deadlift',ohp:'overhead press'};
   const resolvedGoal = (g => {
@@ -5746,6 +5892,7 @@ function buildCoachSystemPrompt() {
   const bgStr     = backgroundMap[p.background] || p.background || '';
 
   const blCtx = getBaselineContext();
+  const strengthCtx = buildStrengthMethodContext();
 
   const modeInstructions = {
     checkin:  `\nMODE: DAILY CHECK-IN\nStructure your response as: (1) Recovery status based on today's data, (2) What's coming up next in training, (3) One specific focus point for the athlete today. Be personal, specific, and energizing. Under 200 words.`,
@@ -5765,7 +5912,7 @@ function buildCoachSystemPrompt() {
 
 ${styleMap[p.style||'balanced']} Focus especially on ${focusMap[p.focus||'all']}.
 ${detailMap[p.detail||'short']}${priority}${limits}${memCtx}${modeCtx}
-
+${strengthCtx ? '\n'+strengthCtx+'\n' : ''}
 ATHLETE DATA:
 ${blCtx}
 Plan week: ${currentPlanWeek}/12${hxGoal?' · '+hxGoal:''}
@@ -6082,11 +6229,12 @@ function renderOnboardStep() {
       strengthCards = `
         <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
         ${[
-          ['lift',           '🎯', 'Specific Lift Goal',       'Focus training around improving one movement — squat, bench, deadlift or OHP'],
-          ['powerlifting',   '🏋️', 'Powerlifting Base',        'Build the big three: squat, bench press and deadlift together'],
-          ['athletic',       '⚡', 'Athletic Strength',        'Compound lifts plus conditioning — strength that works in real life'],
-          ['hybrid-strength','🔄', 'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength programme'],
-          ['preseason',      '🛠', 'Pre-Season Foundation',    'Build strength and work capacity before a racing or competition block'],
+          ['lift',           '🎯', 'Specific Lift Goal',        'Focus training around improving one movement — squat, bench, deadlift or OHP'],
+          ['powerlifting',   '🏋️', 'Powerlifting Base',         'Build the big three: squat, bench press and deadlift together'],
+          ['hypertrophy',    '💪', 'Hypertrophy / Muscle Build', 'Evidence-based muscle growth — choose your methodology in Settings'],
+          ['athletic',       '⚡', 'Athletic Strength',         'Compound lifts plus conditioning — strength that works in real life'],
+          ['hybrid-strength','🔄', 'Hybrid Endurance + Lift',   'Balanced aerobic capacity alongside a solid strength programme'],
+          ['preseason',      '🛠', 'Pre-Season Foundation',     'Build strength and work capacity before a racing or competition block'],
         ].map(([v,icon,label,desc]) => `
           <div class="card" onclick="_obAnswers.strengthType='${v}';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';_obAnswers.goal='';renderOnboardStep();"
                style="cursor:pointer;margin-bottom:8px;${st===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
@@ -6099,6 +6247,8 @@ function renderOnboardStep() {
               <div style="font-size:16px;color:${st===v?'var(--accent)':'var(--text3)'};">${st===v?'✓':'›'}</div>
             </div>
           </div>`).join('')}
+
+        ${st === 'hypertrophy' && !_obAnswers.goal ? (() => { _obAnswers.goal = 'strength-hypertrophy'; return ''; })() : ''}
 
         ${st === 'lift' ? `
           <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Which lift?</div>
