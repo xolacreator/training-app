@@ -4964,18 +4964,28 @@ function fmtSecs(s) {
   return `${m}:${String(ss).padStart(2,'0')}`;
 }
 
+function fmtPaceFull(mps) {
+  if (!mps || mps <= 0) return '—';
+  const secsPerKm = 1000 / mps;
+  const secsPerUnit = unitRun === 'mi' ? secsPerKm / MI_PER_KM : secsPerKm;
+  const totalTenths = Math.round(secsPerUnit * 10);
+  const m = Math.floor(totalTenths / 600);
+  const rem = totalTenths % 600;
+  const s = Math.floor(rem / 10);
+  const t = rem % 10;
+  return `${m}:${String(s).padStart(2,'0')}.${t}`;
+}
+
 function renderStravaSplits(s) {
   const laps   = s.strava_laps;
   const splits = s.strava_splits;
   if (!laps && !splits) return '';
 
-  const paceStr = mps => mpsToMinKm(mps) || '—';
   let html = '';
 
   // Laps (interval reps / manual lap button)
   if (laps && laps.length > 1) {
-    const hasHR  = laps.some(l => l.average_heartrate);
-    const hasCad = laps.some(l => l.average_cadence);
+    const hasHR = laps.some(l => l.average_heartrate);
     html += `<div class="sec-lbl" style="margin-top:14px;">Laps · ${laps.length} recorded</div>
     <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
       <table class="split-tbl"><thead><tr>
@@ -4983,20 +4993,18 @@ function renderStravaSplits(s) {
         <th style="text-align:right;">Dist</th>
         <th style="text-align:right;">Time</th>
         <th style="text-align:right;">Pace</th>
-        ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
-        ${hasCad ? '<th style="text-align:right;">Cad</th>' : ''}
+        ${hasHR ? '<th style="text-align:right;">HR</th>' : ''}
       </tr></thead><tbody>`;
     laps.forEach((lap, i) => {
-      const d   = lap.distance >= 1000 ? `${(lap.distance/1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`;
-      const t   = fmtSecs(lap.moving_time || lap.elapsed_time);
-      const p   = paceStr(lap.average_speed);
+      const d = lap.distance >= 1000 ? `${(lap.distance/1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`;
+      const t = fmtSecs(lap.moving_time || lap.elapsed_time);
+      const p = fmtPaceFull(lap.average_speed);
       html += `<tr>
         <td>${i+1}</td>
         <td style="text-align:right;font-family:var(--mono);">${d}</td>
         <td style="text-align:right;font-family:var(--mono);">${t}</td>
         <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${p}</td>
-        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
-        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${lap.average_cadence  ? Math.round(lap.average_cadence)  : '—'}</td>` : ''}
+        ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -5004,24 +5012,21 @@ function renderStravaSplits(s) {
 
   // Per-km splits
   if (splits && splits.length > 0) {
-    const hasHR  = splits.some(sp => sp.average_heartrate);
-    const hasCad = splits.some(sp => sp.average_cadence);
+    const hasHR = splits.some(sp => sp.average_heartrate);
     html += `<div class="sec-lbl"${laps && laps.length > 1 ? '' : ' style="margin-top:14px;"'}>Per-${distUnit()} splits · ${splits.length} ${distUnit()}</div>
     <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
       <table class="split-tbl"><thead><tr>
         <th style="text-align:left;">${distUnit()}</th>
         <th style="text-align:right;">Pace</th>
         <th style="text-align:right;">Time</th>
-        ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
-        ${hasCad ? '<th style="text-align:right;">Cad</th>' : ''}
+        ${hasHR ? '<th style="text-align:right;">HR</th>' : ''}
       </tr></thead><tbody>`;
     splits.forEach((sp, i) => {
       html += `<tr>
         <td>${i+1}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${paceStr(sp.average_speed)}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${fmtPaceFull(sp.average_speed)}</td>
         <td style="text-align:right;font-family:var(--mono);">${fmtSecs(sp.moving_time || sp.elapsed_time)}</td>
-        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
-        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${sp.average_cadence  ? Math.round(sp.average_cadence)  : '—'}</td>` : ''}
+        ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
     });
     html += `</tbody></table></div>`;
