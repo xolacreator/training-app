@@ -662,6 +662,18 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="card" id="notif-card" style="min-height:60px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Strength Programming</div>
     <div class="card" id="strength-programming-card" style="min-height:60px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Program</div>
+    <div class="card" id="my-program-card" style="cursor:pointer;" onclick="openProgramOverlay()">
+      <div id="my-program-summary">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">Program Builder</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
+          </div>
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+      </div>
+    </div>
     <div class="sec-lbl" style="margin-top:4px;">Units</div>
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -1088,6 +1100,20 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Edit coach profile</button>
     </div>
   </div>
+</div>
+
+<!-- PROGRAM OVERLAY -->
+<div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
+  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+8px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
+      <button class="back-btn" style="position:static;" onclick="closeOv('program-overlay')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+      </button>
+    </div>
+    <div class="eyebrow">Strength</div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;">Program Builder</div>
+  </div>
+  <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -4690,6 +4716,289 @@ function setUnitWeight(u) {
   try { renderMetrics(); } catch(e) {}
   renderMoreSettings();
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRAM BUILDER
+// ═══════════════════════════════════════════════════════════════════════════
+let savedProgram = null;
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4 };
+let programViewWeek = 1;
+
+function loadSavedProgram() {
+  try { savedProgram = JSON.parse(localStorage.getItem('ht-program') || 'null'); } catch(e) {}
+}
+function saveProgramData(data) {
+  savedProgram = data;
+  try { localStorage.setItem('ht-program', JSON.stringify(data)); } catch(e) {}
+}
+
+function openProgramOverlay() {
+  loadSavedProgram();
+  renderProgramBody();
+  openOv('program-overlay');
+}
+
+function renderProgramBody() {
+  loadSavedProgram();
+  renderMyProgramCard();
+  if (savedProgram) renderSavedProgram(); else renderProgramBuilder();
+}
+
+function renderMyProgramCard() {
+  const el = document.getElementById('my-program-summary');
+  if (!el) return;
+  loadSavedProgram();
+  if (savedProgram) {
+    const totalWeeks = (savedProgram.weeklyProgressions || []).length || savedProgram.weeks || 0;
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:700;">${savedProgram.name || 'Strength Program'}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.split||'').toUpperCase()}</div>
+      </div>
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  } else {
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:700;">Program Builder</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
+      </div>
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  }
+}
+
+function renderProgramBuilder() {
+  const body = document.getElementById('program-overlay-body');
+  if (!body) return;
+  const p = coachProfile || {};
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || 'ppl';
+  const hyApp  = p.hypertrophyApproach || '';
+  const cfg    = programBuilderConfig;
+  const methodLabels = {auto:'Auto',westside:'Westside Conjugate',jts:'Juggernaut (JTS)',kabuki:'Kabuki Strength'};
+  const splitLabels  = {'ppl':'Push / Pull / Legs','upper-lower':'Upper / Lower','total-body':'Total Body','body-part':'Body Part Split'};
+  const hyLabels     = {israetel:'Israetel (RP)',schoenfeld:'Schoenfeld',peters:'Jordan Peters',bennett:'Joe Bennett'};
+
+  const pill = (val, label, cur, fn) =>
+    `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+
+  body.innerHTML = `<div style="padding-bottom:40px;">
+    <div class="card" style="margin-bottom:20px;">
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Selected Settings</div>
+      ${[
+        ['Methodology', methodLabels[method]||method, 'var(--accent)'],
+        ['Split',       splitLabels[split]||split,    'var(--blue)'],
+        ...(hyApp ? [['Hypertrophy', hyLabels[hyApp]||hyApp, 'var(--green)']] : []),
+      ].map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${l}</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${c};">${v}</span>
+      </div>`).join('')}
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px;">Program Duration</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Working weeks — deload appended automatically</div>
+      <div style="display:flex;gap:8px;">
+        ${pill(4,'4 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+        ${pill(5,'5 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+        ${pill(6,'6 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">${cfg.weeks} working weeks + 1 deload = ${cfg.weeks+1} total weeks</div>
+    </div>
+
+    <div style="margin-bottom:28px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px;">Sessions per Week</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">How many training days per week</div>
+      <div style="display:flex;gap:8px;">
+        ${pill(3,'3×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+        ${pill(4,'4×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+        ${pill(5,'5×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+        ${pill(6,'6×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+      </div>
+    </div>
+
+    <button class="btn btn-accent" onclick="generateStrengthProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
+      Uses your Claude API key (set in AI Session Builder).<br>
+      Generation takes 15–30 seconds.
+    </div>
+  </div>`;
+}
+
+function renderSavedProgram() {
+  const body = document.getElementById('program-overlay-body');
+  if (!body || !savedProgram) { renderProgramBuilder(); return; }
+  const prog     = savedProgram;
+  const sessions = prog.sessions || [];
+  const progs    = prog.weeklyProgressions || [];
+  const totalWks = progs.length || prog.weeks || sessions.length;
+  const sPerWeek = prog.sessionsPerWeek || programBuilderConfig.sessionsPerWeek || 4;
+  const rotation = prog.weekSchedule || sessions.map(s=>s.id);
+  const wk       = Math.max(1, Math.min(programViewWeek, totalWks));
+  const wkMod    = progs[wk-1] || {};
+  const isDeload = !!wkMod.deload;
+  const setsAdd  = isDeload ? 0 : (wkMod.setsAdd || 0);
+
+  const weekTabs = Array.from({length:totalWks},(_,i)=>i+1).map(w => {
+    const wd = progs[w-1]||{};
+    const active = wk===w;
+    return `<button onclick="programViewWeek=${w};renderSavedProgram();" style="flex-shrink:0;padding:7px 14px;font-family:var(--mono);font-size:10px;font-weight:700;border:none;cursor:pointer;border-radius:6px;white-space:nowrap;background:${active?'var(--accent)':'var(--bg2)'};color:${active?'#000':wd.deload?'var(--text3)':'var(--text2)'};">${wd.deload?'Deload':'W'+w}</button>`;
+  }).join('');
+
+  // Sessions this week
+  const startIdx = (wk-1)*sPerWeek;
+  const weekSessions = Array.from({length:sPerWeek},(_,i) => {
+    const sid = rotation[(startIdx+i) % rotation.length];
+    return sessions.find(s=>s.id===sid) || sessions[i % sessions.length] || null;
+  }).filter(Boolean);
+
+  const sessionCards = weekSessions.map((sess, dayIdx) => {
+    const exHtml = (sess.exercises||[]).map(ex => {
+      const adjSets = isDeload ? Math.max(1, Math.round(ex.sets*0.5)) : ex.sets + setsAdd;
+      return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:700;line-height:1.3;">${ex.name}</div>
+          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Day ${dayIdx+1}</div>
+          <div style="font-size:17px;font-weight:800;margin-top:2px;">${sess.name}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:1px;">${sess.focus||''}</div>
+        </div>
+        ${isDeload?'<div style="font-family:var(--mono);font-size:9px;background:var(--bg3);color:var(--text3);padding:4px 8px;border-radius:4px;flex-shrink:0;">DELOAD</div>':''}
+      </div>
+      ${exHtml}
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `<div style="padding-bottom:40px;">
+    <div style="margin-bottom:16px;">
+      <div style="font-size:20px;font-weight:800;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.split||'').toUpperCase()}</div>
+      ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${weekTabs}</div>
+    ${wkMod.note?`<div style="background:var(--accent-dim);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${wkMod.note}</div>`:''}
+    ${sessionCards}
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+      <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
+      <button class="btn" onclick="if(confirm('Delete this program?')){localStorage.removeItem('ht-program');savedProgram=null;renderProgramBuilder();renderMyProgramCard();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
+    </div>
+  </div>`;
+}
+
+async function generateStrengthProgram() {
+  const body = document.getElementById('program-overlay-body');
+  if (!body) return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key && !stravaWorker) { toast('Add a Claude API key in AI Session Builder first'); return; }
+
+  const p      = coachProfile || {};
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || 'ppl';
+  const hyApp  = p.hypertrophyApproach || '';
+  const cfg    = programBuilderConfig;
+  const strengthCtx = buildStrengthMethodContext();
+  const blCtx  = getBaselineContext();
+  const workingWeeks = cfg.weeks;
+  const totalWeeks   = cfg.weeks + 1; // +1 deload
+
+  body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px;">
+    <div style="font-size:40px;margin-bottom:16px;">⚡</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:8px;">Building your program…</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:2;">
+      ${cfg.weeks} working weeks + 1 deload<br>
+      ${cfg.sessionsPerWeek} sessions/week · ${split.toUpperCase()} split<br>
+      ${method !== 'auto' ? method.toUpperCase()+' methodology' : 'Auto methodology'}<br>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:16px;">This takes 15–30 seconds…</div>
+  </div>`;
+
+  const splitMap = {'ppl':'Push/Pull/Legs','upper-lower':'Upper/Lower','total-body':'Total Body','body-part':'Body Part Split'};
+  const methodMap = {auto:'Auto-selected best approach',westside:'Westside Conjugate',jts:'Juggernaut Training Systems',kabuki:'Kabuki Strength Lab'};
+  const hyMap = {israetel:'Mike Israetel / RP',schoenfeld:'Brad Schoenfeld',peters:'Jordan Peters (HFT)',bennett:'Joe Bennett'};
+
+  const systemPrompt = `You are an elite strength and conditioning coach. Generate a complete structured training program as JSON.
+${strengthCtx ? '\n'+strengthCtx : ''}
+${blCtx ? '\n'+blCtx : ''}
+
+Return ONLY a \`\`\`json ... \`\`\` block. No preamble or explanation outside the block.
+
+EXACT JSON schema:
+{
+  "name": "Descriptive program name",
+  "weeks": ${totalWeeks},
+  "sessionsPerWeek": ${cfg.sessionsPerWeek},
+  "split": "${split}",
+  "progression": "One sentence: how load/volume evolves week to week",
+  "sessions": [
+    {
+      "id": "kebab-id",
+      "name": "Session Name",
+      "focus": "Target muscles",
+      "exercises": [
+        { "name": "Exercise", "sets": 4, "reps": "8-10", "load": "% 1RM + RPE", "rest": "2 min", "cue": "Key technique note" }
+      ]
+    }
+  ],
+  "weekSchedule": ["id1","id2",...],
+  "weeklyProgressions": [
+    { "week": 1, "note": "..." },
+    { "week": 2, "setsAdd": 1, "note": "..." },
+    { "week": ${totalWeeks}, "deload": true, "note": "Deload — 50% volume, maintain load" }
+  ]
+}
+
+RULES:
+• sessions: define ${cfg.sessionsPerWeek <= 3 ? '3' : cfg.sessionsPerWeek <= 4 ? '4-6' : '5-6'} unique sessions appropriate for ${splitMap[split]||split}.
+• exercises per session: ${cfg.sessionsPerWeek <= 4 ? '5-6' : '4-5'} exercises. Include compound + isolation.
+• weekSchedule: length = ${workingWeeks} × ${cfg.sessionsPerWeek} = ${workingWeeks * cfg.sessionsPerWeek} entries. Rotate the sessions in order for each week. Do NOT include deload in the schedule.
+• weeklyProgressions: exactly ${totalWeeks} entries (weeks 1–${workingWeeks} working, week ${totalWeeks} = deload: true).
+• setsAdd cumulates from week 1 (week 1: 0, week 2: +1, week 3: +2, etc.).
+• Loads: provide BOTH % 1RM and RPE where possible (e.g. "70% 1RM / @RPE 7"). Use RPE-only if no baseline.
+• Apply methodology strictly: ${method==='westside'?'ME/DE structure, rotated main exercise, accessory weak-point work':method==='jts'?'RPE-based autoregulation, block identity in notes, technical standards':method==='kabuki'?'wedge/brace cues in every session, position quality notes, specialty bar variants':'volume landmarks for RP, contraction cues for Bennett, eccentric tempo for Peters, evidence-based variety for Schoenfeld'}.`;
+
+  const userMessage = `Generate the program.
+Goal: ${p.goal||'build strength and muscle'}
+Methodology: ${methodMap[method]||method}
+Hypertrophy approach: ${hyMap[hyApp]||'not set'}
+Split: ${splitMap[split]||split}
+Sessions/week: ${cfg.sessionsPerWeek}
+Working weeks: ${workingWeeks} + 1 deload week`;
+
+  try {
+    const result = await claudeAPI(key, {
+      model: 'claude-haiku-4-5-20251001',
+      system: systemPrompt,
+      messages: [{role:'user', content: userMessage}],
+      max_tokens: 8000,
+    });
+    if (result.error) throw new Error(result.error.message || 'API error');
+    const text = result.content?.[0]?.text || '';
+    const match = text.match(/```json\s*([\s\S]+?)\s*```/);
+    if (!match) throw new Error('No JSON block found in response. Try again.');
+    const data = JSON.parse(match[1]);
+    saveProgramData(data);
+    programViewWeek = 1;
+    renderSavedProgram();
+    renderMyProgramCard();
+    toast('Program generated!');
+  } catch(e) {
+    body.innerHTML = `<div style="padding:24px;">
+      <div style="font-size:16px;font-weight:700;color:var(--red);margin-bottom:8px;">Generation failed</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:20px;">${e.message}</div>
+      <button class="btn" onclick="renderProgramBuilder()">← Back to Builder</button>
+    </div>`;
+  }
+}
+
 function renderMoreSettings() {
   const accentBg = 'var(--accent)';
   const dimBg    = 'var(--bg2)';
@@ -6547,6 +6856,7 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
   try { maybeShowOnboarding(); } catch(e) {}
 }
 try { renderMoreSettings(); } catch(e) {}
+try { loadSavedProgram(); renderMyProgramCard(); } catch(e) {}
 try { renderNotifCard(); } catch(e) {}
 try { initNotifications(); } catch(e) {}
 try { maybeShowMorningCheckin(); } catch(e) {}
