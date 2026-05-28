@@ -3856,9 +3856,11 @@ After the JSON block, write 2-3 sentences of coaching rationale explaining WHY t
 function buildAIUserMessage(prompt) {
   const wk = PLAN[currentPlanWeek];
   const weekPlan = (wk?.sessions || []).map(s => `  ${s.day} ${s.date}: ${s.session} [${s.intensity}]`).join('\n');
-  const recent = sessions.slice(0, 10).map(s =>
-    `  W${s.week} ${s.day}: ${s.session} (${s.intensity}${s.pace?', '+s.pace+'/km':''}${s.dist?', '+s.dist+'km':''}${s.feel?', feel '+s.feel+'/5':''}${s.notes?', "'+s.notes.slice(0,40)+'"':''})`
-  ).join('\n');
+  const recent = sessions.slice(0, 10).map(s => {
+    const iv = getIntervalStats(s);
+    const ivStr = iv ? `, ${iv.reps} work reps avg ${iv.avgPace}/${paceUnit()} ~${iv.avgDist}/rep${iv.avgHR?' HR '+iv.avgHR:''}` : '';
+    return `  W${s.week} ${s.day}: ${s.session} (${s.intensity}${s.pace&&!iv?', '+s.pace+'/km':''}${ivStr}${s.dist?', '+s.dist+'km':''}${s.feel?', feel '+s.feel+'/5':''}${s.notes?', "'+s.notes.slice(0,40)+'"':''})`;
+  }).join('\n');
 
   return `Current training context:
 Week ${currentPlanWeek} of 12 · Phase ${wk?.ph||1} · ${currentPlanWeek<=6?'Base Building':'VO2max + Race Prep'}
@@ -5441,8 +5443,11 @@ function renderStravaSplits(s) {
 
   // Laps (interval reps / manual lap button)
   if (laps && laps.length > 1) {
+    const iv = getIntervalStats(s);
+    const workSpeeds = iv ? iv.workSpeeds : null;
     const hasHR = laps.some(l => l.average_heartrate);
-    html += `<div class="sec-lbl" style="margin-top:14px;">Laps · ${laps.length} recorded</div>
+    const ivLabel = iv ? ` · ${iv.reps} work reps · avg ${iv.avgPace}/${paceUnit()}` : '';
+    html += `<div class="sec-lbl" style="margin-top:14px;">Laps · ${laps.length} recorded${ivLabel}</div>
     <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
       <table class="split-tbl"><thead><tr>
         <th style="text-align:left;">#</th>
@@ -5452,14 +5457,19 @@ function renderStravaSplits(s) {
         ${hasHR ? '<th style="text-align:right;">HR</th>' : ''}
       </tr></thead><tbody>`;
     laps.forEach((lap, i) => {
+      const isWork = workSpeeds && workSpeeds.has(lap.average_speed);
+      const isRest = workSpeeds && !isWork;
+      const rowStyle = isRest ? 'opacity:0.45;' : '';
       const d = lap.distance >= 1000 ? `${(lap.distance/1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`;
       const t = fmtSecs(lap.moving_time || lap.elapsed_time);
       const p = fmtPaceFull(lap.average_speed);
-      html += `<tr>
-        <td>${i+1}</td>
+      const paceColor = isWork ? 'var(--blue)' : 'var(--text2)';
+      const badge = isWork ? `<span style="font-size:9px;background:var(--blue);color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;">REP</span>` : '';
+      html += `<tr style="${rowStyle}">
+        <td>${i+1}${badge}</td>
         <td style="text-align:right;font-family:var(--mono);">${d}</td>
         <td style="text-align:right;font-family:var(--mono);">${t}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${p}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${paceColor};">${p}</td>
         ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
     });
@@ -5501,6 +5511,44 @@ async function loFetchSplits(idx) {
   const changed = await fetchStravaDetail([s.gid], tok);
   if (changed) { saveData(); document.getElementById('lo-splits').innerHTML = renderStravaSplits(sessions[idx]); toast('Splits loaded ✓'); }
   else { if (btn) { btn.textContent = '↓ Fetch Strava splits'; btn.disabled = false; } toast('No split data for this session'); }
+}
+
+function getIntervalStats(sess) {
+  const laps = sess.strava_laps;
+  if (!laps || laps.length < 3) return null;
+  const hasHidden = laps.some(l => l.is_hidden);
+  let workLaps;
+  if (hasHidden) {
+    workLaps = laps.filter(l => !l.is_hidden);
+  } else {
+    const sorted = [...laps].sort((a,b) => (b.average_speed||0)-(a.average_speed||0));
+    let biggestDrop = 0, cutIdx = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i-1].average_speed || 0;
+      if (prev <= 0) continue;
+      const drop = (prev - (sorted[i].average_speed||0)) / prev;
+      if (drop > biggestDrop) { biggestDrop = drop; cutIdx = i; }
+    }
+    if (biggestDrop < 0.15 || cutIdx >= sorted.length - 1) return null;
+    const threshold = sorted[cutIdx-1].average_speed * 0.90;
+    workLaps = laps.filter(l => (l.average_speed||0) >= threshold);
+  }
+  if (!workLaps || workLaps.length < 2) return null;
+  const n = workLaps.length;
+  const avgSpeed  = workLaps.reduce((s,l) => s + (l.average_speed||0), 0) / n;
+  const avgDist   = workLaps.reduce((s,l) => s + (l.distance||0), 0) / n;
+  const hrLaps    = workLaps.filter(l => l.average_heartrate);
+  const avgHR     = hrLaps.length ? Math.round(hrLaps.reduce((s,l) => s + l.average_heartrate, 0) / hrLaps.length) : null;
+  const bestSpeed = Math.max(...workLaps.map(l => l.average_speed||0));
+  const distStr   = avgDist >= 1000 ? `${(avgDist/1000).toFixed(2)}km` : `${Math.round(avgDist)}m`;
+  return {
+    reps: n,
+    avgPace: convertPaceStr(mpsToMinKm(avgSpeed)),
+    avgDist: distStr,
+    avgHR,
+    bestPace: convertPaceStr(mpsToMinKm(bestSpeed)),
+    workSpeeds: new Set(workLaps.map(l => l.average_speed)),
+  };
 }
 
 function extractBestPace(splits) {
@@ -6180,7 +6228,11 @@ function buildCoachSystemPrompt() {
   const focusMap = {running:'running pace and endurance',stations:'station technique and strength work',strategy:'race strategy and pacing execution',all:'all aspects of performance equally'};
   const detailMap = {short:'Keep every reply under 130 words. Bullet points where possible. Zero padding.',detailed:'Give thorough replies with full reasoning. Up to 300 words. Use structure when helpful.'};
 
-  const recent = sessions.slice(0,6).map(s=>`  W${s.week} ${s.day}: ${s.session}${s.pace?' · '+convertPaceStr(s.pace)+paceUnit():''}${s.dist?' · '+fmtDist(parseFloat(s.dist)):''}${s.feel?' · feel '+s.feel+'/5':''}`).join('\n');
+  const recent = sessions.slice(0,6).map(s=>{
+    const iv = getIntervalStats(s);
+    const ivStr = iv ? ` → ${iv.reps} work reps · avg ${iv.avgPace}/${paceUnit()} · ~${iv.avgDist}/rep${iv.avgHR?' · avg HR '+iv.avgHR:''}` : '';
+    return `  W${s.week} ${s.day}: ${s.session}${s.pace&&!iv?' · '+convertPaceStr(s.pace)+paceUnit():''}${ivStr}${s.dist?' · '+fmtDist(parseFloat(s.dist)):''}${s.feel?' · feel '+s.feel+'/5':''}`;
+  }).join('\n');
   const bestTempo = sessions.filter(s=>s.pace&&/(tempo)/i.test(s.session||'')).sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
   const bestPace  = bestTempo ? convertPaceStr(bestTempo.best_pace||bestTempo.pace) : null;
   const hxGoal    = hyroxPlan ? `HYROX race plan: ${hxFmtLong(hyroxPlan.goalSecs)} target` : '';
