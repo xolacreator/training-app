@@ -2071,22 +2071,22 @@ const HYROX_WEIGHTS = {
 // ═══════════════════════════════════════════════════════════════════════════
 const ASSESSMENT_SESSIONS = [
   {
-    id: 'run-tt',
-    name: '20-Min Running Time Trial',
-    subtitle: 'Establishes pace zones',
+    id: 'run-cooper',
+    name: 'Cooper 12-Minute Run Test',
+    subtitle: 'VO₂max + pace zones',
     category: 'Run',
     intensity: 'hard',
-    duration: '35 min',
-    what: 'Run as far as possible in exactly 20 minutes at maximum sustainable effort — the highest pace you can hold without slowing.',
+    duration: '25 min',
+    what: 'Run as far as possible in exactly 12 minutes. Warm up first, then go from the gun — even pace is better than going out too hard.',
     instructions: [
-      'Warm up 10 min easy (Zone 1 jog)',
-      'Flat course: track, treadmill, or flat road',
-      'Start GPS and run hard for exactly 20:00',
-      'Record the total distance covered',
+      'Warm up 8–10 min easy (Zone 1 jog + strides)',
+      'Flat course: 400m track preferred, or flat road with GPS',
+      'Set a 12-minute countdown timer and run at maximum sustainable effort',
+      'Record total distance when the timer ends',
     ],
-    tip: 'Average pace = threshold pace. Zone 2 ceiling ≈ threshold + 50s/km. VO₂max interval pace ≈ threshold − 22s/km. Your VO₂max (ml/kg/min) is predicted automatically from this distance using the Daniels VDOT formula.',
+    tip: 'Developed by Dr Kenneth Cooper (1968) — still the gold standard field test for VO₂max. Formula: VO₂max = (distance m − 504.9) ÷ 44.73. Training zones are derived automatically using ACSM running economy. The 12-minute effort sits at roughly 95–100% VO₂max speed, which is also your target interval pace.',
     fields: [
-      { id: 'run_tt_dist', label: 'Distance covered', unit: 'km', placeholder: 'e.g. 3.85', type: 'number', step: '0.01' },
+      { id: 'cooper_dist_m', label: 'Distance covered', unit: 'm', placeholder: 'e.g. 2800', type: 'number', step: '1' },
     ],
   },
   {
@@ -2141,20 +2141,22 @@ function fmtPaceSecs(secs) {
 }
 function deriveBaselines(id, vals) {
   const d = {...vals};
-  if (id==='run-tt') {
-    const dist = parseFloat(vals.run_tt_dist);
-    if (dist>0) {
-      const th=1200/dist;
-      d.run_threshold_secs = Math.round(th);
-      d.run_threshold_pace = fmtPaceSecs(th);
-      d.run_zone2_hi_pace  = fmtPaceSecs(th+50);
-      d.run_zone2_lo_pace  = fmtPaceSecs(th+85);
-      d.run_vo2max_pace    = fmtPaceSecs(th-22);
-      // ACSM running economy: VO2 = 0.2 × velocity (m/min) + 3.5
-      const v = (dist * 1000) / 20;
-      const vo2AtPace = 0.2 * v + 3.5;
-      const pctVO2max = 0.8 + 0.1894393 * Math.exp(-0.012778 * 20) + 0.2989558 * Math.exp(-0.1932605 * 20);
-      d.vo2max_predicted = Math.round(vo2AtPace / pctVO2max);
+  if (id==='run-cooper') {
+    const distM = parseFloat(vals.cooper_dist_m);
+    if (distM > 0) {
+      // Cooper (1968) VO2max formula
+      d.vo2max_predicted = Math.round((distM - 504.9) / 44.73);
+      // vVO2max from ACSM running economy: VO2 = 0.2×v(m/min) + 3.5
+      const vVO2max = (d.vo2max_predicted - 3.5) / 0.2; // m/min
+      const vo2maxPace = Math.round(60000 / vVO2max);   // sec/km
+      d.run_vo2max_pace    = fmtPaceSecs(vo2maxPace);
+      // Threshold ≈ 88% of VO2max speed (12s/km slower)
+      const thPace = Math.round(vo2maxPace / 0.88);
+      d.run_threshold_secs = thPace;
+      d.run_threshold_pace = fmtPaceSecs(thPace);
+      // Zone 2: 78–73% of VO2max speed
+      d.run_zone2_hi_pace  = fmtPaceSecs(Math.round(vo2maxPace / 0.78));
+      d.run_zone2_lo_pace  = fmtPaceSecs(Math.round(vo2maxPace / 0.73));
     }
   }
   if (id==='strength-base') {
@@ -2175,9 +2177,9 @@ function deriveBaselines(id, vals) {
 function getBaselineContext() {
   const bl = baselines; if (!bl||!Object.keys(bl).length) return '';
   const lines = ['TRAINING BASELINES (from Week 1 assessment):'];
-  const r=bl['run-tt'], st=bl['strength-base'], rw=bl['row-tt'];
+  const r=bl['run-cooper'], st=bl['strength-base'], rw=bl['row-tt'];
   const vo2best = baselines.vo2max_composite?.value || r?.vo2max_predicted;
-  const vo2srcs = baselines.vo2max_composite?.sources?.join('+') || (r?.vo2max_predicted ? '20-min TT' : '');
+  const vo2srcs = baselines.vo2max_composite?.sources?.join('+') || (r?.vo2max_predicted ? 'Cooper Test' : '');
   if (r?.run_threshold_pace) lines.push(
     `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max intervals=${r.run_vo2max_pace}/km${vo2best ? ` · VO₂max=${vo2best} ml/kg/min (${vo2srcs})` : ''}`);
   if (st?.squat_1rm_est) lines.push(
@@ -2209,11 +2211,11 @@ function computeVO2maxComposite() {
   const sources = [];
   const estimates = [];
 
-  // Source 1: Daniels VDOT from 20-min TT (weight 3)
-  const ttVO2 = baselines['run-tt']?.vo2max_predicted;
+  // Source 1: Cooper Test VO2max (weight 3)
+  const ttVO2 = baselines['run-cooper']?.vo2max_predicted;
   if (ttVO2 > 0) {
     estimates.push(ttVO2, ttVO2, ttVO2);
-    sources.push('20-min TT');
+    sources.push('Cooper Test');
   }
 
   // Source 2: HR-pace efficiency from Strava runs (Swain 1994: %HRR ≈ %VO2max)
@@ -3103,11 +3105,11 @@ function saveAssessmentResult(id) {
 
 function buildAssessmentResultHtml(id, saved) {
   const rows = [];
-  if (id==='run-tt') {
+  if (id==='run-cooper') {
+    if (saved.vo2max_predicted)   rows.push(['VO₂max (Cooper)', saved.vo2max_predicted+' ml/kg/min']);
+    if (saved.run_vo2max_pace)    rows.push(['VO₂max interval pace', saved.run_vo2max_pace+'/km']);
     if (saved.run_threshold_pace) rows.push(['Threshold pace', saved.run_threshold_pace+'/km']);
     if (saved.run_zone2_hi_pace)  rows.push(['Zone 2 range', saved.run_zone2_lo_pace+'–'+saved.run_zone2_hi_pace+'/km']);
-    if (saved.run_vo2max_pace)    rows.push(['VO₂max interval pace', saved.run_vo2max_pace+'/km']);
-    if (saved.vo2max_predicted)   rows.push(['VO₂max (predicted)', saved.vo2max_predicted+' ml/kg/min']);
   }
   if (id==='strength-base') {
     if (saved.squat_1rm_est) rows.push(['Squat est. 1RM', saved.squat_1rm_est+'kg'],['Squat 70/80%', saved.squat_70+'kg / '+saved.squat_80+'kg']);
@@ -3145,13 +3147,13 @@ function renderBaselinesCard() {
   const hasAny = ASSESSMENT_SESSIONS.some(a=>baselines[a.id]);
   if (!hasAny) { el.style.display='none'; return; }
   el.style.display='';
-  const r=baselines['run-tt'], st=baselines['strength-base'], rw=baselines['row-tt'];
+  const r=baselines['run-cooper'], st=baselines['strength-base'], rw=baselines['row-tt'];
   const rows=[];
   if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'–'+r.run_zone2_hi_pace,c:''});
   const vo2c = baselines.vo2max_composite;
   const vo2val = vo2c?.value || r?.vo2max_predicted;
   if (vo2val) {
-    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : '20-min TT';
+    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : 'Cooper Test';
     rows.push({l:'VO₂max est.',v:vo2val+' ml/kg/min',c:'bl',s:vo2sub});
   }
   if (st?.squat_1rm_est)     rows.push({l:'Squat 1RM',v:'~'+st.squat_1rm_est+'kg',c:'bl'});
@@ -5835,7 +5837,7 @@ const CHANGELOG = [
     v: '2026-05-28',
     label: '28 May 2026',
     items: [
-      { tag: 'Improved', text: 'VO₂max now uses a three-source composite model: 20-min TT (Daniels VDOT), HR-pace efficiency from Strava runs (Swain 1994), and resting HR ratio (Uth-Sørensen). Updates automatically after every Strava sync or health check-in.' },
+      { tag: 'Improved', text: 'VO₂max now uses a three-source composite model: Cooper 12-min Test, HR-pace efficiency from Strava runs (Swain 1994), and resting HR ratio (Uth-Sørensen). Updates automatically after every Strava sync or health check-in.' },
     ],
   },
   {
@@ -5843,7 +5845,7 @@ const CHANGELOG = [
     label: '27 May 2026',
     items: [
       { tag: 'Improved', text: 'Garmin Shortcut: Sleep and Resting HR are now the only required metrics. HRV, Steps and VO₂max are optional.' },
-      { tag: 'New',      text: 'VO₂max predicted from 20-min run TT via Daniels VDOT — no device needed.' },
+      { tag: 'New',      text: 'VO₂max predicted from Cooper 12-min Run Test — no device needed.' },
     ],
   },
   {
