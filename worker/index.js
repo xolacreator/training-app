@@ -1,6 +1,8 @@
 const STRAVA_AUTH_URL  = 'https://www.strava.com/oauth/authorize';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 
+const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -126,7 +128,6 @@ export default {
       const wantLatest = url.searchParams.get('latest') === 'true';
       let date = url.searchParams.get('date');
       if (wantLatest || !date) {
-        // Look up the most recently stored date for this token
         const latestDate = await env.HEALTH_DATA.get(`health:${token}:latest`);
         if (!latestDate) {
           return new Response(JSON.stringify({ ok: false, reason: 'not_found' }),
@@ -141,6 +142,32 @@ export default {
       }
       return new Response(raw,
         { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+
+    // Proxy Claude API calls — avoids CORS/iOS PWA restrictions on direct browser requests
+    if (path === '/claude' && request.method === 'POST') {
+      try {
+        const { key, model, system, messages, max_tokens } = await request.json();
+        if (!key || !key.startsWith('sk-ant')) {
+          return new Response(JSON.stringify({ error: { message: 'missing or invalid API key' } }),
+            { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
+        const resp = await fetch(CLAUDE_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type':    'application/json',
+            'x-api-key':       key,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({ model, system, messages, max_tokens }),
+        });
+        const data = await resp.json();
+        return new Response(JSON.stringify(data),
+          { status: resp.status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: { message: 'proxy_failed' } }),
+          { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
     }
 
     return new Response('Not found', { status: 404 });

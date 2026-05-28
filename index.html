@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Training">
@@ -66,7 +66,7 @@ body.force-light {
   --shadow:rgba(26,10,46,0.12);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-html{height:100%;background:var(--bg);}
+html{height:100%;background:var(--bg);overscroll-behavior:none;}
 body{
   min-height:100%;min-height:100dvh;
   background:var(--bg);color:var(--text);
@@ -102,11 +102,12 @@ body{
 /* ── NAV ── */
 .nav{
   position:fixed;
-  bottom:0;left:var(--sal);right:var(--sar);
-  /* Height = nav content + home indicator */
+  /* Edge-to-edge so background fills to physical screen edges */
+  bottom:0;left:0;right:0;
   height:calc(var(--nav-h) + var(--sab));
-  /* Push content up above home indicator */
   padding-bottom:var(--sab);
+  /* Side safe-area padding keeps icons away from curved corners */
+  padding-left:var(--sal);padding-right:var(--sar);
   background:color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter:blur(20px) saturate(180%);
   -webkit-backdrop-filter:blur(20px) saturate(180%);
@@ -114,6 +115,11 @@ body{
   display:flex;
   align-items:flex-start;
   z-index:100;
+}
+/* Extend nav background below bottom:0 to cover any sub-pixel gap on iPhone */
+.nav::after{
+  content:'';position:absolute;left:0;right:0;bottom:-40px;height:40px;
+  background:inherit;backdrop-filter:inherit;-webkit-backdrop-filter:inherit;
 }
 .nb{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -129,8 +135,8 @@ body{
 /* ── OVERLAYS ── */
 .overlay{
   position:fixed;
-  /* Full screen including safe areas */
-  top:0;left:0;right:0;bottom:0;
+  /* Use dvh so the overlay shrinks when keyboard opens, keeping the footer visible */
+  top:0;left:0;right:0;height:100dvh;
   background:var(--bg);
   z-index:200;
   overflow-y:auto;
@@ -285,7 +291,8 @@ body{
 /* ── BUTTONS ── */
 .btn{font-family:var(--font);font-size:14px;font-weight:600;padding:12px 18px;
   border-radius:var(--r);border:.5px solid var(--border2);background:transparent;
-  color:var(--text);cursor:pointer;width:100%;text-align:center;transition:background .15s;}
+  color:var(--text);cursor:pointer;width:100%;text-align:center;transition:background .15s;
+  touch-action:manipulation;}
 .btn:active{opacity:.75;}
 .btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);}
 .btn-accent{background:var(--accent);color:#000;border-color:var(--accent);}
@@ -297,10 +304,10 @@ body{
 .fg{margin-bottom:12px;}
 .flbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.1em;
   text-transform:uppercase;color:var(--text3);margin-bottom:5px;display:block;}
-select,input[type=text],input[type=number],textarea{
+select,input[type=text],input[type=number],input[type=date],input[type=email],input[type=tel],textarea{
   width:100%;background:var(--bg3);border:.5px solid var(--border2);border-radius:8px;
-  color:var(--text);font-family:var(--font);font-size:14px;padding:10px 12px;
-  appearance:none;-webkit-appearance:none;outline:none;}
+  color:var(--text);font-family:var(--font);font-size:16px;padding:10px 12px;
+  appearance:none;-webkit-appearance:none;outline:none;touch-action:manipulation;}
 select:focus,input:focus,textarea:focus{border-color:var(--border3);}
 textarea{resize:none;min-height:60px;line-height:1.5;}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
@@ -940,14 +947,15 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header -->
-  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+12px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
-    <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="margin-bottom:10px;">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px;">
-      <div>
-        <div class="eyebrow">Race Simulation</div>
-        <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;">HYROX Calculator</div>
+  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+8px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+    <!-- Back button + title on one row (iOS nav pattern — keeps button reachable) -->
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">
+      <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="padding:0;margin:0;min-height:44px;min-width:52px;flex-shrink:0;">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+      </button>
+      <div style="flex:1;">
+        <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
+        <div style="font-size:19px;font-weight:800;letter-spacing:-.02em;line-height:1.15;">HYROX Calculator</div>
       </div>
     </div>
     <!-- Category picker: Division | Gender -->
@@ -963,9 +971,19 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <!-- Goal time + Auto-Split -->
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-      <input id="hx-goal" type="text" inputmode="decimal" placeholder="1:30:00"
-        style="flex:1;font-family:var(--mono);font-size:22px;font-weight:700;text-align:center;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:10px 8px;color:var(--text);"
-        onblur="hyroxGoalChange()">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:1px;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);padding:8px 10px;">
+        <input id="hx-goal-h" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="1" maxlength="1"
+          style="width:22px;text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;background:transparent;border:none;color:var(--text);padding:0;"
+          onchange="hyroxGoalChange()">
+        <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text3);user-select:none;">:</span>
+        <input id="hx-goal-m" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="30" maxlength="2"
+          style="width:34px;text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;background:transparent;border:none;color:var(--text);padding:0;"
+          onchange="hyroxGoalChange()">
+        <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text3);user-select:none;">:</span>
+        <input id="hx-goal-s" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="00" maxlength="2"
+          style="width:34px;text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;background:transparent;border:none;color:var(--text);padding:0;"
+          onchange="hyroxGoalChange()">
+      </div>
       <button class="btn btn-accent" onclick="hyroxDistribute()" style="white-space:nowrap;padding:10px 14px;touch-action:manipulation;">Auto-Split</button>
     </div>
     <!-- Stats row -->
@@ -3744,26 +3762,12 @@ async function runAI() {
   document.getElementById('ai-output').style.display = 'none';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-allow-browser': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 2400,
-        system: buildAISystemPrompt(),
-        messages: [{ role: 'user', content: buildAIUserMessage(prompt) }],
-      }),
+    const data = await claudeAPI(key, {
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2400,
+      system: buildAISystemPrompt(),
+      messages: [{ role: 'user', content: buildAIUserMessage(prompt) }],
     });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.error?.message || `API ${res.status}`);
-    }
-    const data = await res.json();
     const text = data.content?.[0]?.text || '';
     const jMatch = text.match(/```json\n?([\s\S]+?)\n?```/) || text.match(/(\{[\s\S]*"options"[\s\S]*\})/);
     if (!jMatch) throw new Error('No structured session in response — try rephrasing your request');
@@ -4257,8 +4261,8 @@ function disconnectStrava() {
 }
 
 async function stravaGetToken() {
-  if (!stravaAccess) return null;
-  if (Date.now() < stravaExpiry - 60000) return stravaAccess; // still valid
+  if (!stravaAccess && !stravaRefresh) return null; // not connected at all
+  if (stravaAccess && Date.now() < stravaExpiry - 60000) return stravaAccess; // still valid
   if (!stravaRefresh || !stravaWorker) return null;
   try {
     const resp = await fetch(`${stravaWorker}/refresh`, {
@@ -4328,7 +4332,10 @@ async function syncFromStrava(silent = false) {
       { headers: { Authorization: `Bearer ${tok}` } }
     );
     if (resp.status === 401) {
+      // Token rejected — try refreshing once before showing an error
       stravaAccess = null;
+      const retryTok = await stravaGetToken();
+      if (retryTok) { return syncFromStrava(silent); }
       try { localStorage.removeItem('ht-strava-tok'); } catch(e) {}
       stravaState = 'error'; renderStravaCard();
       if (!silent) toast('Strava session expired — reconnect');
@@ -5119,7 +5126,11 @@ function openHyroxCalc(){
 }
 
 function renderHyroxCalc(){
-  document.getElementById('hx-goal').value=hxFmtLong(hyroxPlan.goalSecs);
+  const _h=Math.floor(hyroxPlan.goalSecs/3600);
+  const _m=Math.floor((hyroxPlan.goalSecs%3600)/60);
+  const _s=hyroxPlan.goalSecs%60;
+  const hEl=document.getElementById('hx-goal-h');
+  if(hEl){hEl.value=_h;document.getElementById('hx-goal-m').value=String(_m).padStart(2,'0');document.getElementById('hx-goal-s').value=String(_s).padStart(2,'0');}
   const div=hyroxPlan.cat?.div||'open';
   const gen=hyroxPlan.cat?.gen||'men';
   const catKey=div+'_'+gen;
@@ -5183,8 +5194,11 @@ function renderHyroxCalc(){
 }
 
 function hyroxGoalChange(){
-  const v=hxParse(document.getElementById('hx-goal').value);
-  if(v&&v>0){hyroxPlan.goalSecs=v;saveHyrox();renderHyroxCalc();}
+  const h=parseInt(document.getElementById('hx-goal-h').value)||0;
+  const m=Math.min(parseInt(document.getElementById('hx-goal-m').value)||0,59);
+  const s=Math.min(parseInt(document.getElementById('hx-goal-s').value)||0,59);
+  const total=h*3600+m*60+s;
+  if(total>0){hyroxPlan.goalSecs=total;saveHyrox();renderHyroxCalc();}
 }
 
 function hyroxDistribute(){
@@ -5413,22 +5427,26 @@ function autoGrowCoachInput(el) {
   el.style.height = Math.min(el.scrollHeight, 80) + 'px';
 }
 
-(function initCoachKeyboard() {
+(function initViewportHandler() {
   if (!window.visualViewport) return;
   let lastH = window.visualViewport.height;
   window.visualViewport.addEventListener('resize', () => {
-    const overlay = document.getElementById('coach-overlay');
-    if (!overlay || !overlay.classList.contains('open')) return;
     const vh = window.visualViewport.height;
-    overlay.style.height = vh + 'px';
-    overlay.style.top = window.visualViewport.offsetTop + 'px';
-    if (vh < lastH) {
-      // keyboard opened - scroll messages to bottom
+    const vt = window.visualViewport.offsetTop;
+    const keyboardOpen = vh < lastH;
+    // Apply to every open overlay
+    document.querySelectorAll('.overlay.open').forEach(overlay => {
+      overlay.style.height = vh + 'px';
+      overlay.style.top = vt + 'px';
+      if (!keyboardOpen) {
+        overlay.style.height = '';
+        overlay.style.top = '';
+      }
+    });
+    // Scroll any active message list to bottom when keyboard opens
+    if (keyboardOpen) {
       const msgs = document.getElementById('coach-messages');
       if (msgs) setTimeout(() => { msgs.scrollTop = msgs.scrollHeight; }, 50);
-    } else {
-      overlay.style.height = '';
-      overlay.style.top = '';
     }
     lastH = vh;
   });
@@ -5505,20 +5523,29 @@ async function selectCoachMode(mode) {
   }
 }
 
+// Route through worker proxy (avoids iOS PWA CORS restrictions on direct Anthropic calls)
+// Falls back to direct call when no worker is configured.
+async function claudeAPI(key, opts) {
+  const via = stravaWorker;
+  const url  = via ? `${via}/claude` : 'https://api.anthropic.com/v1/messages';
+  const body = via ? {...opts, key} : opts;
+  const hdrs = via
+    ? {'Content-Type':'application/json'}
+    : {'Content-Type':'application/json','x-api-key':key,
+       'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'};
+  const res = await fetch(url, {method:'POST', headers:hdrs, body:JSON.stringify(body)});
+  if (!res.ok) {const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API ${res.status}`);}
+  return res.json();
+}
+
 async function _callCoachAPI() {
   const key = localStorage.getItem('ht-ai-key') || '';
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5', max_tokens: 700,
-        system: buildCoachSystemPrompt(),
-        messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
-      }),
+    const data = await claudeAPI(key, {
+      model: 'claude-haiku-4-5-20251001', max_tokens: 700,
+      system: buildCoachSystemPrompt(),
+      messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
     });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || `API ${res.status}`); }
-    const data = await res.json();
     coachMessages.push({role:'assistant', text: data.content?.[0]?.text || '…'});
   } catch(err) {
     coachMessages.push({role:'assistant', text:`Sorry, something went wrong: ${err.message}`});
@@ -5779,19 +5806,13 @@ async function updateCoachMemory() {
     : '';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5', max_tokens: 220,
-        messages: [{
-          role: 'user',
-          content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes — don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
-        }],
-      }),
+    const data = await claudeAPI(key, {
+      model: 'claude-haiku-4-5-20251001', max_tokens: 220,
+      messages: [{
+        role: 'user',
+        content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes — don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
+      }],
     });
-    if (!res.ok) return;
-    const data = await res.json();
     const updatedNotes = data.content?.[0]?.text?.trim();
     if (updatedNotes) {
       saveCoachMemory({
