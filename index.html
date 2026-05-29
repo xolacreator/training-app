@@ -3786,14 +3786,19 @@ async function runAI() {
   try {
     const data = await claudeAPI(key, {
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2400,
+      max_tokens: 4096,
       system: buildAISystemPrompt(),
       messages: [{ role: 'user', content: buildAIUserMessage(prompt) }],
     });
     const text = data.content?.[0]?.text || '';
     const jMatch = text.match(/```json\n?([\s\S]+?)\n?```/) || text.match(/(\{[\s\S]*"options"[\s\S]*\})/);
-    if (!jMatch) throw new Error('No structured session in response — try rephrasing your request');
-    const sess = JSON.parse(jMatch[1]);
+    if (!jMatch) throw new Error('No session JSON in response — try rephrasing your request');
+    let sess;
+    try {
+      sess = JSON.parse(jMatch[1]);
+    } catch(parseErr) {
+      throw new Error('Response was cut off mid-JSON (try a simpler request or fewer options)');
+    }
     aiGeneratedSession = sess;
     renderAIResult(sess, text);
   } catch(err) {
@@ -3820,7 +3825,7 @@ INJURY FLAGS — always respect these:
 
 Session structure rules:
 - Quality sessions (track, threshold, race sim) MUST have warm-up and cool-down blocks.
-- Always offer 2-3 options: A = target, B = modified/alternative, C = easy fallback.
+- Always offer exactly 2 options: A = target/full version, B = modified/easier fallback.
 - Include RPE targets, pace targets, and rep distances/times in the "detail" field.
 - Coaching cues go in the "cue" field — technique, RPE, pacing strategy.
 - Notes = big-picture coaching points. Warnings = injury flags and cautions.
