@@ -102,24 +102,16 @@ body{
 /* ── NAV ── */
 .nav{
   position:fixed;
-  /* Edge-to-edge so background fills to physical screen edges */
   bottom:0;left:0;right:0;
   height:calc(var(--nav-h) + var(--sab));
   padding-bottom:var(--sab);
-  /* Side safe-area padding keeps icons away from curved corners */
   padding-left:var(--sal);padding-right:var(--sar);
-  background:color-mix(in srgb, var(--bg) 90%, transparent);
-  backdrop-filter:blur(20px) saturate(180%);
-  -webkit-backdrop-filter:blur(20px) saturate(180%);
-  border-top:0.5px solid var(--border);
+  /* Solid bg — matches html background behind home indicator; no backdrop-filter gap */
+  background:var(--bg);
+  border-top:0.5px solid var(--border2);
   display:flex;
   align-items:flex-start;
   z-index:100;
-}
-/* Extend nav background below bottom:0 to cover any sub-pixel gap on iPhone */
-.nav::after{
-  content:'';position:absolute;left:0;right:0;bottom:-40px;height:40px;
-  background:inherit;backdrop-filter:inherit;-webkit-backdrop-filter:inherit;
 }
 .nb{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -668,6 +660,20 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Notifications</div>
     <div class="card" id="notif-card" style="min-height:60px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Strength Programming</div>
+    <div class="card" id="strength-programming-card" style="min-height:60px;"></div>
+    <div class="sec-lbl" style="margin-top:4px;">Program</div>
+    <div class="card" id="my-program-card" style="cursor:pointer;" onclick="openProgramOverlay()">
+      <div id="my-program-summary">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">Program Builder</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
+          </div>
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+      </div>
+    </div>
     <div class="sec-lbl" style="margin-top:4px;">Units</div>
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -1094,6 +1100,20 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Edit coach profile</button>
     </div>
   </div>
+</div>
+
+<!-- PROGRAM OVERLAY -->
+<div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
+  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+8px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
+      <button class="back-btn" style="position:static;" onclick="closeOv('program-overlay')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+      </button>
+    </div>
+    <div class="eyebrow">Strength</div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;">Program Builder</div>
+  </div>
+  <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -2079,22 +2099,22 @@ const HYROX_WEIGHTS = {
 // ═══════════════════════════════════════════════════════════════════════════
 const ASSESSMENT_SESSIONS = [
   {
-    id: 'run-tt',
-    name: '20-Min Running Time Trial',
-    subtitle: 'Establishes pace zones',
+    id: 'run-cooper',
+    name: 'Cooper 12-Minute Run Test',
+    subtitle: 'VO₂max + pace zones',
     category: 'Run',
     intensity: 'hard',
-    duration: '35 min',
-    what: 'Run as far as possible in exactly 20 minutes at maximum sustainable effort — the highest pace you can hold without slowing.',
+    duration: '25 min',
+    what: 'Run as far as possible in exactly 12 minutes. Warm up first, then go from the gun — even pace is better than going out too hard.',
     instructions: [
-      'Warm up 10 min easy (Zone 1 jog)',
-      'Flat course: track, treadmill, or flat road',
-      'Start GPS and run hard for exactly 20:00',
-      'Record the total distance covered',
+      'Warm up 8–10 min easy (Zone 1 jog + strides)',
+      'Flat course: 400m track preferred, or flat road with GPS',
+      'Set a 12-minute countdown timer and run at maximum sustainable effort',
+      'Record total distance when the timer ends',
     ],
-    tip: 'Average pace = threshold pace. Zone 2 ceiling ≈ threshold + 50s/km. VO₂max interval pace ≈ threshold − 22s/km. Your VO₂max (ml/kg/min) is predicted automatically from this distance using the Daniels VDOT formula.',
+    tip: 'Developed by Dr Kenneth Cooper (1968) — still the gold standard field test for VO₂max. Formula: VO₂max = (distance m − 504.9) ÷ 44.73. Training zones are derived automatically using ACSM running economy. The 12-minute effort sits at roughly 95–100% VO₂max speed, which is also your target interval pace.',
     fields: [
-      { id: 'run_tt_dist', label: 'Distance covered', unit: 'km', placeholder: 'e.g. 3.85', type: 'number', step: '0.01' },
+      { id: 'cooper_dist_m', label: 'Distance covered', unit: 'm', placeholder: 'e.g. 2800', type: 'number', step: '1' },
     ],
   },
   {
@@ -2149,20 +2169,22 @@ function fmtPaceSecs(secs) {
 }
 function deriveBaselines(id, vals) {
   const d = {...vals};
-  if (id==='run-tt') {
-    const dist = parseFloat(vals.run_tt_dist);
-    if (dist>0) {
-      const th=1200/dist;
-      d.run_threshold_secs = Math.round(th);
-      d.run_threshold_pace = fmtPaceSecs(th);
-      d.run_zone2_hi_pace  = fmtPaceSecs(th+50);
-      d.run_zone2_lo_pace  = fmtPaceSecs(th+85);
-      d.run_vo2max_pace    = fmtPaceSecs(th-22);
-      // ACSM running economy: VO2 = 0.2 × velocity (m/min) + 3.5
-      const v = (dist * 1000) / 20;
-      const vo2AtPace = 0.2 * v + 3.5;
-      const pctVO2max = 0.8 + 0.1894393 * Math.exp(-0.012778 * 20) + 0.2989558 * Math.exp(-0.1932605 * 20);
-      d.vo2max_predicted = Math.round(vo2AtPace / pctVO2max);
+  if (id==='run-cooper') {
+    const distM = parseFloat(vals.cooper_dist_m);
+    if (distM > 0) {
+      // Cooper (1968) VO2max formula
+      d.vo2max_predicted = Math.round((distM - 504.9) / 44.73);
+      // vVO2max from ACSM running economy: VO2 = 0.2×v(m/min) + 3.5
+      const vVO2max = (d.vo2max_predicted - 3.5) / 0.2; // m/min
+      const vo2maxPace = Math.round(60000 / vVO2max);   // sec/km
+      d.run_vo2max_pace    = fmtPaceSecs(vo2maxPace);
+      // Threshold ≈ 88% of VO2max speed (12s/km slower)
+      const thPace = Math.round(vo2maxPace / 0.88);
+      d.run_threshold_secs = thPace;
+      d.run_threshold_pace = fmtPaceSecs(thPace);
+      // Zone 2: 78–73% of VO2max speed
+      d.run_zone2_hi_pace  = fmtPaceSecs(Math.round(vo2maxPace / 0.78));
+      d.run_zone2_lo_pace  = fmtPaceSecs(Math.round(vo2maxPace / 0.73));
     }
   }
   if (id==='strength-base') {
@@ -2183,9 +2205,9 @@ function deriveBaselines(id, vals) {
 function getBaselineContext() {
   const bl = baselines; if (!bl||!Object.keys(bl).length) return '';
   const lines = ['TRAINING BASELINES (from Week 1 assessment):'];
-  const r=bl['run-tt'], st=bl['strength-base'], rw=bl['row-tt'];
+  const r=bl['run-cooper'], st=bl['strength-base'], rw=bl['row-tt'];
   const vo2best = baselines.vo2max_composite?.value || r?.vo2max_predicted;
-  const vo2srcs = baselines.vo2max_composite?.sources?.join('+') || (r?.vo2max_predicted ? '20-min TT' : '');
+  const vo2srcs = baselines.vo2max_composite?.sources?.join('+') || (r?.vo2max_predicted ? 'Cooper Test' : '');
   if (r?.run_threshold_pace) lines.push(
     `  Run: threshold=${r.run_threshold_pace}/km · Z2 ${r.run_zone2_lo_pace}–${r.run_zone2_hi_pace}/km · VO₂max intervals=${r.run_vo2max_pace}/km${vo2best ? ` · VO₂max=${vo2best} ml/kg/min (${vo2srcs})` : ''}`);
   if (st?.squat_1rm_est) lines.push(
@@ -2217,11 +2239,11 @@ function computeVO2maxComposite() {
   const sources = [];
   const estimates = [];
 
-  // Source 1: Daniels VDOT from 20-min TT (weight 3)
-  const ttVO2 = baselines['run-tt']?.vo2max_predicted;
+  // Source 1: Cooper Test VO2max (weight 3)
+  const ttVO2 = baselines['run-cooper']?.vo2max_predicted;
   if (ttVO2 > 0) {
     estimates.push(ttVO2, ttVO2, ttVO2);
-    sources.push('20-min TT');
+    sources.push('Cooper Test');
   }
 
   // Source 2: HR-pace efficiency from Strava runs (Swain 1994: %HRR ≈ %VO2max)
@@ -3111,11 +3133,11 @@ function saveAssessmentResult(id) {
 
 function buildAssessmentResultHtml(id, saved) {
   const rows = [];
-  if (id==='run-tt') {
+  if (id==='run-cooper') {
+    if (saved.vo2max_predicted)   rows.push(['VO₂max (Cooper)', saved.vo2max_predicted+' ml/kg/min']);
+    if (saved.run_vo2max_pace)    rows.push(['VO₂max interval pace', saved.run_vo2max_pace+'/km']);
     if (saved.run_threshold_pace) rows.push(['Threshold pace', saved.run_threshold_pace+'/km']);
     if (saved.run_zone2_hi_pace)  rows.push(['Zone 2 range', saved.run_zone2_lo_pace+'–'+saved.run_zone2_hi_pace+'/km']);
-    if (saved.run_vo2max_pace)    rows.push(['VO₂max interval pace', saved.run_vo2max_pace+'/km']);
-    if (saved.vo2max_predicted)   rows.push(['VO₂max (predicted)', saved.vo2max_predicted+' ml/kg/min']);
   }
   if (id==='strength-base') {
     if (saved.squat_1rm_est) rows.push(['Squat est. 1RM', saved.squat_1rm_est+'kg'],['Squat 70/80%', saved.squat_70+'kg / '+saved.squat_80+'kg']);
@@ -3153,13 +3175,13 @@ function renderBaselinesCard() {
   const hasAny = ASSESSMENT_SESSIONS.some(a=>baselines[a.id]);
   if (!hasAny) { el.style.display='none'; return; }
   el.style.display='';
-  const r=baselines['run-tt'], st=baselines['strength-base'], rw=baselines['row-tt'];
+  const r=baselines['run-cooper'], st=baselines['strength-base'], rw=baselines['row-tt'];
   const rows=[];
   if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'–'+r.run_zone2_hi_pace,c:''});
   const vo2c = baselines.vo2max_composite;
   const vo2val = vo2c?.value || r?.vo2max_predicted;
   if (vo2val) {
-    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : '20-min TT';
+    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : 'Cooper Test';
     rows.push({l:'VO₂max est.',v:vo2val+' ml/kg/min',c:'bl',s:vo2sub});
   }
   if (st?.squat_1rm_est)     rows.push({l:'Squat 1RM',v:'~'+st.squat_1rm_est+'kg',c:'bl'});
@@ -3783,12 +3805,13 @@ async function runAI() {
 
 function buildAISystemPrompt() {
   const blCtx = getBaselineContext();
-  return `You are an expert performance and endurance coach AI embedded in a personal training app (Rev3).
+  const strengthCtx = buildStrengthMethodContext();
+  return `You are an expert performance and strength coach AI embedded in a personal training app (Rev3).
 
 The athlete is following a 12-week structured programme toward their goal race or fitness target.
 Phase 1 (W1-W6): Base building — Zone 2, tempo runs, Fitstop gym (LIFT + PERFORM classes).
 Phase 2 (W7-W12): VO2max intervals, threshold work, race simulation, taper.
-${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}
+${blCtx ? blCtx+'\n' : 'Key race paces: Zone 2 = 5:10–5:45/km · Tempo = 4:10–4:20/km · Race pace = 3:40–3:45/km · VO2max reps = 3:35–3:50/km.'}${strengthCtx ? '\n'+strengthCtx+'\n' : ''}
 
 INJURY FLAGS — always respect these:
 - Left knee: medial sensitivity. High cadence (170-172 BPM) protective. Avoid 180+ BPM. Bike as Zone 2 alternative on flare-up days.
@@ -3833,9 +3856,11 @@ After the JSON block, write 2-3 sentences of coaching rationale explaining WHY t
 function buildAIUserMessage(prompt) {
   const wk = PLAN[currentPlanWeek];
   const weekPlan = (wk?.sessions || []).map(s => `  ${s.day} ${s.date}: ${s.session} [${s.intensity}]`).join('\n');
-  const recent = sessions.slice(0, 10).map(s =>
-    `  W${s.week} ${s.day}: ${s.session} (${s.intensity}${s.pace?', '+s.pace+'/km':''}${s.dist?', '+s.dist+'km':''}${s.feel?', feel '+s.feel+'/5':''}${s.notes?', "'+s.notes.slice(0,40)+'"':''})`
-  ).join('\n');
+  const recent = sessions.slice(0, 10).map(s => {
+    const iv = getIntervalStats(s);
+    const ivStr = iv ? `, ${iv.reps} work reps avg ${iv.avgPace}/${paceUnit()} ~${iv.avgDist}/rep${iv.avgHR?' HR '+iv.avgHR:''}` : '';
+    return `  W${s.week} ${s.day}: ${s.session} (${s.intensity}${s.pace&&!iv?', '+s.pace+'/km':''}${ivStr}${s.dist?', '+s.dist+'km':''}${s.feel?', feel '+s.feel+'/5':''}${s.notes?', "'+s.notes.slice(0,40)+'"':''})`;
+  }).join('\n');
 
   return `Current training context:
 Week ${currentPlanWeek} of 12 · Phase ${wk?.ph||1} · ${currentPlanWeek<=6?'Base Building':'VO2max + Race Prep'}
@@ -4693,6 +4718,289 @@ function setUnitWeight(u) {
   try { renderMetrics(); } catch(e) {}
   renderMoreSettings();
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRAM BUILDER
+// ═══════════════════════════════════════════════════════════════════════════
+let savedProgram = null;
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4 };
+let programViewWeek = 1;
+
+function loadSavedProgram() {
+  try { savedProgram = JSON.parse(localStorage.getItem('ht-program') || 'null'); } catch(e) {}
+}
+function saveProgramData(data) {
+  savedProgram = data;
+  try { localStorage.setItem('ht-program', JSON.stringify(data)); } catch(e) {}
+}
+
+function openProgramOverlay() {
+  loadSavedProgram();
+  renderProgramBody();
+  openOv('program-overlay');
+}
+
+function renderProgramBody() {
+  loadSavedProgram();
+  renderMyProgramCard();
+  if (savedProgram) renderSavedProgram(); else renderProgramBuilder();
+}
+
+function renderMyProgramCard() {
+  const el = document.getElementById('my-program-summary');
+  if (!el) return;
+  loadSavedProgram();
+  if (savedProgram) {
+    const totalWeeks = (savedProgram.weeklyProgressions || []).length || savedProgram.weeks || 0;
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:700;">${savedProgram.name || 'Strength Program'}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.split||'').toUpperCase()}</div>
+      </div>
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  } else {
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:700;">Program Builder</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
+      </div>
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  }
+}
+
+function renderProgramBuilder() {
+  const body = document.getElementById('program-overlay-body');
+  if (!body) return;
+  const p = coachProfile || {};
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || 'ppl';
+  const hyApp  = p.hypertrophyApproach || '';
+  const cfg    = programBuilderConfig;
+  const methodLabels = {auto:'Auto',westside:'Westside Conjugate',jts:'Juggernaut (JTS)',kabuki:'Kabuki Strength'};
+  const splitLabels  = {'ppl':'Push / Pull / Legs','upper-lower':'Upper / Lower','total-body':'Total Body','body-part':'Body Part Split'};
+  const hyLabels     = {israetel:'Israetel (RP)',schoenfeld:'Schoenfeld',peters:'Jordan Peters',bennett:'Joe Bennett'};
+
+  const pill = (val, label, cur, fn) =>
+    `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+
+  body.innerHTML = `<div style="padding-bottom:40px;">
+    <div class="card" style="margin-bottom:20px;">
+      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Selected Settings</div>
+      ${[
+        ['Methodology', methodLabels[method]||method, 'var(--accent)'],
+        ['Split',       splitLabels[split]||split,    'var(--blue)'],
+        ...(hyApp ? [['Hypertrophy', hyLabels[hyApp]||hyApp, 'var(--green)']] : []),
+      ].map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${l}</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${c};">${v}</span>
+      </div>`).join('')}
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px;">Program Duration</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Working weeks — deload appended automatically</div>
+      <div style="display:flex;gap:8px;">
+        ${pill(4,'4 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+        ${pill(5,'5 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+        ${pill(6,'6 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">${cfg.weeks} working weeks + 1 deload = ${cfg.weeks+1} total weeks</div>
+    </div>
+
+    <div style="margin-bottom:28px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px;">Sessions per Week</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">How many training days per week</div>
+      <div style="display:flex;gap:8px;">
+        ${pill(3,'3×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+        ${pill(4,'4×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+        ${pill(5,'5×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+        ${pill(6,'6×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
+      </div>
+    </div>
+
+    <button class="btn btn-accent" onclick="generateStrengthProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
+      Uses your Claude API key (set in AI Session Builder).<br>
+      Generation takes 15–30 seconds.
+    </div>
+  </div>`;
+}
+
+function renderSavedProgram() {
+  const body = document.getElementById('program-overlay-body');
+  if (!body || !savedProgram) { renderProgramBuilder(); return; }
+  const prog     = savedProgram;
+  const sessions = prog.sessions || [];
+  const progs    = prog.weeklyProgressions || [];
+  const totalWks = progs.length || prog.weeks || sessions.length;
+  const sPerWeek = prog.sessionsPerWeek || programBuilderConfig.sessionsPerWeek || 4;
+  const rotation = prog.weekSchedule || sessions.map(s=>s.id);
+  const wk       = Math.max(1, Math.min(programViewWeek, totalWks));
+  const wkMod    = progs[wk-1] || {};
+  const isDeload = !!wkMod.deload;
+  const setsAdd  = isDeload ? 0 : (wkMod.setsAdd || 0);
+
+  const weekTabs = Array.from({length:totalWks},(_,i)=>i+1).map(w => {
+    const wd = progs[w-1]||{};
+    const active = wk===w;
+    return `<button onclick="programViewWeek=${w};renderSavedProgram();" style="flex-shrink:0;padding:7px 14px;font-family:var(--mono);font-size:10px;font-weight:700;border:none;cursor:pointer;border-radius:6px;white-space:nowrap;background:${active?'var(--accent)':'var(--bg2)'};color:${active?'#000':wd.deload?'var(--text3)':'var(--text2)'};">${wd.deload?'Deload':'W'+w}</button>`;
+  }).join('');
+
+  // Sessions this week
+  const startIdx = (wk-1)*sPerWeek;
+  const weekSessions = Array.from({length:sPerWeek},(_,i) => {
+    const sid = rotation[(startIdx+i) % rotation.length];
+    return sessions.find(s=>s.id===sid) || sessions[i % sessions.length] || null;
+  }).filter(Boolean);
+
+  const sessionCards = weekSessions.map((sess, dayIdx) => {
+    const exHtml = (sess.exercises||[]).map(ex => {
+      const adjSets = isDeload ? Math.max(1, Math.round(ex.sets*0.5)) : ex.sets + setsAdd;
+      return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:700;line-height:1.3;">${ex.name}</div>
+          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Day ${dayIdx+1}</div>
+          <div style="font-size:17px;font-weight:800;margin-top:2px;">${sess.name}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:1px;">${sess.focus||''}</div>
+        </div>
+        ${isDeload?'<div style="font-family:var(--mono);font-size:9px;background:var(--bg3);color:var(--text3);padding:4px 8px;border-radius:4px;flex-shrink:0;">DELOAD</div>':''}
+      </div>
+      ${exHtml}
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `<div style="padding-bottom:40px;">
+    <div style="margin-bottom:16px;">
+      <div style="font-size:20px;font-weight:800;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.split||'').toUpperCase()}</div>
+      ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${weekTabs}</div>
+    ${wkMod.note?`<div style="background:var(--accent-dim);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${wkMod.note}</div>`:''}
+    ${sessionCards}
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+      <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
+      <button class="btn" onclick="if(confirm('Delete this program?')){localStorage.removeItem('ht-program');savedProgram=null;renderProgramBuilder();renderMyProgramCard();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
+    </div>
+  </div>`;
+}
+
+async function generateStrengthProgram() {
+  const body = document.getElementById('program-overlay-body');
+  if (!body) return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key && !stravaWorker) { toast('Add a Claude API key in AI Session Builder first'); return; }
+
+  const p      = coachProfile || {};
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || 'ppl';
+  const hyApp  = p.hypertrophyApproach || '';
+  const cfg    = programBuilderConfig;
+  const strengthCtx = buildStrengthMethodContext();
+  const blCtx  = getBaselineContext();
+  const workingWeeks = cfg.weeks;
+  const totalWeeks   = cfg.weeks + 1; // +1 deload
+
+  body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px;">
+    <div style="font-size:40px;margin-bottom:16px;">⚡</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:8px;">Building your program…</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:2;">
+      ${cfg.weeks} working weeks + 1 deload<br>
+      ${cfg.sessionsPerWeek} sessions/week · ${split.toUpperCase()} split<br>
+      ${method !== 'auto' ? method.toUpperCase()+' methodology' : 'Auto methodology'}<br>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:16px;">This takes 15–30 seconds…</div>
+  </div>`;
+
+  const splitMap = {'ppl':'Push/Pull/Legs','upper-lower':'Upper/Lower','total-body':'Total Body','body-part':'Body Part Split'};
+  const methodMap = {auto:'Auto-selected best approach',westside:'Westside Conjugate',jts:'Juggernaut Training Systems',kabuki:'Kabuki Strength Lab'};
+  const hyMap = {israetel:'Mike Israetel / RP',schoenfeld:'Brad Schoenfeld',peters:'Jordan Peters (HFT)',bennett:'Joe Bennett'};
+
+  const systemPrompt = `You are an elite strength and conditioning coach. Generate a complete structured training program as JSON.
+${strengthCtx ? '\n'+strengthCtx : ''}
+${blCtx ? '\n'+blCtx : ''}
+
+Return ONLY a \`\`\`json ... \`\`\` block. No preamble or explanation outside the block.
+
+EXACT JSON schema:
+{
+  "name": "Descriptive program name",
+  "weeks": ${totalWeeks},
+  "sessionsPerWeek": ${cfg.sessionsPerWeek},
+  "split": "${split}",
+  "progression": "One sentence: how load/volume evolves week to week",
+  "sessions": [
+    {
+      "id": "kebab-id",
+      "name": "Session Name",
+      "focus": "Target muscles",
+      "exercises": [
+        { "name": "Exercise", "sets": 4, "reps": "8-10", "load": "% 1RM + RPE", "rest": "2 min", "cue": "Key technique note" }
+      ]
+    }
+  ],
+  "weekSchedule": ["id1","id2",...],
+  "weeklyProgressions": [
+    { "week": 1, "note": "..." },
+    { "week": 2, "setsAdd": 1, "note": "..." },
+    { "week": ${totalWeeks}, "deload": true, "note": "Deload — 50% volume, maintain load" }
+  ]
+}
+
+RULES:
+• sessions: define ${cfg.sessionsPerWeek <= 3 ? '3' : cfg.sessionsPerWeek <= 4 ? '4-6' : '5-6'} unique sessions appropriate for ${splitMap[split]||split}.
+• exercises per session: ${cfg.sessionsPerWeek <= 4 ? '5-6' : '4-5'} exercises. Include compound + isolation.
+• weekSchedule: length = ${workingWeeks} × ${cfg.sessionsPerWeek} = ${workingWeeks * cfg.sessionsPerWeek} entries. Rotate the sessions in order for each week. Do NOT include deload in the schedule.
+• weeklyProgressions: exactly ${totalWeeks} entries (weeks 1–${workingWeeks} working, week ${totalWeeks} = deload: true).
+• setsAdd cumulates from week 1 (week 1: 0, week 2: +1, week 3: +2, etc.).
+• Loads: provide BOTH % 1RM and RPE where possible (e.g. "70% 1RM / @RPE 7"). Use RPE-only if no baseline.
+• Apply methodology strictly: ${method==='westside'?'ME/DE structure, rotated main exercise, accessory weak-point work':method==='jts'?'RPE-based autoregulation, block identity in notes, technical standards':method==='kabuki'?'wedge/brace cues in every session, position quality notes, specialty bar variants':'volume landmarks for RP, contraction cues for Bennett, eccentric tempo for Peters, evidence-based variety for Schoenfeld'}.`;
+
+  const userMessage = `Generate the program.
+Goal: ${p.goal||'build strength and muscle'}
+Methodology: ${methodMap[method]||method}
+Hypertrophy approach: ${hyMap[hyApp]||'not set'}
+Split: ${splitMap[split]||split}
+Sessions/week: ${cfg.sessionsPerWeek}
+Working weeks: ${workingWeeks} + 1 deload week`;
+
+  try {
+    const result = await claudeAPI(key, {
+      model: 'claude-haiku-4-5-20251001',
+      system: systemPrompt,
+      messages: [{role:'user', content: userMessage}],
+      max_tokens: 8000,
+    });
+    if (result.error) throw new Error(result.error.message || 'API error');
+    const text = result.content?.[0]?.text || '';
+    const match = text.match(/```json\s*([\s\S]+?)\s*```/);
+    if (!match) throw new Error('No JSON block found in response. Try again.');
+    const data = JSON.parse(match[1]);
+    saveProgramData(data);
+    programViewWeek = 1;
+    renderSavedProgram();
+    renderMyProgramCard();
+    toast('Program generated!');
+  } catch(e) {
+    body.innerHTML = `<div style="padding:24px;">
+      <div style="font-size:16px;font-weight:700;color:var(--red);margin-bottom:8px;">Generation failed</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:20px;">${e.message}</div>
+      <button class="btn" onclick="renderProgramBuilder()">← Back to Builder</button>
+    </div>`;
+  }
+}
+
 function renderMoreSettings() {
   const accentBg = 'var(--accent)';
   const dimBg    = 'var(--bg2)';
@@ -4708,6 +5016,148 @@ function renderMoreSettings() {
   setBtn('unit-run-mi',  unitRun === 'mi');
   setBtn('unit-wt-kg',   sUnit   === 'kg');
   setBtn('unit-wt-lbs',  sUnit   === 'lbs');
+  renderStrengthProgrammingCard();
+}
+
+function renderStrengthProgrammingCard() {
+  const card = document.getElementById('strength-programming-card');
+  if (!card) return;
+  const p = coachProfile || {};
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || '';
+  const hyApp  = p.hypertrophyApproach || '';
+
+  const pill = (val, label, cur, fn) =>
+    `<button onclick="${fn}('${val}')" style="padding:7px 11px;font-family:var(--mono);font-size:10px;font-weight:700;border:none;cursor:pointer;border-radius:6px;transition:all .15s;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+
+  const methodPills = [
+    ['auto','Auto'],['westside','Westside'],['jts','JTS'],['kabuki','Kabuki'],
+  ].map(([v,l]) => pill(v,l,method,'setStrengthMethod')).join('');
+
+  const splitPills = [
+    ['ppl','PPL'],['upper-lower','Upper / Lower'],['total-body','Total Body'],['body-part','Body Part'],
+  ].map(([v,l]) => pill(v,l,split,'setTrainingSplit')).join('');
+
+  const hyPills = [
+    ['israetel','Israetel (RP)'],['schoenfeld','Schoenfeld'],['peters','J. Peters'],['bennett','J. Bennett'],
+  ].map(([v,l]) => pill(v,l,hyApp,'setHypertrophyApproach')).join('');
+
+  card.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Strength Methodology</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">Framework used to program lifting sessions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${methodPills}</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Training Split</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">How sessions are structured across the week</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${splitPills}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Hypertrophy Approach</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">Expert methodology used by the coach for muscle-building sessions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${hyPills}</div>
+    </div>`;
+}
+
+function setStrengthMethod(v) {
+  if (!coachProfile) coachProfile = {};
+  coachProfile.strengthMethod = v;
+  try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+  renderStrengthProgrammingCard();
+}
+function setTrainingSplit(v) {
+  if (!coachProfile) coachProfile = {};
+  coachProfile.trainingSplit = v;
+  try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+  renderStrengthProgrammingCard();
+}
+function setHypertrophyApproach(v) {
+  if (!coachProfile) coachProfile = {};
+  coachProfile.hypertrophyApproach = v;
+  try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+  renderStrengthProgrammingCard();
+}
+
+function buildStrengthMethodContext() {
+  const p = coachProfile;
+  if (!p) return '';
+  const method = p.strengthMethod || 'auto';
+  const split  = p.trainingSplit  || '';
+  const hyApp  = p.hypertrophyApproach || '';
+
+  const methodDefs = {
+    westside:`STRENGTH METHODOLOGY: Westside Conjugate (Louis Simmons)
+- MAX EFFORT (ME) days: Work up to a 1-3RM on a rotating main exercise. Rotate every 1-3 weeks to prevent accommodation. Use competition lifts AND special exercises (box squat, cambered bar, floor press, etc.).
+- DYNAMIC EFFORT (DE) days: 8-12 sets × 1-3 reps at 50-60% 1RM with MAXIMAL acceleration intent. Goal is speed and rate of force development, not fatigue.
+- ACCESSORY WORK: High-volume GPP targeting individual weak points — reverse hypers, GHR, face pulls, band pull-aparts, ab work.
+- ACCOMMODATING RESISTANCE: Bands and chains to eliminate dead spots and increase tension at lockout.
+- STRUCTURE: ME Lower / ME Upper / DE Lower / DE Upper, 4 days/week.
+- Program ME sessions around a rotating 1-3RM, prescribe DE sets with explicit percentages, select accessories for the athlete's weak points.`,
+
+    jts:`STRENGTH METHODOLOGY: Juggernaut Training Systems (Chad Wesley Smith / JTS)
+- BLOCK PERIODIZATION: Accumulation block (high volume, 60-70% 1RM) → Intensification block (moderate volume, 75-85% 1RM) → Realization block (low volume, 87-95%+, peak/test).
+- AUTOREGULATION: RPE-based loading throughout. RPE 8 = 2 reps in reserve. Adjust daily load to match readiness. Never grind ugly reps.
+- TECHNICAL STANDARDS: Competition technique on every rep — no "training form." Technique breakdowns are a signal to stop the set.
+- VOLUME WAVES: Volume increases within a block week-over-week, then drops sharply entering the next block at higher intensity.
+- CONCURRENT QUALITIES: Strength, speed-strength and technique developed simultaneously with shifting emphasis each block.
+- Note the current block phase in each session. Use RPE targets (e.g. "work to @8"). Build toward a Realization week test or PR attempt.`,
+
+    kabuki:`STRENGTH METHODOLOGY: Kabuki Strength Lab (Chris Duffin)
+- MOVEMENT QUALITY FIRST: The "wedge" (hip-hinge entry, lat engagement, upper back bracing) is established before any load. No load added until position is consistent.
+- PRESSURE BREATHING & BRACING: 360° intra-abdominal pressure — expand against a belt, not just suck in. "Push out in all directions before you initiate." Brace is set before unracking and maintained throughout.
+- BIOMECHANICAL INDIVIDUALISATION: Hip socket depth, femur length and torso proportions dictate optimal squat stance and deadlift approach. There is no universal technique — find what allows the athlete to express their structure.
+- SPECIALTY BARS: Safety squat bar (SSB), cambered bar, duffalo bar and bow bar each train specific positions and weaknesses without compromising spinal loading.
+- LOADING PHILOSOPHY: Position quality is non-negotiable at any load. A missed position is a missed rep even if the weight moved.
+- Include explicit position cues in every heavy session, programme specialty bar variants to address weak positions, note bracing and wedge checkpoints.`,
+  };
+
+  const hyDefs = {
+    israetel:`HYPERTROPHY METHODOLOGY: Mike Israetel / Renaissance Periodization (RP)
+- VOLUME LANDMARKS: MEV = minimum effective volume (muscle growth just begins); MAV = most productive volume range (target zone); MRV = maximum recoverable volume (ceiling before recovery fails).
+- MESOCYCLE STRUCTURE: 4-6 week blocks. Start at MEV, add 1-2 sets per muscle group per week, peak near MRV, then a full deload week. Repeat at higher baseline next mesocycle.
+- FREQUENCY: 2-4× per muscle group per week. Higher frequency improves protein synthesis frequency without requiring huge single-session volumes.
+- STIMULUS-TO-FATIGUE RATIO (SFR): Prioritise exercises with high SFR — maximum stimulus for minimum systemic fatigue. Compounds at the start of sessions; isolation with high SFR at the end.
+- PROGRESSIVE OVERLOAD: Load, volume, density — all are valid overload vectors. Track sets per muscle group weekly.
+- Note mesocycle week and cumulative weekly sets per muscle. Programme deloads every 4-6 weeks. Adjust volume based on recovery feedback.`,
+
+    schoenfeld:`HYPERTROPHY METHODOLOGY: Brad Schoenfeld (Evidence-Based)
+- THREE MECHANISMS: Mechanical tension (primary — achieved through loaded stretch under load and peak contraction); metabolic stress (cell swelling, pump, lactate); muscle damage (eccentric emphasis, novel movements).
+- VOLUME: ~10-20 working sets per muscle group per week. Less for beginners; up to 20 for advanced athletes in prime hypertrophy phases.
+- REP RANGES: All rep ranges (5-30+) stimulate hypertrophy. 6-12 reps most time-efficient. Vary ranges across the week for complete stimulus spectrum.
+- REST INTERVALS: 2-3 minutes between working sets. Longer rest = more volume per session = more growth. Do NOT rush rest for hypertrophy.
+- MIND-MUSCLE CONNECTION: Deliberate focus on contracting the target muscle increases EMG activation. Slow the rep if needed to establish it.
+- Prescribe varied rep ranges, include loaded-stretch exercises (incline curl, RDL, overhead tricep extension), note explicit rest intervals, programme 2-3× weekly frequency per muscle.`,
+
+    peters:`HYPERTROPHY METHODOLOGY: Jordan Peters (Inside-Out / HFT)
+- INSIDE-OUT PRINCIPLE: Deep stabilisers and proximal muscles are the foundation — core, rotator cuff, hip stabilisers must be developed before peripheral volume is increased. Structural integrity before aesthetic volume.
+- HIGH FREQUENCY TRAINING (HFT): Train muscle groups 4-6× per week at low-to-moderate per-session volume. Accumulated weekly volume is higher, with better recovery between bouts than single high-volume sessions.
+- ECCENTRIC EMPHASIS: Every rep has a controlled 3-4 second eccentric. Maximum mechanical tension and muscle damage occur on the lowering phase. Never drop or bounce reps.
+- QUALITY OVER FAILURE: Technical perfection on every rep, stopped comfortably before failure. Frequent failure training creates excessive fatigue that prevents the frequency HFT requires.
+- STRUCTURAL BALANCE: Assess opposing muscle ratios (rear/anterior delt, hamstring/quad, bicep/tricep). Bring lagging structural muscles up before adding more volume to strong points.
+- Programme with explicit eccentric tempo (e.g. "4 sec descent"), high weekly frequency for each muscle, moderate per-session volume, and structural balance supersets.`,
+
+    bennett:`HYPERTROPHY METHODOLOGY: Joe Bennett (Hypertrophy Coach)
+- INTENT-BASED TRAINING: The quality of contraction matters as much as the weight. Mental engagement with the working muscle is non-negotiable. If you can't feel it, the weight is wrong or the setup is wrong.
+- CONTRACTION QUALITY: "Chase the contraction, not the weight." Reduce load to whatever allows the target muscle to be felt working through the full range of motion.
+- PROXIMITY TO FAILURE: Working sets should end within 2-4 reps of muscular failure. The final reps before failure are where the primary growth stimulus lives. Most sets should be hard.
+- BIOMECHANICAL FIT: Exercise selection is individual. A movement that creates a strong mind-muscle connection and correct resistance curve for one person may be wrong for another. Find YOUR exercises.
+- BODY-PART SPECIFICITY: Dedicated sessions target muscle groups from multiple angles. Include a stretch-position exercise, a contracted-position exercise, and a mid-range compound for each muscle.
+- Include feel-based cues for each exercise ("feel the lat stretch at the bottom," "squeeze at lockout"), note the biomechanical purpose of each movement, use RPE + subjective feel descriptors.`,
+  };
+
+  const splitDefs = {
+    'ppl':         'TRAINING SPLIT: Push / Pull / Legs\nPush day (chest, shoulders, triceps) → Pull day (back, biceps, rear delts) → Legs (quads, hamstrings, glutes, calves). Can run 3 or 6 days/week. Each muscle group trained 2× per week on the 6-day version.',
+    'upper-lower': 'TRAINING SPLIT: Upper / Lower\n2 upper body sessions + 2 lower body sessions per week. Upper days superset push and pull movements; lower days alternate squat-pattern and hinge-pattern. Efficient 4-day structure.',
+    'total-body':  'TRAINING SPLIT: Total Body\nEvery session trains all major muscle groups. Lower volume per muscle per session, but frequency is 3-4× per week. Prioritise compound movements — one major push, pull, squat and hinge per session.',
+    'body-part':   'TRAINING SPLIT: Body Part Split\nOne or two muscle groups per session with high dedicated volume. Classic formats: Chest · Back · Shoulders · Arms · Legs, or Chest/Tris · Back/Bis · Legs · Shoulders · Arms. Each muscle group trained 1× per week with maximal volume.',
+  };
+
+  const parts = [];
+  if (method !== 'auto' && methodDefs[method]) parts.push(methodDefs[method]);
+  if (hyApp && hyDefs[hyApp]) parts.push(hyDefs[hyApp]);
+  if (split && splitDefs[split]) parts.push(splitDefs[split]);
+  return parts.join('\n\n');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4972,39 +5422,55 @@ function fmtSecs(s) {
   return `${m}:${String(ss).padStart(2,'0')}`;
 }
 
+function fmtPaceFull(mps) {
+  if (!mps || mps <= 0) return '—';
+  const secsPerKm = 1000 / mps;
+  const secsPerUnit = unitRun === 'mi' ? secsPerKm / MI_PER_KM : secsPerKm;
+  const totalTenths = Math.round(secsPerUnit * 10);
+  const m = Math.floor(totalTenths / 600);
+  const rem = totalTenths % 600;
+  const s = Math.floor(rem / 10);
+  const t = rem % 10;
+  return `${m}:${String(s).padStart(2,'0')}.${t}`;
+}
+
 function renderStravaSplits(s) {
   const laps   = s.strava_laps;
   const splits = s.strava_splits;
   if (!laps && !splits) return '';
 
-  const paceStr = mps => mpsToMinKm(mps) || '—';
   let html = '';
 
   // Laps (interval reps / manual lap button)
   if (laps && laps.length > 1) {
-    const hasHR  = laps.some(l => l.average_heartrate);
-    const hasCad = laps.some(l => l.average_cadence);
-    html += `<div class="sec-lbl" style="margin-top:14px;">Laps · ${laps.length} recorded</div>
+    const iv = getIntervalStats(s);
+    const workSpeeds = iv ? iv.workSpeeds : null;
+    const hasHR = laps.some(l => l.average_heartrate);
+    const ivLabel = iv ? ` · ${iv.reps} work reps · avg ${iv.avgPace}/${paceUnit()}` : '';
+    html += `<div class="sec-lbl" style="margin-top:14px;">Laps · ${laps.length} recorded${ivLabel}</div>
     <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
       <table class="split-tbl"><thead><tr>
         <th style="text-align:left;">#</th>
         <th style="text-align:right;">Dist</th>
         <th style="text-align:right;">Time</th>
         <th style="text-align:right;">Pace</th>
-        ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
-        ${hasCad ? '<th style="text-align:right;">Cad</th>' : ''}
+        ${hasHR ? '<th style="text-align:right;">HR</th>' : ''}
       </tr></thead><tbody>`;
     laps.forEach((lap, i) => {
-      const d   = lap.distance >= 1000 ? `${(lap.distance/1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`;
-      const t   = fmtSecs(lap.moving_time || lap.elapsed_time);
-      const p   = paceStr(lap.average_speed);
-      html += `<tr>
-        <td>${i+1}</td>
+      const isWork = workSpeeds && workSpeeds.has(lap.average_speed);
+      const isRest = workSpeeds && !isWork;
+      const rowStyle = isRest ? 'opacity:0.45;' : '';
+      const d = lap.distance >= 1000 ? `${(lap.distance/1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`;
+      const t = fmtSecs(lap.moving_time || lap.elapsed_time);
+      const p = fmtPaceFull(lap.average_speed);
+      const paceColor = isWork ? 'var(--blue)' : 'var(--text2)';
+      const badge = isWork ? `<span style="font-size:9px;background:var(--blue);color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;">REP</span>` : '';
+      html += `<tr style="${rowStyle}">
+        <td>${i+1}${badge}</td>
         <td style="text-align:right;font-family:var(--mono);">${d}</td>
         <td style="text-align:right;font-family:var(--mono);">${t}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${p}</td>
-        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
-        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${lap.average_cadence  ? Math.round(lap.average_cadence)  : '—'}</td>` : ''}
+        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${paceColor};">${p}</td>
+        ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -5012,24 +5478,21 @@ function renderStravaSplits(s) {
 
   // Per-km splits
   if (splits && splits.length > 0) {
-    const hasHR  = splits.some(sp => sp.average_heartrate);
-    const hasCad = splits.some(sp => sp.average_cadence);
+    const hasHR = splits.some(sp => sp.average_heartrate);
     html += `<div class="sec-lbl"${laps && laps.length > 1 ? '' : ' style="margin-top:14px;"'}>Per-${distUnit()} splits · ${splits.length} ${distUnit()}</div>
     <div class="card" style="padding:8px 10px;overflow-x:auto;margin-bottom:7px;">
       <table class="split-tbl"><thead><tr>
         <th style="text-align:left;">${distUnit()}</th>
         <th style="text-align:right;">Pace</th>
         <th style="text-align:right;">Time</th>
-        ${hasHR  ? '<th style="text-align:right;">HR</th>'  : ''}
-        ${hasCad ? '<th style="text-align:right;">Cad</th>' : ''}
+        ${hasHR ? '<th style="text-align:right;">HR</th>' : ''}
       </tr></thead><tbody>`;
     splits.forEach((sp, i) => {
       html += `<tr>
         <td>${i+1}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${paceStr(sp.average_speed)}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${fmtPaceFull(sp.average_speed)}</td>
         <td style="text-align:right;font-family:var(--mono);">${fmtSecs(sp.moving_time || sp.elapsed_time)}</td>
-        ${hasHR  ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
-        ${hasCad ? `<td style="text-align:right;font-family:var(--mono);color:var(--text2);">${sp.average_cadence  ? Math.round(sp.average_cadence)  : '—'}</td>` : ''}
+        ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -5048,6 +5511,44 @@ async function loFetchSplits(idx) {
   const changed = await fetchStravaDetail([s.gid], tok);
   if (changed) { saveData(); document.getElementById('lo-splits').innerHTML = renderStravaSplits(sessions[idx]); toast('Splits loaded ✓'); }
   else { if (btn) { btn.textContent = '↓ Fetch Strava splits'; btn.disabled = false; } toast('No split data for this session'); }
+}
+
+function getIntervalStats(sess) {
+  const laps = sess.strava_laps;
+  if (!laps || laps.length < 3) return null;
+  const hasHidden = laps.some(l => l.is_hidden);
+  let workLaps;
+  if (hasHidden) {
+    workLaps = laps.filter(l => !l.is_hidden);
+  } else {
+    const sorted = [...laps].sort((a,b) => (b.average_speed||0)-(a.average_speed||0));
+    let biggestDrop = 0, cutIdx = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i-1].average_speed || 0;
+      if (prev <= 0) continue;
+      const drop = (prev - (sorted[i].average_speed||0)) / prev;
+      if (drop > biggestDrop) { biggestDrop = drop; cutIdx = i; }
+    }
+    if (biggestDrop < 0.15 || cutIdx >= sorted.length - 1) return null;
+    const threshold = sorted[cutIdx-1].average_speed * 0.90;
+    workLaps = laps.filter(l => (l.average_speed||0) >= threshold);
+  }
+  if (!workLaps || workLaps.length < 2) return null;
+  const n = workLaps.length;
+  const avgSpeed  = workLaps.reduce((s,l) => s + (l.average_speed||0), 0) / n;
+  const avgDist   = workLaps.reduce((s,l) => s + (l.distance||0), 0) / n;
+  const hrLaps    = workLaps.filter(l => l.average_heartrate);
+  const avgHR     = hrLaps.length ? Math.round(hrLaps.reduce((s,l) => s + l.average_heartrate, 0) / hrLaps.length) : null;
+  const bestSpeed = Math.max(...workLaps.map(l => l.average_speed||0));
+  const distStr   = avgDist >= 1000 ? `${(avgDist/1000).toFixed(2)}km` : `${Math.round(avgDist)}m`;
+  return {
+    reps: n,
+    avgPace: convertPaceStr(mpsToMinKm(avgSpeed)),
+    avgDist: distStr,
+    avgHR,
+    bestPace: convertPaceStr(mpsToMinKm(bestSpeed)),
+    workSpeeds: new Set(workLaps.map(l => l.average_speed)),
+  };
 }
 
 function extractBestPace(splits) {
@@ -5696,6 +6197,7 @@ function buildCoachSystemPrompt() {
     'strength-athletic':'build athletic strength with conditioning',
     'strength-hybrid-strength':'develop hybrid endurance and lifting performance',
     'strength-preseason':'build a strength foundation before a competition block',
+    'strength-hypertrophy':'maximise muscle growth and body composition',
   };
   const strengthLiftMap = {squat:'squat',bench:'bench press',deadlift:'deadlift',ohp:'overhead press'};
   const resolvedGoal = (g => {
@@ -5726,7 +6228,11 @@ function buildCoachSystemPrompt() {
   const focusMap = {running:'running pace and endurance',stations:'station technique and strength work',strategy:'race strategy and pacing execution',all:'all aspects of performance equally'};
   const detailMap = {short:'Keep every reply under 130 words. Bullet points where possible. Zero padding.',detailed:'Give thorough replies with full reasoning. Up to 300 words. Use structure when helpful.'};
 
-  const recent = sessions.slice(0,6).map(s=>`  W${s.week} ${s.day}: ${s.session}${s.pace?' · '+convertPaceStr(s.pace)+paceUnit():''}${s.dist?' · '+fmtDist(parseFloat(s.dist)):''}${s.feel?' · feel '+s.feel+'/5':''}`).join('\n');
+  const recent = sessions.slice(0,6).map(s=>{
+    const iv = getIntervalStats(s);
+    const ivStr = iv ? ` → ${iv.reps} work reps · avg ${iv.avgPace}/${paceUnit()} · ~${iv.avgDist}/rep${iv.avgHR?' · avg HR '+iv.avgHR:''}` : '';
+    return `  W${s.week} ${s.day}: ${s.session}${s.pace&&!iv?' · '+convertPaceStr(s.pace)+paceUnit():''}${ivStr}${s.dist?' · '+fmtDist(parseFloat(s.dist)):''}${s.feel?' · feel '+s.feel+'/5':''}`;
+  }).join('\n');
   const bestTempo = sessions.filter(s=>s.pace&&/(tempo)/i.test(s.session||'')).sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
   const bestPace  = bestTempo ? convertPaceStr(bestTempo.best_pace||bestTempo.pace) : null;
   const hxGoal    = hyroxPlan ? `HYROX race plan: ${hxFmtLong(hyroxPlan.goalSecs)} target` : '';
@@ -5747,6 +6253,7 @@ function buildCoachSystemPrompt() {
   const bgStr     = backgroundMap[p.background] || p.background || '';
 
   const blCtx = getBaselineContext();
+  const strengthCtx = buildStrengthMethodContext();
 
   const modeInstructions = {
     checkin:  `\nMODE: DAILY CHECK-IN\nStructure your response as: (1) Recovery status based on today's data, (2) What's coming up next in training, (3) One specific focus point for the athlete today. Be personal, specific, and energizing. Under 200 words.`,
@@ -5766,7 +6273,7 @@ function buildCoachSystemPrompt() {
 
 ${styleMap[p.style||'balanced']} Focus especially on ${focusMap[p.focus||'all']}.
 ${detailMap[p.detail||'short']}${priority}${limits}${memCtx}${modeCtx}
-
+${strengthCtx ? '\n'+strengthCtx+'\n' : ''}
 ATHLETE DATA:
 ${blCtx}
 Plan week: ${currentPlanWeek}/12${hxGoal?' · '+hxGoal:''}
@@ -5838,7 +6345,7 @@ const CHANGELOG = [
     v: '2026-05-28',
     label: '28 May 2026',
     items: [
-      { tag: 'Improved', text: 'VO₂max now uses a three-source composite model: 20-min TT (Daniels VDOT), HR-pace efficiency from Strava runs (Swain 1994), and resting HR ratio (Uth-Sørensen). Updates automatically after every Strava sync or health check-in.' },
+      { tag: 'Improved', text: 'VO₂max now uses a three-source composite model: Cooper 12-min Test, HR-pace efficiency from Strava runs (Swain 1994), and resting HR ratio (Uth-Sørensen). Updates automatically after every Strava sync or health check-in.' },
     ],
   },
   {
@@ -5846,7 +6353,7 @@ const CHANGELOG = [
     label: '27 May 2026',
     items: [
       { tag: 'Improved', text: 'Garmin Shortcut: Sleep and Resting HR are now the only required metrics. HRV, Steps and VO₂max are optional.' },
-      { tag: 'New',      text: 'VO₂max predicted from 20-min run TT via Daniels VDOT — no device needed.' },
+      { tag: 'New',      text: 'VO₂max predicted from Cooper 12-min Run Test — no device needed.' },
     ],
   },
   {
@@ -6083,11 +6590,12 @@ function renderOnboardStep() {
       strengthCards = `
         <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
         ${[
-          ['lift',           '🎯', 'Specific Lift Goal',       'Focus training around improving one movement — squat, bench, deadlift or OHP'],
-          ['powerlifting',   '🏋️', 'Powerlifting Base',        'Build the big three: squat, bench press and deadlift together'],
-          ['athletic',       '⚡', 'Athletic Strength',        'Compound lifts plus conditioning — strength that works in real life'],
-          ['hybrid-strength','🔄', 'Hybrid Endurance + Lift',  'Balanced aerobic capacity alongside a solid strength programme'],
-          ['preseason',      '🛠', 'Pre-Season Foundation',    'Build strength and work capacity before a racing or competition block'],
+          ['lift',           '🎯', 'Specific Lift Goal',        'Focus training around improving one movement — squat, bench, deadlift or OHP'],
+          ['powerlifting',   '🏋️', 'Powerlifting Base',         'Build the big three: squat, bench press and deadlift together'],
+          ['hypertrophy',    '💪', 'Hypertrophy / Muscle Build', 'Evidence-based muscle growth — choose your methodology in Settings'],
+          ['athletic',       '⚡', 'Athletic Strength',         'Compound lifts plus conditioning — strength that works in real life'],
+          ['hybrid-strength','🔄', 'Hybrid Endurance + Lift',   'Balanced aerobic capacity alongside a solid strength programme'],
+          ['preseason',      '🛠', 'Pre-Season Foundation',     'Build strength and work capacity before a racing or competition block'],
         ].map(([v,icon,label,desc]) => `
           <div class="card" onclick="_obAnswers.strengthType='${v}';_obAnswers.strengthLift='';_obAnswers.strengthTarget='';_obAnswers.goal='';renderOnboardStep();"
                style="cursor:pointer;margin-bottom:8px;${st===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
@@ -6100,6 +6608,8 @@ function renderOnboardStep() {
               <div style="font-size:16px;color:${st===v?'var(--accent)':'var(--text3)'};">${st===v?'✓':'›'}</div>
             </div>
           </div>`).join('')}
+
+        ${st === 'hypertrophy' && !_obAnswers.goal ? (() => { _obAnswers.goal = 'strength-hypertrophy'; return ''; })() : ''}
 
         ${st === 'lift' ? `
           <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Which lift?</div>
@@ -6398,6 +6908,7 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
   try { maybeShowOnboarding(); } catch(e) {}
 }
 try { renderMoreSettings(); } catch(e) {}
+try { loadSavedProgram(); renderMyProgramCard(); } catch(e) {}
 try { renderNotifCard(); } catch(e) {}
 try { initNotifications(); } catch(e) {}
 try { maybeShowMorningCheckin(); } catch(e) {}
