@@ -144,7 +144,7 @@ body{
 .wnbackdrop.open{opacity:1;pointer-events:auto;}
 .wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg);z-index:299;border-radius:16px 16px 0 0;border-top:.5px solid var(--border);max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;}
 .wnsheet.open{transform:translateY(0);}
-.wntag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-right:6px;flex-shrink:0;}
+.wntag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-right:6px;flex-shrink:0;}
 .wntag-new{background:var(--accent-dim);color:var(--accent);}
 .wntag-fix{background:rgba(77,158,255,.12);color:var(--blue);}
 .wntag-improved{background:rgba(52,199,89,.12);color:var(--green,#34c759);}
@@ -169,10 +169,10 @@ body{
 
 /* ── TYPOGRAPHY ── */
 .eyebrow{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;}
-.screen-title{font-size:32px;font-weight:800;color:var(--text);letter-spacing:-.5px;line-height:1;}
+.screen-title{font-size:32px;font-weight:600;color:var(--text);letter-spacing:-.5px;line-height:1;}
 .sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;
   color:var(--text3);margin-bottom:6px;}
-.overlay-title{font-size:28px;font-weight:800;color:var(--text);letter-spacing:-.3px;margin-bottom:3px;}
+.overlay-title{font-size:28px;font-weight:600;color:var(--text);letter-spacing:-.3px;margin-bottom:3px;}
 .overlay-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:20px;}
 
 /* ── CARDS ── */
@@ -188,7 +188,7 @@ body{
 .metric.gr{background:var(--green-dim);border-color:rgba(52,211,153,.2);}
 .metric.bl{background:var(--blue-dim);border-color:rgba(167,139,250,.2);}
 .mlbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;}
-.mval{font-size:26px;font-weight:800;line-height:1;color:var(--text);letter-spacing:-.02em;}
+.mval{font-size:26px;font-weight:600;line-height:1;color:var(--text);letter-spacing:-.02em;}
 .mval.am{color:var(--accent);}
 .mval.gr{color:var(--green);}
 .mval.bl{color:var(--blue);}
@@ -307,7 +307,7 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 /* ── FEEL BUTTONS ── */
 .feel-row{display:flex;gap:5px;}
 .feel-btn{flex:1;height:44px;border-radius:8px;border:.5px solid var(--border);
-  background:var(--bg2);font-family:var(--mono);font-size:12px;font-weight:700;
+  background:var(--bg2);font-family:var(--mono);font-size:12px;font-weight:500;
   color:var(--text3);cursor:pointer;display:flex;align-items:center;
   justify-content:center;transition:border-color .15s,background .15s,color .15s;}
 .feel-btn.sel{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
@@ -344,7 +344,7 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 .stat-box.am{background:var(--accent-dim);border-color:rgba(255,107,53,.2);}
 .stat-lbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--text3);margin-bottom:5px;}
-.stat-val{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.3px;}
+.stat-val{font-size:22px;font-weight:600;color:var(--text);letter-spacing:-.3px;}
 .stat-val.bl{color:var(--blue);}
 .stat-val.am{color:var(--accent);}
 .stat-unit{font-size:11px;font-weight:500;color:var(--text2);}
@@ -461,15 +461,15 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 
 /* ── TYPOGRAPHY REFINEMENTS ── */
 body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-.screen-title{font-size:28px;font-weight:800;letter-spacing:-0.01em;line-height:1.05;}
-.overlay-title{font-size:24px;font-weight:800;letter-spacing:-0.01em;}
+.screen-title{font-size:28px;font-weight:600;letter-spacing:-0.01em;line-height:1.05;}
+.overlay-title{font-size:24px;font-weight:600;letter-spacing:-0.01em;}
 .eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:3px;}
 .sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
-.mval{font-size:26px;font-weight:800;line-height:1;letter-spacing:-0.02em;}
+.mval{font-size:26px;font-weight:600;line-height:1;letter-spacing:-0.02em;}
 .badge{font-family:var(--mono);font-size:9px;letter-spacing:0.04em;}
-.srow-name{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:2px;}
-.bk-name{font-size:13px;font-weight:800;color:var(--text);flex:1;line-height:1.3;}
-.lrow-title{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;}
+.srow-name{font-size:13px;font-weight:500;color:var(--text);line-height:1.3;margin-bottom:2px;}
+.bk-name{font-size:13px;font-weight:500;color:var(--text);flex:1;line-height:1.3;}
+.lrow-title{font-size:13px;font-weight:500;color:var(--text);line-height:1.3;}
 
 /* ── LOGO ── */
 .logo-row{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
@@ -490,7 +490,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div class="logo-row">
         <img src="R%20Star%20App%20Icon.png" width="40" height="40" style="border-radius:10px;flex-shrink:0;">
         <div>
-          <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;line-height:1.1;color:var(--text);">Rev3</div>
+          <div style="font-size:22px;font-weight:600;letter-spacing:-0.5px;line-height:1.1;color:var(--text);">Rev3</div>
           <div class="eyebrow" id="today-date" style="margin-top:1px;"></div>
         </div>
       </div>
@@ -595,7 +595,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5v2.5"/></svg>
           </div>
           <div style="flex:1;">
-            <div style="font-size:14px;font-weight:700;">HYROX Race Calculator</div>
+            <div style="font-size:14px;font-weight:500;">HYROX Race Calculator</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Build your race plan · 8 runs + 8 stations</div>
           </div>
           <div style="font-size:18px;color:var(--text3);">›</div>
@@ -637,7 +637,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
         <div style="width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#000;letter-spacing:-.02em;">AI</span></div>
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;">AI Session Builder</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:2px;">AI Session Builder</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Generate sessions · extend your plan · build from scratch</div>
         </div>
       </div>
@@ -648,7 +648,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div style="display:flex;align-items:center;gap:12px;">
         <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
         <div style="flex:1;">
-          <div id="coach-card-name" style="font-size:14px;font-weight:700;">Set up your coach</div>
+          <div id="coach-card-name" style="font-size:14px;font-weight:500;">Set up your coach</div>
           <div id="coach-card-sub" style="font-family:var(--mono);font-size:9px;color:var(--text3);">Personalized AI coaching powered by Claude</div>
         </div>
         <div style="font-size:18px;color:var(--text3);">›</div>
@@ -667,7 +667,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <div id="my-program-summary">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
-            <div style="font-size:14px;font-weight:700;">Program Builder</div>
+            <div style="font-size:14px;font-weight:500;">Program Builder</div>
             <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
           </div>
           <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
@@ -678,26 +678,26 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:2px;">Running distance</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text1);margin-bottom:2px;">Running distance</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Paces and distances</div>
         </div>
         <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
           <button id="unit-run-km" onclick="setUnitRun('km')"
-            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KM</button>
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KM</button>
           <button id="unit-run-mi" onclick="setUnitRun('mi')"
-            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">MI</button>
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">MI</button>
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:2px;">Weight</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text1);margin-bottom:2px;">Weight</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Lifts and body weight</div>
         </div>
         <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
           <button id="unit-wt-kg" onclick="setUnitWeight('kg')"
-            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KG</button>
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KG</button>
           <button id="unit-wt-lbs" onclick="setUnitWeight('lbs')"
-            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:700;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">LBS</button>
+            style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">LBS</button>
         </div>
       </div>
     </div>
@@ -961,7 +961,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </button>
       <div style="flex:1;">
         <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
-        <div style="font-size:19px;font-weight:800;letter-spacing:-.02em;line-height:1.15;">HYROX Calculator</div>
+        <div style="font-size:19px;font-weight:600;letter-spacing:-.02em;line-height:1.15;">HYROX Calculator</div>
       </div>
     </div>
     <!-- Category picker: Division | Gender -->
@@ -1021,7 +1021,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;">
       <div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;">Morning Check-in</div>
-        <div style="font-size:22px;font-weight:800;color:var(--text1);letter-spacing:-.02em;">How did you sleep?</div>
+        <div style="font-size:22px;font-weight:600;color:var(--text1);letter-spacing:-.02em;">How did you sleep?</div>
       </div>
       <button onclick="skipMorningCheckin()" style="background:none;border:none;color:var(--text3);font-size:26px;cursor:pointer;padding:0;line-height:1;margin-top:2px;">×</button>
     </div>
@@ -1052,7 +1052,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </label>
 
     <button onclick="saveMorningCheckin()"
-      style="width:100%;background:var(--accent);color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;letter-spacing:-.01em;margin-bottom:10px;">
+      style="width:100%;background:var(--accent);color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:600;cursor:pointer;letter-spacing:-.01em;margin-bottom:10px;">
       Save check-in
     </button>
     <button onclick="skipMorningCheckin()"
@@ -1111,7 +1111,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </button>
     </div>
     <div class="eyebrow">Strength</div>
-    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;">Program Builder</div>
+    <div style="font-size:22px;font-weight:600;letter-spacing:-.02em;">Program Builder</div>
   </div>
   <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;"></div>
 </div>
@@ -2647,7 +2647,7 @@ function renderToday() {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
       ${pip(todaySess.intensity,32)}
       <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);">${todaySess.session}</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.session}</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}</div>
       </div>
       <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
@@ -2665,7 +2665,7 @@ function renderToday() {
           <div style="display:flex;align-items:center;gap:12px;">
             <div style="width:34px;height:34px;border-radius:8px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
             <div>
-              <div style="font-size:14px;font-weight:700;color:var(--text);">Rate ${toReview.length} new import${toReview.length>1?'s':''}</div>
+              <div style="font-size:14px;font-weight:500;color:var(--text);">Rate ${toReview.length} new import${toReview.length>1?'s':''}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Add your feel rating to Strava sessions</div>
             </div>
             <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
@@ -3035,7 +3035,7 @@ function renderAssessmentBanner() {
     <div style="background:linear-gradient(135deg,rgba(212,175,55,.08),rgba(77,158,255,.06));border:.5px solid rgba(212,175,55,.25);border-radius:10px;padding:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div>
-          <div style="font-size:13px;font-weight:700;color:var(--accent);">Week 1 — Assessment</div>
+          <div style="font-size:13px;font-weight:500;color:var(--accent);">Week 1 — Assessment</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">
             ${allDone ? 'All tests complete — baselines set' : `${doneCnt}/${ASSESSMENT_SESSIONS.length} tests complete`}
           </div>
@@ -3048,7 +3048,7 @@ function renderAssessmentBanner() {
         return `<div onclick="openAssessmentOverlay('${a.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--bg2);border-radius:7px;margin-bottom:6px;cursor:pointer;border:.5px solid ${done?'rgba(212,175,55,.3)':'var(--border)'};">
           <div style="width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></div>
           <div style="flex:1;">
-            <div style="font-size:12px;font-weight:700;">${a.name}</div>
+            <div style="font-size:12px;font-weight:500;">${a.name}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${a.category} · ${a.duration}</div>
           </div>
           <div style="font-family:var(--mono);font-size:10px;${done?'color:var(--accent);font-weight:700;':'color:var(--text3);'}">
@@ -3084,13 +3084,13 @@ function openAssessmentOverlay(id) {
     <div class="overlay-sub">${a.subtitle} · ${a.duration}</div>
 
     <div style="background:var(--bg2);border-radius:8px;padding:12px;margin:14px 0;">
-      <div style="font-size:12px;font-weight:700;margin-bottom:8px;">What to do</div>
+      <div style="font-size:12px;font-weight:500;margin-bottom:8px;">What to do</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">${a.what}</div>
     </div>
 
-    <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Instructions</div>
+    <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Instructions</div>
     ${a.instructions.map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:7px;">
-      <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${catColor};flex-shrink:0;width:16px;">${i+1}</div>
+      <div style="font-family:var(--mono);font-size:10px;font-weight:500;color:${catColor};flex-shrink:0;width:16px;">${i+1}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${s}</div>
     </div>`).join('')}
 
@@ -3098,7 +3098,7 @@ function openAssessmentOverlay(id) {
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.8;"><b style="color:var(--accent);">What this derives</b><br>${a.tip}</div>
     </div>
 
-    <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">
+    <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">
       ${done ? 'Update result' : 'Log result'}
     </div>
     ${fieldHtml}
@@ -3148,10 +3148,10 @@ function buildAssessmentResultHtml(id, saved) {
   }
   if (!rows.length) return '';
   return `<div style="background:rgba(212,175,55,.06);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:12px;">
-    <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px;">Derived targets</div>
+    <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px;">Derived targets</div>
     ${rows.map(([l,v])=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <span style="font-family:var(--mono);font-size:9px;color:var(--text3);">${l}</span>
-      <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text);">${v}</span>
+      <span style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text);">${v}</span>
     </div>`).join('')}
   </div>`;
 }
@@ -3220,7 +3220,7 @@ function openLogOverlay(idx){
 
   const feelEl=document.getElementById('lo-feel');
   feelEl.innerHTML=s.feel?`<div style="text-align:center;padding:10px 0 14px;">
-    <div style="font-family:var(--mono);font-size:36px;font-weight:800;color:var(--accent);line-height:1;">${s.feel}</div>
+    <div style="font-family:var(--mono);font-size:36px;font-weight:600;color:var(--accent);line-height:1;">${s.feel}</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;">${FEEL_LABEL[s.feel]}</div>
   </div>`:'';
 
@@ -3296,7 +3296,7 @@ function renderBkHtml(week,day,sessionType,dl){
     html+=`</div>`;
   }
 
-  html+=`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">${matched.label}</div>
+  html+=`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">${matched.label}</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${matched.subtitle||''} · ${matched.intensity||''}</div>
   </div>`;
   html+=`<div id="bkb-${bkId}">${renderBlocks(matched)}</div>`;
@@ -3436,7 +3436,7 @@ function openTemplates(){
     document.getElementById('tmpl-list').innerHTML=templates.length
       ?templates.map((t,i)=>`<div class="tmpl-item" onclick="loadTemplate(${i})">
           <div>
-            <div style="font-size:14px;font-weight:700;color:var(--text);">${t._name||'Untitled'}</div>
+            <div style="font-size:14px;font-weight:500;color:var(--text);">${t._name||'Untitled'}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${(t.options||[]).length} option(s) · ${(t.options?.[0]?.blocks||[]).length} blocks</div>
           </div>
           <div class="chevron">›</div>
@@ -3726,19 +3726,19 @@ function renderAIContext() {
   el.innerHTML = `<div style="display:grid;gap:7px;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Current week</span>
-      <span style="font-size:12px;font-weight:700;color:var(--text);">W${currentPlanWeek} · ${wk?.range || ''}</span>
+      <span style="font-size:12px;font-weight:500;color:var(--text);">W${currentPlanWeek} · ${wk?.range || ''}</span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Phase</span>
-      <span style="font-size:12px;font-weight:700;color:var(--text);">Phase ${wk?.ph || 1} · ${currentPlanWeek <= 6 ? 'Base Building' : 'VO2max + Race Prep'}</span>
+      <span style="font-size:12px;font-weight:500;color:var(--text);">Phase ${wk?.ph || 1} · ${currentPlanWeek <= 6 ? 'Base Building' : 'VO2max + Race Prep'}</span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">This week logged</span>
-      <span style="font-size:12px;font-weight:700;color:var(--text);">${thisWeekLogged}/7 sessions</span>
+      <span style="font-size:12px;font-weight:500;color:var(--text);">${thisWeekLogged}/7 sessions</span>
     </div>
     ${avgPaceSecs ? `<div style="display:flex;justify-content:space-between;align-items:center;">
       <span style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Recent avg pace</span>
-      <span style="font-size:12px;font-weight:700;color:var(--blue);">${secsToMMSS(unitRun==='mi'?avgPaceSecs/MI_PER_KM:avgPaceSecs)}${paceUnit()}</span>
+      <span style="font-size:12px;font-weight:500;color:var(--blue);">${secsToMMSS(unitRun==='mi'?avgPaceSecs/MI_PER_KM:avgPaceSecs)}${paceUnit()}</span>
     </div>` : ''}
     <div style="border-top:.5px solid var(--border);padding-top:8px;">
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Injury Flags (always respected)</div>
@@ -3883,7 +3883,7 @@ Athlete request: ${prompt}`;
 function renderAIResult(sess, rawText) {
   const card = document.getElementById('ai-result-card');
   if (!card) return;
-  let html = `<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;">${sess._name || 'Generated Session'}</div>`;
+  let html = `<div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:8px;">${sess._name || 'Generated Session'}</div>`;
   if (sess.options?.length > 1) {
     html += `<div class="opt-tabs" id="ai-opt-tabs">`;
     sess.options.forEach((o,i) =>
@@ -4143,7 +4143,7 @@ function renderDriveCard() {
   if (!driveToken) {
     const cid = driveClientId;
     card.innerHTML = `
-      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">Connect Google Drive</div>
+      <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px;">Connect Google Drive</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-bottom:10px;">
         Auto-syncs sessions, custom plans, and templates across all your devices.<br>
         Requires a free Google Cloud OAuth Client ID (one-time setup).
@@ -4178,7 +4178,7 @@ function renderDriveCard() {
     card.innerHTML = `
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">Google Drive</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text);">Google Drive</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">Last sync: ${syncLine}</div>
         </div>
         <span style="font-family:var(--mono);font-size:9px;font-weight:600;color:${stateColor};flex-shrink:0;margin-top:2px;">${stateLabel}</span>
@@ -4548,7 +4548,7 @@ function renderStravaCard() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         ${stravaIcon.replace('COLOUR','var(--accent)')}
         <div>
-          <div style="font-size:14px;font-weight:700;">Strava Sync</div>
+          <div style="font-size:14px;font-weight:500;">Strava Sync</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Auto-import runs, rides &amp; strength sessions</div>
         </div>
       </div>
@@ -4566,7 +4566,7 @@ function renderStravaCard() {
         </summary>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:2.0;margin-top:10px;">
 
-          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART A: Strava API credentials —</div>
+          <div style="color:var(--text2);font-weight:500;margin-bottom:6px;font-size:10px;">— PART A: Strava API credentials —</div>
           1. Open <b>strava.com/settings/api</b> and sign in<br>
           2. Click <b>"Create &amp; Manage Your App"</b> (or view an existing one)<br>
           3. App Name and Website can be anything (e.g. "My Training App" / "example.com")<br>
@@ -4574,11 +4574,11 @@ function renderStravaCard() {
           5. Click <b>Save</b> — note your <b>Client ID</b> (a number) and <b>Client Secret</b> (a long string)
 
           <div style="height:10px;"></div>
-          <div style="color:var(--text2);font-weight:700;margin-bottom:6px;font-size:10px;">— PART B: Deploy your Cloudflare Worker —</div>
+          <div style="color:var(--text2);font-weight:500;margin-bottom:6px;font-size:10px;">— PART B: Deploy your Cloudflare Worker —</div>
           <div style="color:var(--text2);margin-bottom:4px;">Choose one method:</div>
 
           <details style="margin:4px 0;">
-            <summary style="color:var(--accent);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 1 — Terminal/Wrangler (recommended, ~5 min)</summary>
+            <summary style="color:var(--accent);cursor:pointer;list-style:none;font-weight:500;">▸ METHOD 1 — Terminal/Wrangler (recommended, ~5 min)</summary>
             <div style="padding:8px 0 0 8px;line-height:2.2;">
               Needs: <b>Node.js</b> (nodejs.org) and a terminal (macOS: Terminal, Windows: Command Prompt)<br><br>
               <b>1.</b> Install Wrangler:<br>
@@ -4604,7 +4604,7 @@ function renderStravaCard() {
           </details>
 
           <details style="margin:4px 0;">
-            <summary style="color:var(--text2);cursor:pointer;list-style:none;font-weight:700;">▸ METHOD 2 — Cloudflare Dashboard (no installs)</summary>
+            <summary style="color:var(--text2);cursor:pointer;list-style:none;font-weight:500;">▸ METHOD 2 — Cloudflare Dashboard (no installs)</summary>
             <div style="padding:8px 0 0 8px;line-height:2.2;">
               <b>2A — Create a Worker</b><br>
               1. Go to <b>dash.cloudflare.com</b> and sign in (free account is fine)<br>
@@ -4640,7 +4640,7 @@ function renderStravaCard() {
           </details>
 
           <div style="height:10px;"></div>
-          <div style="color:var(--text2);font-weight:700;margin-bottom:4px;font-size:10px;">— PART C: Finish up —</div>
+          <div style="color:var(--text2);font-weight:500;margin-bottom:4px;font-size:10px;">— PART C: Finish up —</div>
           <b>Update Strava callback:</b> Back on <b>strava.com/settings/api</b>, change<br>
           <b>Authorization Callback Domain</b> to your Worker's domain only<br>
           (e.g. <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">training-app-worker.YOUR.workers.dev</code> — no https://)<br>
@@ -4660,7 +4660,7 @@ function renderStravaCard() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         ${stravaIcon.replace('COLOUR', errored?'var(--red)':'var(--accent)')}
         <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
+          <div style="font-size:14px;font-weight:500;">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
           <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
             ${errored ? '⚠ Access token expired — reconnect to resume' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
           </div>
@@ -4758,7 +4758,7 @@ function renderMyProgramCard() {
     const totalWeeks = (savedProgram.weeklyProgressions || []).length || savedProgram.weeks || 0;
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:14px;font-weight:700;">${savedProgram.name || 'Strength Program'}</div>
+        <div style="font-size:14px;font-weight:500;">${savedProgram.name || 'Strength Program'}</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.split||'').toUpperCase()}</div>
       </div>
       <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
@@ -4766,7 +4766,7 @@ function renderMyProgramCard() {
   } else {
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:14px;font-weight:700;">Program Builder</div>
+        <div style="font-size:14px;font-weight:500;">Program Builder</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
       </div>
       <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
@@ -4787,24 +4787,24 @@ function renderProgramBuilder() {
   const hyLabels     = {israetel:'Israetel (RP)',schoenfeld:'Schoenfeld',peters:'Jordan Peters',bennett:'Joe Bennett'};
 
   const pill = (val, label, cur, fn) =>
-    `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+    `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:500;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
 
   body.innerHTML = `<div style="padding-bottom:40px;">
     <div class="card" style="margin-bottom:20px;">
-      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Selected Settings</div>
+      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Selected Settings</div>
       ${[
         ['Methodology', methodLabels[method]||method, 'var(--accent)'],
         ['Split',       splitLabels[split]||split,    'var(--blue)'],
         ...(hyApp ? [['Hypertrophy', hyLabels[hyApp]||hyApp, 'var(--green)']] : []),
       ].map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
         <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${l}</span>
-        <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${c};">${v}</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:${c};">${v}</span>
       </div>`).join('')}
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
     </div>
 
     <div style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:3px;">Program Duration</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Program Duration</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Working weeks — deload appended automatically</div>
       <div style="display:flex;gap:8px;">
         ${pill(4,'4 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
@@ -4815,7 +4815,7 @@ function renderProgramBuilder() {
     </div>
 
     <div style="margin-bottom:28px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:3px;">Sessions per Week</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Sessions per Week</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">How many training days per week</div>
       <div style="display:flex;gap:8px;">
         ${pill(3,'3×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
@@ -4850,7 +4850,7 @@ function renderSavedProgram() {
   const weekTabs = Array.from({length:totalWks},(_,i)=>i+1).map(w => {
     const wd = progs[w-1]||{};
     const active = wk===w;
-    return `<button onclick="programViewWeek=${w};renderSavedProgram();" style="flex-shrink:0;padding:7px 14px;font-family:var(--mono);font-size:10px;font-weight:700;border:none;cursor:pointer;border-radius:6px;white-space:nowrap;background:${active?'var(--accent)':'var(--bg2)'};color:${active?'#000':wd.deload?'var(--text3)':'var(--text2)'};">${wd.deload?'Deload':'W'+w}</button>`;
+    return `<button onclick="programViewWeek=${w};renderSavedProgram();" style="flex-shrink:0;padding:7px 14px;font-family:var(--mono);font-size:10px;font-weight:500;border:none;cursor:pointer;border-radius:6px;white-space:nowrap;background:${active?'var(--accent)':'var(--bg2)'};color:${active?'#000':wd.deload?'var(--text3)':'var(--text2)'};">${wd.deload?'Deload':'W'+w}</button>`;
   }).join('');
 
   // Sessions this week
@@ -4865,8 +4865,8 @@ function renderSavedProgram() {
       const adjSets = isDeload ? Math.max(1, Math.round(ex.sets*0.5)) : ex.sets + setsAdd;
       return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
-          <div style="font-size:13px;font-weight:700;line-height:1.3;">${ex.name}</div>
-          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
+          <div style="font-size:13px;font-weight:500;line-height:1.3;">${ex.name}</div>
+          <div style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
         </div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
@@ -4876,7 +4876,7 @@ function renderSavedProgram() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div>
           <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Day ${dayIdx+1}</div>
-          <div style="font-size:17px;font-weight:800;margin-top:2px;">${sess.name}</div>
+          <div style="font-size:17px;font-weight:600;margin-top:2px;">${sess.name}</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:1px;">${sess.focus||''}</div>
         </div>
         ${isDeload?'<div style="font-family:var(--mono);font-size:9px;background:var(--bg3);color:var(--text3);padding:4px 8px;border-radius:4px;flex-shrink:0;">DELOAD</div>':''}
@@ -4887,7 +4887,7 @@ function renderSavedProgram() {
 
   body.innerHTML = `<div style="padding-bottom:40px;">
     <div style="margin-bottom:16px;">
-      <div style="font-size:20px;font-weight:800;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.split||'').toUpperCase()}</div>
       ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
     </div>
@@ -4919,7 +4919,7 @@ async function generateStrengthProgram() {
 
   body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px;">
     <div style="font-size:40px;margin-bottom:16px;">⚡</div>
-    <div style="font-size:18px;font-weight:800;margin-bottom:8px;">Building your program…</div>
+    <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Building your program…</div>
     <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:2;">
       ${cfg.weeks} working weeks + 1 deload<br>
       ${cfg.sessionsPerWeek} sessions/week · ${split.toUpperCase()} split<br>
@@ -4999,7 +4999,7 @@ Working weeks: ${workingWeeks} + 1 deload week`;
     toast('Program generated!');
   } catch(e) {
     body.innerHTML = `<div style="padding:24px;">
-      <div style="font-size:16px;font-weight:700;color:var(--red);margin-bottom:8px;">Generation failed</div>
+      <div style="font-size:16px;font-weight:500;color:var(--red);margin-bottom:8px;">Generation failed</div>
       <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:20px;">${e.message}</div>
       <button class="btn" onclick="renderProgramBuilder()">← Back to Builder</button>
     </div>`;
@@ -5033,7 +5033,7 @@ function renderStrengthProgrammingCard() {
   const hyApp  = p.hypertrophyApproach || '';
 
   const pill = (val, label, cur, fn) =>
-    `<button onclick="${fn}('${val}')" style="padding:7px 11px;font-family:var(--mono);font-size:10px;font-weight:700;border:none;cursor:pointer;border-radius:6px;transition:all .15s;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+    `<button onclick="${fn}('${val}')" style="padding:7px 11px;font-family:var(--mono);font-size:10px;font-weight:500;border:none;cursor:pointer;border-radius:6px;transition:all .15s;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
 
   const methodPills = [
     ['auto','Auto'],['westside','Westside'],['jts','JTS'],['kabuki','Kabuki'],
@@ -5049,17 +5049,17 @@ function renderStrengthProgrammingCard() {
 
   card.innerHTML = `
     <div style="margin-bottom:16px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Strength Methodology</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:2px;">Strength Methodology</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">Framework used to program lifting sessions</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">${methodPills}</div>
     </div>
     <div style="margin-bottom:16px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Training Split</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:2px;">Training Split</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">How sessions are structured across the week</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">${splitPills}</div>
     </div>
     <div>
-      <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Hypertrophy Approach</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:2px;">Hypertrophy Approach</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:8px;">Expert methodology used by the coach for muscle-building sessions</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">${hyPills}</div>
     </div>`;
@@ -5257,7 +5257,7 @@ function renderRecoveryCard() {
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div style="flex:1;">
-            <div style="font-size:12px;font-weight:700;">
+            <div style="font-size:12px;font-weight:500;">
               ${entry.sleepHours}h · <span style="color:${sc};">${displayScore}/100${diffTxt}</span>${entry.hrv ? ` · HRV ${entry.hrv}` : ''}${entry.restingHR ? ` · RHR ${entry.restingHR}` : ''}${bbStr}${stepsK}
             </div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Morning check-in · ${scoreLabel}${src} · tap to edit</div>
@@ -5273,7 +5273,7 @@ function renderRecoveryCard() {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
           <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div style="flex:1;">
-            <div style="font-size:13px;font-weight:700;">Morning Check-in</div>
+            <div style="font-size:13px;font-weight:500;">Morning Check-in</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Synced from Shortcut · one tap left</div>
           </div>
         </div>
@@ -5310,7 +5310,7 @@ function renderRecoveryCard() {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
           <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
           <div>
-            <div style="font-size:13px;font-weight:700;">Morning Check-in</div>
+            <div style="font-size:13px;font-weight:500;">Morning Check-in</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">How did you sleep?</div>
           </div>
         </div>
@@ -5319,7 +5319,7 @@ function renderRecoveryCard() {
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Sleep</div>
             <div style="display:flex;align-items:center;gap:6px;">
               <button onclick="rcAdjHours(-0.5)" style="width:28px;height:28px;border-radius:6px;border:.5px solid var(--border);background:var(--bg3);color:var(--text);font-size:16px;line-height:1;cursor:pointer;">−</button>
-              <span id="rc-hours-val" style="font-family:var(--mono);font-size:16px;font-weight:700;flex:1;text-align:center;">${rcDraft.hours}h</span>
+              <span id="rc-hours-val" style="font-family:var(--mono);font-size:16px;font-weight:500;flex:1;text-align:center;">${rcDraft.hours}h</span>
               <button onclick="rcAdjHours(0.5)"  style="width:28px;height:28px;border-radius:6px;border:.5px solid var(--border);background:var(--bg3);color:var(--text);font-size:16px;line-height:1;cursor:pointer;">+</button>
             </div>
           </div>
@@ -5327,7 +5327,7 @@ function renderRecoveryCard() {
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Sleep Score</div>
             <div style="display:flex;align-items:center;gap:4px;">
               <input id="rc-score" type="number" min="0" max="100" placeholder="—" value="${rcDraft.score}"
-                style="width:100%;font-family:var(--mono);font-size:16px;font-weight:700;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:4px 6px;color:var(--text);text-align:center;-moz-appearance:textfield;">
+                style="width:100%;font-family:var(--mono);font-size:16px;font-weight:500;background:var(--bg3);border:.5px solid var(--border);border-radius:6px;padding:4px 6px;color:var(--text);text-align:center;-moz-appearance:textfield;">
               <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">/100</span>
             </div>
           </div>
@@ -5474,7 +5474,7 @@ function renderStravaSplits(s) {
         <td>${i+1}${badge}</td>
         <td style="text-align:right;font-family:var(--mono);">${d}</td>
         <td style="text-align:right;font-family:var(--mono);">${t}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${paceColor};">${p}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:600;color:${paceColor};">${p}</td>
         ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
     });
@@ -5495,7 +5495,7 @@ function renderStravaSplits(s) {
     splits.forEach((sp, i) => {
       html += `<tr>
         <td>${i+1}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--blue);">${fmtPaceFull(sp.average_speed)}</td>
+        <td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--blue);">${fmtPaceFull(sp.average_speed)}</td>
         <td style="text-align:right;font-family:var(--mono);">${fmtSecs(sp.moving_time || sp.elapsed_time)}</td>
         ${hasHR ? `<td style="text-align:right;font-family:var(--mono);color:var(--accent);">${sp.average_heartrate ? Math.round(sp.average_heartrate) : '—'}</td>` : ''}
       </tr>`;
@@ -5664,7 +5664,7 @@ function renderHyroxCalc(){
         +'<div style="font-family:var(--mono);font-size:9px;color:var(--text3);">'+distLabel+'</div>'
       +'</div>'
       +'<input type="text" inputmode="decimal" value="'+hxFmt(secs)+'"'
-        +' style="width:64px;text-align:center;font-family:var(--mono);font-size:16px;font-weight:700;background:var(--bg);border:.5px solid var(--border2);border-radius:6px;color:var(--text);padding:6px 2px;-webkit-appearance:none;touch-action:manipulation;"'
+        +' style="width:64px;text-align:center;font-family:var(--mono);font-size:16px;font-weight:500;background:var(--bg);border:.5px solid var(--border2);border-radius:6px;color:var(--text);padding:6px 2px;-webkit-appearance:none;touch-action:manipulation;"'
         +' onblur="hxEditSplit(\''+seg.id+'\',this.value)">'
       +'<div style="width:58px;text-align:right;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);">'+hxFmtLong(cum)+'</div>'
       +'</div>';
@@ -5678,7 +5678,7 @@ function renderHyroxCalc(){
   const avgRun  =Math.round(runTotal/8);
   const sb=(l,v,c)=>'<div style="flex:1;background:var(--bg2);border-radius:8px;padding:8px 4px;text-align:center;">'
     +'<div style="font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">'+l+'</div>'
-    +'<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:'+c+';">'+v+'</div>'
+    +'<div style="font-family:var(--mono);font-size:12px;font-weight:500;color:'+c+';">'+v+'</div>'
     +'</div>';
   document.getElementById('hx-stats').innerHTML=
     sb('Avg Run',hxFmt(avgRun),'var(--blue)')+
@@ -5693,9 +5693,9 @@ function renderHyroxCalc(){
   document.getElementById('hx-summary').innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;">'
     +'<div style="font-family:var(--mono);font-size:11px;color:var(--text3);">Total '
-      +'<span style="font-size:17px;font-weight:700;color:var(--text);margin-left:4px;">'+hxFmtLong(total)+'</span></div>'
+      +'<span style="font-size:17px;font-weight:600;color:var(--text);margin-left:4px;">'+hxFmtLong(total)+'</span></div>'
     +'<div style="font-family:var(--mono);font-size:11px;color:var(--text3);">vs Goal '
-      +'<span style="font-size:17px;font-weight:700;color:'+dc+';margin-left:4px;">'+diffStr+'</span></div>'
+      +'<span style="font-size:17px;font-weight:600;color:'+dc+';margin-left:4px;">'+diffStr+'</span></div>'
     +'</div>';
 }
 
@@ -5878,7 +5878,7 @@ function renderNotifCard() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text1);">Notifications</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text1);">Notifications</div>
         <div style="font-family:var(--mono);font-size:9px;color:${granted?'var(--green)':denied?'var(--red)':'var(--text3)'};">
           ${granted?'● Permission granted':denied?'● Blocked in browser settings':'● Permission not yet granted'}
         </div>
@@ -5988,14 +5988,14 @@ function renderCoachModePicker() {
   ];
   el.innerHTML = `
     <div style="padding:8px 0 20px;">
-      <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px;">Hey, I'm ${p.name}.</div>
+      <div style="font-size:18px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px;">Hey, I'm ${p.name}.</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">What do you want to work on today?</div>
     </div>
     ${modes.map(m => `
       <div onclick="selectCoachMode('${m.id}')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--bg2);border:.5px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
         <span style="font-size:20px;width:28px;text-align:center;">${m.icon}</span>
         <div style="flex:1;">
-          <div style="font-size:13px;font-weight:700;color:var(--text1);">${m.label}</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text1);">${m.label}</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${m.sub}</div>
         </div>
         <div style="font-size:16px;color:var(--text3);">›</div>
@@ -6082,7 +6082,7 @@ function renderCoachSetupStep() {
   if (step.type === 'text') {
     inner = `
       <input type="text" id="coach-text-input" placeholder="${step.placeholder}" value="${coachSetupAnswers[step.id]||''}"
-        style="font-size:19px;font-weight:700;width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);margin-bottom:16px;"
+        style="font-size:19px;font-weight:500;width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);margin-bottom:16px;"
         onkeydown="if(event.key==='Enter')coachSetupNext()">
       <button class="btn btn-accent" style="width:100%;" onclick="coachSetupNext()">${isLast?'Meet my coach →':'Next →'}</button>`;
   } else {
@@ -6090,7 +6090,7 @@ function renderCoachSetupStep() {
       const sel = coachSetupAnswers[step.id] === o.val;
       return `<div class="card" onclick="coachSetupChoice('${o.val}')" style="cursor:pointer;margin-bottom:8px;${sel?'border-color:var(--accent);background:var(--accent-dim);':''}">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${o.label}</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${o.label}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${o.desc}</div></div>
           <div style="font-size:16px;color:${sel?'var(--accent)':'var(--text3)'};">${sel?'✓':'›'}</div>
         </div></div>`;
@@ -6099,7 +6099,7 @@ function renderCoachSetupStep() {
 
   document.getElementById('coach-setup-content').innerHTML = `
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:8px;">${prog}</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${step.q}</div>
+    <div style="font-size:18px;font-weight:500;margin-bottom:4px;">${step.q}</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">${step.sub}</div>
     ${inner}
     ${coachSetupStep > 0 ? `<button class="btn" style="width:100%;margin-top:8px;" onclick="coachSetupBack()">← Back</button>` : ''}`;
@@ -6160,7 +6160,7 @@ function renderCoachHeader() {
         ${mem.sessionCount >= 3 ? `<div style="position:absolute;bottom:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:${depthColor};border:2px solid var(--bg);"></div>` : ''}
       </div>
       <div style="flex:1;">
-        <div style="font-size:16px;font-weight:700;">${coachProfile.name}</div>
+        <div style="font-size:16px;font-weight:500;">${coachProfile.name}</div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${styleLabel} · <span style="color:${depthColor};">${sessionStr}</span></div>
       </div>
     </div>`;
@@ -6413,7 +6413,7 @@ function showUpdatesSheet(entries) {
 
   document.getElementById('wn-content').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;">What's new</div>
+      <div style="font-size:18px;font-weight:600;letter-spacing:-.02em;">What's new</div>
       <button onclick="dismissUpdates()" style="background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;">Done</button>
     </div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:14px;">${versionLine}</div>
@@ -6518,8 +6518,8 @@ function renderOnboardStep() {
   if (_obStep === 0) {
     body = `
       <div style="text-align:center;padding:8px 0 28px;">
-        <div style="font-size:44px;margin-bottom:14px;letter-spacing:-.01em;font-weight:800;color:var(--accent);">Rev3</div>
-        <div style="font-size:24px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;">Training App</div>
+        <div style="font-size:44px;margin-bottom:14px;letter-spacing:-.01em;font-weight:600;color:var(--accent);">Rev3</div>
+        <div style="font-size:24px;font-weight:600;margin-bottom:8px;letter-spacing:-.02em;">Training App</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.9;max-width:270px;margin:0 auto;">
           Train with purpose. Every session tracked, every goal within reach.
         </div>
@@ -6532,7 +6532,7 @@ function renderOnboardStep() {
           ['AI','Session builder and personal coach powered by Claude AI'],
         ].map(([k,v])=>`
           <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 12px;background:var(--bg2);border-radius:8px;border:.5px solid var(--border);">
-            <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent);width:42px;flex-shrink:0;padding-top:1px;">${k}</div>
+            <div style="font-family:var(--mono);font-size:10px;font-weight:500;color:var(--accent);width:42px;flex-shrink:0;padding-top:1px;">${k}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;">${v}</div>
           </div>`).join('')}
       </div>
@@ -6560,7 +6560,7 @@ function renderOnboardStep() {
         <div style="display:flex;align-items:center;gap:12px;">
           <div style="font-size:20px;">${icon}</div>
           <div style="flex:1;">
-            <div style="font-size:13px;font-weight:700;">${label}</div>
+            <div style="font-size:13px;font-weight:500;">${label}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
           </div>
           <div style="font-size:16px;color:${gc===v?'var(--accent)':'var(--text3)'};">${gc===v?'✓':'›'}</div>
@@ -6571,7 +6571,7 @@ function renderOnboardStep() {
     let raceTypeCards = '';
     if (gc === 'race') {
       raceTypeCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Race type</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Race type</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
           ${[
             ['hyrox',    'HYROX',          '8km run + 8 workout stations'],
@@ -6583,7 +6583,7 @@ function renderOnboardStep() {
           ].map(([v,label,desc]) => `
             <div onclick="_obAnswers.raceType='${v}';_obAnswers.goal='';renderOnboardStep();"
                  style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${rt===v?'var(--accent)':'var(--border)'};cursor:pointer;${rt===v?'background:var(--accent-dim);':''}">
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
@@ -6593,7 +6593,7 @@ function renderOnboardStep() {
     let strengthCards = '';
     if (gc === 'strength') {
       strengthCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Strength focus</div>
         ${[
           ['lift',           '🎯', 'Specific Lift Goal',        'Focus training around improving one movement — squat, bench, deadlift or OHP'],
           ['powerlifting',   '🏋️', 'Powerlifting Base',         'Build the big three: squat, bench press and deadlift together'],
@@ -6607,7 +6607,7 @@ function renderOnboardStep() {
             <div style="display:flex;align-items:center;gap:10px;">
               <div style="font-size:18px;">${icon}</div>
               <div style="flex:1;">
-                <div style="font-size:13px;font-weight:700;">${label}</div>
+                <div style="font-size:13px;font-weight:500;">${label}</div>
                 <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
               </div>
               <div style="font-size:16px;color:${st===v?'var(--accent)':'var(--text3)'};">${st===v?'✓':'›'}</div>
@@ -6617,17 +6617,17 @@ function renderOnboardStep() {
         ${st === 'hypertrophy' && !_obAnswers.goal ? (() => { _obAnswers.goal = 'strength-hypertrophy'; return ''; })() : ''}
 
         ${st === 'lift' ? `
-          <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Which lift?</div>
+          <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Which lift?</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
             ${[['squat','Squat','Back squat or front squat'],['bench','Bench Press','Flat or competition bench'],['deadlift','Deadlift','Conventional or sumo'],['ohp','Overhead Press','Strict press or push press']].map(([v,label,desc]) => `
               <div onclick="_obAnswers.strengthLift='${v}';_obAnswers.goal='strength-${v}';renderOnboardStep();"
                    style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${sl===v?'var(--accent)':'var(--border)'};cursor:pointer;${sl===v?'background:var(--accent-dim);':''}">
-                <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+                <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
                 <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
               </div>`).join('')}
           </div>
           ${sl ? `
-            <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:14px 0 6px;">Target weight (optional)</div>
+            <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:14px 0 6px;">Target weight (optional)</div>
             <input type="text" placeholder="e.g. 100kg, 225lbs, bodyweight double…"
               value="${stg}"
               style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:4px;"
@@ -6641,62 +6641,62 @@ function renderOnboardStep() {
     let goalCards = '';
     if (rt === 'hyrox') {
       goalCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Target time</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Target time</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
           ${[['sub60','Sub 60 min','Elite'],['sub75','Sub 75 min','Competitive'],['sub90','Sub 90 min','Strong amateur'],['finish','First finish','Complete it']].map(([v,label,desc])=>`
             <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
                  style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
     } else if (rt === 'marathon') {
       goalCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Marathon target</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Marathon target</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
           ${[['marathon-sub3','Sub 3:00','Elite qualifier'],['marathon-sub3h30','Sub 3:30','Competitive amateur'],['marathon-sub4','Sub 4:00','Strong finisher'],['marathon-finish','First finish','Complete it']].map(([v,label,desc])=>`
             <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
                  style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
     } else if (rt === 'half') {
       goalCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Half marathon target</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Half marathon target</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
           ${[['half-sub90','Sub 1:30','Fast amateur'],['half-sub105','Sub 1:45','Strong runner'],['half-sub120','Sub 2:00','Solid finisher'],['half-finish','First finish','Complete it']].map(([v,label,desc])=>`
             <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
                  style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
     } else if (rt === '5k10k') {
       goalCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Distance &amp; target</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Distance &amp; target</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
           ${[['5k-sub20','5K sub 20:00','Elite local'],['5k-sub25','5K sub 25:00','Competitive'],['10k-sub45','10K sub 45:00','Strong runner'],['10k-sub55','10K sub 55:00','Solid finisher']].map(([v,label,desc])=>`
             <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
                  style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
     } else if (rt === 'triathlon') {
       goalCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Triathlon distance</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Triathlon distance</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
           ${[['tri-sprint','Sprint','750m / 20km / 5km'],['tri-olympic','Olympic','1.5km / 40km / 10km'],['tri-703','Half Iron 70.3','1.9km / 90km / 21km'],['tri-finish','First triathlon','Any distance']].map(([v,label,desc])=>`
             <div onclick="_obAnswers.goal='${v}';renderOnboardStep();"
                  style="padding:10px;background:var(--bg2);border-radius:8px;border:.5px solid ${gl===v?'var(--accent)':'var(--border)'};cursor:pointer;${gl===v?'background:var(--accent-dim);':''}">
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${label}</div>
+              <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${label}</div>
               <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${desc}</div>
             </div>`).join('')}
         </div>`;
     } else if (rt === 'other') {
       goalCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Describe your event</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Describe your event</div>
         <input type="text" placeholder="e.g. Spartan Beast, 10km row, Masters rowing…"
           value="${gl.startsWith('other:')?gl.slice(6):''}"
           style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:11px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:8px;"
@@ -6707,7 +6707,7 @@ function renderOnboardStep() {
     let planTypeCards = '';
     if (rt === 'hyrox') {
       planTypeCards = `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Plan structure</div>
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px;">Plan structure</div>
         ${[
           ['hybrid','12-Week Guided Plan','Structured sessions every day — runs, strength, erg, race prep'],
           ['custom','Build your own','Blank slate — design sessions using the AI builder'],
@@ -6716,7 +6716,7 @@ function renderOnboardStep() {
                style="cursor:pointer;margin-bottom:8px;${pt===v?'border-color:var(--accent);background:var(--accent-dim);':''}">
             <div style="display:flex;align-items:center;gap:12px;">
               <div style="flex:1;">
-                <div style="font-size:13px;font-weight:700;">${label}</div>
+                <div style="font-size:13px;font-weight:500;">${label}</div>
                 <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">${desc}</div>
               </div>
               <div style="font-size:16px;color:${pt===v?'var(--accent)':'var(--text3)'};">${pt===v?'✓':'›'}</div>
@@ -6727,10 +6727,10 @@ function renderOnboardStep() {
     // Only show start date once a goal category is chosen
     const showDate = !!gc;
     body = `
-      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your training goal</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:6px;letter-spacing:-.02em;">Your training goal</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">What are you training for?</div>
 
-      <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Goal type</div>
+      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Goal type</div>
       ${goalCategoryCards}
       ${raceTypeCards}
       ${strengthCards}
@@ -6738,7 +6738,7 @@ function renderOnboardStep() {
       ${planTypeCards}
 
       ${showDate ? `
-        <div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:20px 0 8px;">
+        <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:20px 0 8px;">
           Week 1 start <span style="font-weight:400;">(pick a Monday)</span>
         </div>
         <input type="date" id="ob-ps" value="${ps}"
@@ -6753,7 +6753,7 @@ function renderOnboardStep() {
   } else if (_obStep === 2) {
     const connected = !!stravaAccess;
     body = `
-      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Strava sync</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:6px;letter-spacing:-.02em;">Strava sync</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:16px;">Automatically import activities from Strava into your training log</div>
 
       ${connected ? `
@@ -6780,7 +6780,7 @@ function renderOnboardStep() {
   } else if (_obStep === 3) {
     const hasCoach = !!coachProfile;
     body = `
-      <div style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em;">Your AI coach</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:6px;letter-spacing:-.02em;">Your AI coach</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">A personalised coaching assistant powered by Claude AI</div>
 
       ${hasCoach ? `
