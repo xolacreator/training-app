@@ -3640,6 +3640,22 @@ function toast(msg){
 }
 
 const PALETTES = {
+  graphite: {
+    name:'Graphite', desc:'Dark grey · amber gold',
+    bg:'#131316', bg2:'#1C1C20', bg3:'#26262B', bg4:'#33333A',
+    accent:'#C9A84C', accentDim:'rgba(201,168,76,0.16)',
+    blue:'#9B8AD4',  blueDim:'rgba(155,138,212,0.14)',
+    border:'rgba(255,255,255,0.07)', border2:'rgba(255,255,255,0.13)',
+    text:'#ECECEF', text2:'#A0A0AB', text3:'#62626E',
+  },
+  slate: {
+    name:'Slate', desc:'Graphite · violet · gold',
+    bg:'#16161A', bg2:'#202028', bg3:'#2A2A34', bg4:'#383844',
+    accent:'#C9A84C', accentDim:'rgba(201,168,76,0.15)',
+    blue:'#8B5CF6',  blueDim:'rgba(139,92,246,0.14)',
+    border:'rgba(255,255,255,0.07)', border2:'rgba(255,255,255,0.13)',
+    text:'#E8E8EE', text2:'#9C9CAB', text3:'#5A5A68',
+  },
   midnight: {
     name:'Midnight', desc:'Deep purple · amber gold',
     bg:'#0C0820', bg2:'#160D35', bg3:'#1E1445', bg4:'#2A1C5A',
@@ -3647,22 +3663,6 @@ const PALETTES = {
     blue:'#A78BFA',  blueDim:'rgba(167,139,250,0.14)',
     border:'rgba(255,255,255,0.08)', border2:'rgba(255,255,255,0.14)',
     text:'#F0EBF8', text2:'#C4B8D8', text3:'#6B5B8A',
-  },
-  obsidian: {
-    name:'Obsidian', desc:'Charcoal · violet',
-    bg:'#0F0F13', bg2:'#1A1A22', bg3:'#232330', bg4:'#2E2E42',
-    accent:'#8B5CF6', accentDim:'rgba(139,92,246,0.14)',
-    blue:'#60A5FA',  blueDim:'rgba(96,165,250,0.12)',
-    border:'rgba(255,255,255,0.07)', border2:'rgba(255,255,255,0.13)',
-    text:'#E8E8F2', text2:'#9898B8', text3:'#55556A',
-  },
-  sovereign: {
-    name:'Sovereign', desc:'Purple · deep gold · warm cream',
-    bg:'#0D0A12', bg2:'#1A1428', bg3:'#241D38', bg4:'#302848',
-    accent:'#C9A84C', accentDim:'rgba(201,168,76,0.15)',
-    blue:'#9B7FD4',  blueDim:'rgba(155,127,212,0.14)',
-    border:'rgba(201,168,76,0.10)', border2:'rgba(201,168,76,0.18)',
-    text:'#F5F0E8', text2:'#C8B8A4', text3:'#7A6A5A',
   },
 };
 
@@ -3691,7 +3691,7 @@ function applyPalette(name) {
 function renderThemePicker() {
   const el = document.getElementById('theme-picker-card');
   if (!el) return;
-  const cur = localStorage.getItem('ht-palette') || 'midnight';
+  const cur = localStorage.getItem('ht-palette') || 'graphite';
   el.innerHTML = Object.entries(PALETTES).map(([key, p]) => {
     const active = key === cur;
     return `<button onclick="applyPalette('${key}')" style="display:flex;align-items:center;gap:12px;width:100%;background:${active?p.bg3:p.bg2};border:0.5px solid ${active?p.accent:'rgba(255,255,255,0.08)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;text-align:left;transition:border .2s,background .2s;box-sizing:border-box;">
@@ -3741,7 +3741,7 @@ function updateThemeBtn(){
 function initTheme(){
   const saved=localStorage.getItem('ht-theme');
   if(saved){ document.body.classList.add('force-'+saved); }
-  applyPalette(localStorage.getItem('ht-palette') || 'midnight');
+  applyPalette(localStorage.getItem('ht-palette') || 'graphite');
   updateThemeBtn();
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',updateThemeBtn);
 }
