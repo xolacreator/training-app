@@ -25,6 +25,8 @@
   --font:'Coda',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
+  --screen-pt:22px;  /* consistent top breathing room below Dynamic Island */
+  --sp-xs:4px; --sp-sm:8px; --sp-md:16px; --sp-lg:24px; --sp-xl:32px;
   /* Safe areas — critical for Face ID */
   --sat:env(safe-area-inset-top,44px);
   --sab:env(safe-area-inset-bottom,34px);
@@ -97,7 +99,7 @@ body{
   display:none;
 }
 .screen.active{display:block;}
-.px{padding:0 16px;}
+.px{padding:0 18px;}
 
 /* ── NAV ── */
 .nav{
@@ -171,19 +173,20 @@ body{
 .eyebrow{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;}
 .screen-title{font-size:32px;font-weight:600;color:var(--text);letter-spacing:-.5px;line-height:1;}
 .sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--text3);margin-bottom:6px;}
+  color:var(--text3);margin-bottom:10px;margin-top:20px;}
+.sec-lbl:first-child{margin-top:0;}
 .overlay-title{font-size:28px;font-weight:600;color:var(--text);letter-spacing:-.3px;margin-bottom:3px;}
 .overlay-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:20px;}
 
 /* ── CARDS ── */
 .card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r-lg);
-  padding:11px 13px;margin-bottom:7px;}
+  padding:14px 16px;margin-bottom:10px;}
 .card-flush{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r-lg);
-  overflow:hidden;margin-bottom:7px;}
+  overflow:hidden;margin-bottom:10px;}
 
 /* ── METRICS ── */
-.mg{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
-.metric{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r);padding:10px 11px;}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;}
+.metric{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r);padding:13px 14px;}
 .metric.am{background:var(--accent-dim);border-color:rgba(201,168,76,.22);}
 .metric.gr{background:var(--green-dim);border-color:rgba(52,211,153,.2);}
 .metric.bl{background:var(--blue-dim);border-color:rgba(167,139,250,.2);}
@@ -219,10 +222,10 @@ body{
 .bd-pend{background:var(--bg3);color:var(--text3);}
 
 /* ── WEEK STRIP ── */
-.wstrip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;scrollbar-width:none;}
+.wstrip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:0;scrollbar-width:none;}
 .wstrip::-webkit-scrollbar{display:none;}
-.dchip{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:7px 8px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg2);
+.dchip{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 8px;border-radius:10px;border:0.5px solid var(--border);background:var(--bg2);
   cursor:pointer;min-width:40px;}
 .dchip.today{border-color:var(--accent);background:var(--accent-dim);}
 .dchip.done{border-color:var(--green);background:var(--green-dim);}
@@ -234,7 +237,7 @@ body{
 .dchip.done .dchip-dot{background:var(--green);}
 
 /* ── SESSION ROWS ── */
-.srow{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:.5px solid var(--border);}
+.srow{display:flex;align-items:flex-start;gap:10px;padding:13px 0;border-bottom:.5px solid var(--border);}
 .srow:last-child{border-bottom:none;}
 .srow-info{flex:1;min-width:0;}
 .srow-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:2px;}
@@ -242,7 +245,7 @@ body{
 
 /* ── PLAN ROWS ── */
 .prow{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;
-  padding:9px 0;border-bottom:.5px solid var(--border);cursor:pointer;}
+  padding:13px 0;border-bottom:.5px solid var(--border);cursor:pointer;}
 .prow:last-child{border-bottom:none;}
 .prow:active{opacity:.7;}
 .pday-name{font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.4;}
@@ -464,7 +467,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 .screen-title{font-size:28px;font-weight:600;letter-spacing:-0.01em;line-height:1.05;}
 .overlay-title{font-size:24px;font-weight:600;letter-spacing:-0.01em;}
 .eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:3px;}
-.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;margin-top:20px;}
 .mval{font-size:26px;font-weight:600;line-height:1;letter-spacing:-0.02em;}
 .badge{font-family:var(--mono);font-size:9px;letter-spacing:0.04em;}
 .srow-name{font-size:13px;font-weight:500;color:var(--text);line-height:1.3;margin-bottom:2px;}
@@ -485,8 +488,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- TODAY -->
 <div id="screen-today" class="screen active">
-  <div class="px" style="padding-top:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+  <div class="px" style="padding-top:var(--screen-pt);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div class="logo-row">
         <img src="R%20Star%20App%20Icon.png" width="40" height="40" style="border-radius:10px;flex-shrink:0;">
         <div>
@@ -511,7 +514,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- LOG -->
 <div id="screen-log" class="screen">
-  <div class="px" style="padding-top:8px;">
+  <div class="px" style="padding-top:var(--screen-pt);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <div><div class="eyebrow">Record</div><div class="screen-title">Log</div></div>
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
@@ -570,14 +573,14 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="btn" onclick="clearForm()">Clear</button>
       </div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Recent</div>
+    <div class="sec-lbl">Recent</div>
     <div class="card" id="recent-log"></div>
   </div>
 </div>
 
 <!-- PLAN -->
 <div id="screen-plan" class="screen">
-  <div class="px" style="padding-top:8px;">
+  <div class="px" style="padding-top:var(--screen-pt);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div><div class="eyebrow">Programme</div><div class="screen-title">Plan</div></div>
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
@@ -607,7 +610,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- STATS -->
 <div id="screen-stats" class="screen">
-  <div class="px" style="padding-top:8px;">
+  <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Analysis</div><div class="screen-title">Stats</div></div>
     <div class="mg" id="stats-metrics"></div>
     <div class="sec-lbl">Weekly volume (<span id="vol-unit-lbl">km</span>)</div>
@@ -623,7 +626,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- MORE -->
 <div id="screen-more" class="screen">
-  <div class="px" style="padding-top:8px;">
+  <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
@@ -658,11 +661,11 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl">Cloud Sync</div>
     <div class="card" id="drive-card" style="min-height:60px;"></div>
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
-    <div class="sec-lbl" style="margin-top:4px;">Notifications</div>
+    <div class="sec-lbl">Notifications</div>
     <div class="card" id="notif-card" style="min-height:60px;"></div>
-    <div class="sec-lbl" style="margin-top:4px;">Strength Programming</div>
+    <div class="sec-lbl">Strength Programming</div>
     <div class="card" id="strength-programming-card" style="min-height:60px;"></div>
-    <div class="sec-lbl" style="margin-top:4px;">Program</div>
+    <div class="sec-lbl">Program</div>
     <div class="card" id="my-program-card" style="cursor:pointer;" onclick="openProgramOverlay()">
       <div id="my-program-summary">
         <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -674,9 +677,9 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         </div>
       </div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Appearance</div>
+    <div class="sec-lbl">Appearance</div>
     <div class="card" id="theme-picker-card" style="padding:10px;"></div>
-    <div class="sec-lbl" style="margin-top:4px;">Units</div>
+    <div class="sec-lbl">Units</div>
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
         <div>
@@ -703,7 +706,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         </div>
       </div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">App Setup</div>
+    <div class="sec-lbl">App Setup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
         Re-run the setup guide or reset the app to a clean slate for a new user.
@@ -713,7 +716,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.2);" onclick="confirmFactoryReset()">Factory reset</button>
       </div>
     </div>
-    <div class="sec-lbl" style="margin-top:4px;">Data &amp; Backup</div>
+    <div class="sec-lbl">Data &amp; Backup</div>
     <div class="card">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.8;" id="data-summary"></div>
       <div class="btn-row" style="margin-bottom:8px;">
