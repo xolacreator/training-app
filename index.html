@@ -184,7 +184,7 @@ body{
 /* ── METRICS ── */
 .mg{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
 .metric{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r);padding:10px 11px;}
-.metric.am{background:var(--accent-dim);border-color:rgba(212,175,55,.25);}
+.metric.am{background:var(--accent-dim);border-color:rgba(201,168,76,.22);}
 .metric.gr{background:var(--green-dim);border-color:rgba(52,211,153,.2);}
 .metric.bl{background:var(--blue-dim);border-color:rgba(167,139,250,.2);}
 .mlbl{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;}
@@ -674,6 +674,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         </div>
       </div>
     </div>
+    <div class="sec-lbl" style="margin-top:4px;">Appearance</div>
+    <div class="card" id="theme-picker-card" style="padding:10px;"></div>
     <div class="sec-lbl" style="margin-top:4px;">Units</div>
     <div class="card" id="units-settings-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -3637,6 +3639,76 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2200);
 }
 
+const PALETTES = {
+  midnight: {
+    name:'Midnight', desc:'Deep purple · amber gold',
+    bg:'#0C0820', bg2:'#160D35', bg3:'#1E1445', bg4:'#2A1C5A',
+    accent:'#C9A84C', accentDim:'rgba(201,168,76,0.15)',
+    blue:'#A78BFA',  blueDim:'rgba(167,139,250,0.14)',
+    border:'rgba(255,255,255,0.08)', border2:'rgba(255,255,255,0.14)',
+    text:'#F0EBF8', text2:'#C4B8D8', text3:'#6B5B8A',
+  },
+  obsidian: {
+    name:'Obsidian', desc:'Charcoal · violet',
+    bg:'#0F0F13', bg2:'#1A1A22', bg3:'#232330', bg4:'#2E2E42',
+    accent:'#8B5CF6', accentDim:'rgba(139,92,246,0.14)',
+    blue:'#60A5FA',  blueDim:'rgba(96,165,250,0.12)',
+    border:'rgba(255,255,255,0.07)', border2:'rgba(255,255,255,0.13)',
+    text:'#E8E8F2', text2:'#9898B8', text3:'#55556A',
+  },
+  sovereign: {
+    name:'Sovereign', desc:'Purple · deep gold · warm cream',
+    bg:'#0D0A12', bg2:'#1A1428', bg3:'#241D38', bg4:'#302848',
+    accent:'#C9A84C', accentDim:'rgba(201,168,76,0.15)',
+    blue:'#9B7FD4',  blueDim:'rgba(155,127,212,0.14)',
+    border:'rgba(201,168,76,0.10)', border2:'rgba(201,168,76,0.18)',
+    text:'#F5F0E8', text2:'#C8B8A4', text3:'#7A6A5A',
+  },
+};
+
+function applyPalette(name) {
+  const p = PALETTES[name];
+  if (!p) return;
+  const r = document.documentElement.style;
+  r.setProperty('--bg', p.bg);
+  r.setProperty('--bg2', p.bg2);
+  r.setProperty('--bg3', p.bg3);
+  r.setProperty('--bg4', p.bg4);
+  r.setProperty('--accent', p.accent);
+  r.setProperty('--accent-dim', p.accentDim);
+  r.setProperty('--blue', p.blue);
+  r.setProperty('--blue-dim', p.blueDim);
+  r.setProperty('--border', p.border);
+  r.setProperty('--border2', p.border2);
+  r.setProperty('--text', p.text);
+  r.setProperty('--text2', p.text2);
+  r.setProperty('--text3', p.text3);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', p.bg);
+  localStorage.setItem('ht-palette', name);
+  renderThemePicker();
+}
+
+function renderThemePicker() {
+  const el = document.getElementById('theme-picker-card');
+  if (!el) return;
+  const cur = localStorage.getItem('ht-palette') || 'midnight';
+  el.innerHTML = Object.entries(PALETTES).map(([key, p]) => {
+    const active = key === cur;
+    return `<button onclick="applyPalette('${key}')" style="display:flex;align-items:center;gap:12px;width:100%;background:${active?p.bg3:p.bg2};border:0.5px solid ${active?p.accent:'rgba(255,255,255,0.08)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;text-align:left;transition:border .2s,background .2s;box-sizing:border-box;">
+      <div style="display:flex;gap:5px;flex-shrink:0;">
+        <div style="width:22px;height:22px;border-radius:50%;background:${p.bg};box-shadow:0 0 0 1.5px rgba(255,255,255,0.15);"></div>
+        <div style="width:22px;height:22px;border-radius:50%;background:${p.accent};"></div>
+        <div style="width:22px;height:22px;border-radius:50%;background:${p.blue};"></div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:${active?600:400};color:${active?p.text:p.text2};">${p.name}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:${p.text3};margin-top:2px;">${p.desc}</div>
+      </div>
+      ${active?`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${p.accent}" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>`:''}
+    </button>`;
+  }).join('');
+}
+
 function toggleTheme(){
   const saved=localStorage.getItem('ht-theme');
   const sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -3668,9 +3740,8 @@ function updateThemeBtn(){
 }
 function initTheme(){
   const saved=localStorage.getItem('ht-theme');
-  if(saved){
-    document.body.classList.add('force-'+saved);
-  }
+  if(saved){ document.body.classList.add('force-'+saved); }
+  applyPalette(localStorage.getItem('ht-palette') || 'midnight');
   updateThemeBtn();
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',updateThemeBtn);
 }
@@ -6913,6 +6984,7 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
   try { maybeShowOnboarding(); } catch(e) {}
 }
 try { renderMoreSettings(); } catch(e) {}
+try { renderThemePicker(); } catch(e) {}
 try { loadSavedProgram(); renderMyProgramCard(); } catch(e) {}
 try { renderNotifCard(); } catch(e) {}
 try { initNotifications(); } catch(e) {}
