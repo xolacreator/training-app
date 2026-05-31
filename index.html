@@ -134,6 +134,9 @@ body{
 .nb:active svg{transform:scale(.86);}
 .tmr-step{width:54px;height:54px;border-radius:14px;border:.5px solid var(--border2);background:var(--bg3);color:var(--text);font-size:26px;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:transform .1s,background .15s;}
 .tmr-step:active{transform:scale(.92);background:var(--bg4);}
+#quick-fab:active{transform:scale(.9);}
+.ql-pill{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.04em;padding:9px 0;border-radius:9px;border:.5px solid var(--border2);background:var(--bg2);color:var(--text3);cursor:pointer;flex:1;text-align:center;transition:all .12s;}
+.ql-pill.sel{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
 .card[onclick]{transition:transform .12s,border-color .15s;}
 .card[onclick]:active{transform:scale(.985);}
 .nb.active{color:var(--blue);}
@@ -774,6 +777,18 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>More
   </button>
 </nav>
+
+<!-- QUICK-LOG FAB -->
+<button id="quick-fab" onclick="openQuickLog()" aria-label="Quick log session"
+  style="position:fixed;right:18px;bottom:calc(var(--nav-h) + var(--sab) + 18px);width:54px;height:54px;border-radius:50%;border:none;background:var(--accent);color:#000;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:150;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s;">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<!-- QUICK-LOG SHEET -->
+<div class="wnbackdrop" id="ql-backdrop" onclick="closeQuickLog()"></div>
+<div class="wnsheet" id="ql-sheet">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);" id="ql-content"></div>
+</div>
 
 <!-- WHAT'S NEW SHEET -->
 <div class="wnbackdrop" id="wn-backdrop" onclick="dismissUpdates()"></div>
@@ -3066,6 +3081,66 @@ function clearForm(){
   document.querySelectorAll('.feel-btn').forEach(b=>b.classList.remove('sel'));
   const fn=document.getElementById('f-notes');if(fn)fn.value='';
   renderMetrics();
+}
+
+// ── QUICK LOG ──────────────────────────────────────────────────────────────
+let qlDraft = {session:'', intensity:'moderate', dur:'', feel:null};
+const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function openQuickLog(){
+  const todayDow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+  const pw = PLAN[currentPlanWeek];
+  const planned = pw ? (pw.sessions.find(s=>s.day===todayDow) || null) : null;
+  qlDraft = {session: planned?planned.session:'', intensity: planned?(planned.intensity||'moderate'):'moderate', dur:'', feel:null};
+  renderQuickLog();
+  document.getElementById('ql-backdrop').classList.add('open');
+  document.getElementById('ql-sheet').classList.add('open');
+}
+function closeQuickLog(){
+  document.getElementById('ql-backdrop').classList.remove('open');
+  document.getElementById('ql-sheet').classList.remove('open');
+}
+function renderQuickLog(){
+  const ints=['easy','moderate','hard','mixed'];
+  const durs=['30','45','60','75'];
+  document.getElementById('ql-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:18px;font-weight:600;letter-spacing:-.02em;">Quick log</div>
+      <button onclick="closeQuickLog()" style="background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;">Cancel</button>
+    </div>
+    <div class="sec-lbl" style="margin-top:0;">Session</div>
+    <input id="ql-session" type="text" value="${(qlDraft.session||'').replace(/"/g,'&quot;')}" placeholder="What did you do?"
+      oninput="qlDraft.session=this.value" style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);font-size:15px;font-family:var(--font);margin-bottom:4px;">
+    <div class="sec-lbl">Intensity</div>
+    <div style="display:flex;gap:6px;">
+      ${ints.map(i=>`<button class="ql-pill ${qlDraft.intensity===i?'sel':''}" onclick="qlDraft.intensity='${i}';renderQuickLog()">${i[0].toUpperCase()+i.slice(1)}</button>`).join('')}
+    </div>
+    <div class="sec-lbl">Duration (min)</div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      ${durs.map(d=>`<button class="ql-pill ${qlDraft.dur===d?'sel':''}" onclick="qlDraft.dur='${d}';renderQuickLog()">${d}</button>`).join('')}
+      <input id="ql-dur" type="number" inputmode="numeric" value="${qlDraft.dur||''}" placeholder="—"
+        oninput="qlDraft.dur=this.value" style="width:64px;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border2);border-radius:9px;padding:9px 8px;color:var(--text);font-size:13px;font-family:var(--mono);text-align:center;">
+    </div>
+    <div class="sec-lbl">How did it feel?</div>
+    <div style="display:flex;gap:6px;">
+      ${[1,2,3,4,5].map(n=>`<button class="ql-pill ${qlDraft.feel===n?'sel':''}" onclick="qlDraft.feel=${n};renderQuickLog()">${n}</button>`).join('')}
+    </div>
+    <button class="btn btn-accent" style="width:100%;font-size:15px;padding:14px;margin-top:18px;" onclick="saveQuickLog()">Log session ✓</button>`;
+}
+function saveQuickLog(){
+  const session=(document.getElementById('ql-session')?.value||qlDraft.session||'').trim();
+  if(!session){ toast('Name the session first'); return; }
+  const now=new Date();
+  const day=DAYS_FULL[now.getDay()];
+  sessions.unshift({
+    week:String(currentPlanWeek), day, session,
+    intensity:qlDraft.intensity||'moderate',
+    pace:'', dist:'', hr:'', dur:(qlDraft.dur||'').toString().trim(),
+    feel:qlDraft.feel, notes:'', ts:Date.now(), date:todayISO(),
+    cat:'other', splits:[], exercises:[], stations:[], sUnit,
+  });
+  saveData(); renderAll();
+  closeQuickLog();
+  toast('Session logged ✓');
 }
 
 function renderRecentLog(){
