@@ -818,7 +818,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div id="lo-splits"></div>
     <div class="sec-lbl">Session breakdown</div>
     <div id="lo-breakdown"></div>
-    <div style="margin-top:16px;">
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-accent" id="lo-share-btn" onclick="shareSession(detailIdx)">↗ Share session card</button>
       <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.15);" id="lo-del-btn">Remove session</button>
     </div>
   </div>
@@ -3258,6 +3259,103 @@ function openLogOverlay(idx){
     sessions.splice(detailIdx,1);saveData();renderAll();closeOv('log-overlay');toast('Session removed');
   };
   openOv('log-overlay');
+}
+
+// Generate a shareable session summary card (canvas → Web Share / download)
+async function shareSession(idx){
+  const s=sessions[idx];
+  if(!s)return;
+  const btn=document.getElementById('lo-share-btn');
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='Building card…';btn.disabled=true;}
+  try{
+    try{if(document.fonts&&document.fonts.ready)await document.fonts.ready;}catch(e){}
+    const cs=getComputedStyle(document.documentElement);
+    const v=n=>cs.getPropertyValue(n).trim();
+    const C={bg:v('--bg')||'#131316',bg2:v('--bg2')||'#1C1C20',accent:v('--accent')||'#C9A84C',
+             blue:v('--blue')||'#9B8AD4',text:v('--text')||'#ECECEF',text2:v('--text2')||'#A0A0AB',
+             text3:v('--text3')||'#62626E',border:'rgba(255,255,255,0.12)'};
+    const W=1080,H=1350,P=80;
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const x=cv.getContext('2d');
+    // background
+    x.fillStyle=C.bg;x.fillRect(0,0,W,H);
+    // subtle top accent bar
+    x.fillStyle=C.accent;x.fillRect(0,0,W,8);
+
+    // header: wordmark + date
+    x.textBaseline='alphabetic';
+    x.fillStyle=C.accent;x.font='700 44px Coda, system-ui, sans-serif';
+    x.fillText('REV3',P,P+44);
+    const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+    x.fillStyle=C.text3;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';
+    const dw=x.measureText(ds).width;x.fillText(ds,W-P-dw,P+40);
+
+    // intensity eyebrow
+    x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
+    x.fillText(`WEEK ${s.week} · ${(s.intensity||'').toUpperCase()}`,P,P+150);
+
+    // session name (wrap up to 2 lines)
+    x.fillStyle=C.text;x.font='600 66px Coda, system-ui, sans-serif';
+    const words=(s.session||'Session').split(' ');let line='',lines=[];
+    for(const w of words){const t=line?line+' '+w:w;if(x.measureText(t).width>W-2*P&&line){lines.push(line);line=w;}else line=t;}
+    if(line)lines.push(line);lines=lines.slice(0,2);
+    let ly=P+230;lines.forEach(l=>{x.fillText(l,P,ly);ly+=76;});
+
+    // stat tiles (2x2)
+    const iv=getIntervalStats(s);
+    const stats=[];
+    if(iv)stats.push(['WORK REPS',`${iv.reps}`,'']);
+    if(s.pace)stats.push(['AVG PACE',iv?iv.avgPace:convertPaceStr(s.pace),'/'+paceUnit()]);
+    if(s.dist)stats.push(['DISTANCE',unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,distUnit()]);
+    if(s.hr)stats.push(['AVG HR',`${s.hr}`,'bpm']);
+    if(s.dur)stats.push(['DURATION',`${s.dur}`,'min']);
+    if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
+    const grid=stats.slice(0,4);
+    const gy=ly+40,tileW=(W-2*P-30)/2,tileH=190;
+    grid.forEach((t,i)=>{
+      const col=i%2,row=Math.floor(i/2);
+      const tx=P+col*(tileW+30),ty=gy+row*(tileH+24);
+      x.fillStyle=C.bg2;roundRect(x,tx,ty,tileW,tileH,24);x.fill();
+      x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
+      x.fillText(t[0],tx+34,ty+58);
+      const accentTile=(t[0]==='AVG PACE'||t[0]==='WORK REPS');
+      x.fillStyle=accentTile?C.accent:C.text;x.font='600 78px Coda, system-ui, sans-serif';
+      const vw=x.measureText(t[1]).width;
+      x.fillText(t[1],tx+34,ty+148);
+      if(t[2]){x.fillStyle=C.text2;x.font='500 30px "JetBrains Mono", ui-monospace, monospace';x.fillText(t[2],tx+34+vw+12,ty+148);}
+    });
+
+    // footer
+    x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
+    x.fillText('REV3 · TRAINING',P,H-P+10);
+    if(iv){const bp=`BEST REP ${iv.bestPace}/${paceUnit()}`;const bw=x.measureText(bp).width;x.fillStyle=C.accent;x.fillText(bp,W-P-bw,H-P+10);}
+
+    const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+    const file=new File([blob],'rev3-session.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:s.session});
+    }else{
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download='rev3-session.png';a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+      toast('Card saved to downloads');
+    }
+  }catch(err){
+    if(err&&err.name!=='AbortError')toast('Share failed: '+(err.message||'error'));
+  }finally{
+    if(btn){btn.textContent=orig;btn.disabled=false;}
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
