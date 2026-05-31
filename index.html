@@ -624,6 +624,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Analysis</div><div class="screen-title">Stats</div></div>
     <div class="mg" id="stats-metrics"></div>
+    <div class="sec-lbl">Personal bests</div>
+    <div class="card" id="personal-bests"></div>
     <div class="sec-lbl">Training load · fitness vs fatigue</div>
     <div class="card" id="load-summary" style="margin-bottom:8px;"></div>
     <div class="card"><div class="chart-wrap"><canvas id="chart-load"></canvas></div></div>
@@ -3667,6 +3669,74 @@ function renderStats(){
   document.getElementById('completion-bars').innerHTML=cb;
 
   renderTrainingLoad();
+  renderPersonalBests();
+}
+
+// Auto-detect personal bests from Strava per-km splits + interval laps
+function computePersonalBests(){
+  const pb = {km:null, k5:null, k10:null, longest:null, rep:null};
+  const fmt = secs => `${Math.floor(secs/60)}:${String(Math.round(secs%60)).padStart(2,'0')}`;
+  const tag = s => `W${s.week} ${s.day}`;
+  sessions.forEach(s=>{
+    // fastest single km + rolling 5k/10k from per-km splits
+    const sp = s.strava_splits;
+    if (Array.isArray(sp) && sp.length){
+      const fullKm = sp.filter(x=>x.distance>=900 && (x.moving_time||x.elapsed_time)>0);
+      fullKm.forEach(x=>{
+        const t = x.moving_time||x.elapsed_time;
+        if (!pb.km || t < pb.km.secs) pb.km = {secs:t, tag:tag(s)};
+      });
+      const times = fullKm.map(x=>x.moving_time||x.elapsed_time);
+      const roll = (n, key) => {
+        if (times.length < n) return;
+        for (let i=0;i+n<=times.length;i++){
+          const sum = times.slice(i,i+n).reduce((a,b)=>a+b,0);
+          if (!pb[key] || sum < pb[key].secs) pb[key] = {secs:sum, tag:tag(s)};
+        }
+      };
+      roll(5,'k5'); roll(10,'k10');
+    }
+    // longest run
+    if (s.dist && parseFloat(s.dist)>0){
+      const km = parseFloat(s.dist);
+      if (!pb.longest || km > pb.longest.km) pb.longest = {km, tag:tag(s)};
+    }
+    // best interval rep
+    const iv = getIntervalStats(s);
+    if (iv && iv.bestPace){
+      const p = iv.bestPace.split(':'); const secs = parseInt(p[0])*60+parseFloat(p[1]);
+      if (!pb.rep || secs < pb.rep.secs) pb.rep = {secs, pace:iv.bestPace, tag:tag(s)};
+    }
+  });
+  return {pb, fmt};
+}
+
+function renderPersonalBests(){
+  const el = document.getElementById('personal-bests'); if(!el) return;
+  const {pb, fmt} = computePersonalBests();
+  const u = paceUnit(); // shows /km or /mi label context
+  const rows = [];
+  if (pb.km)      rows.push(['Fastest km', fmt(pb.km.secs), pb.km.tag]);
+  if (pb.k5)      rows.push(['Fastest 5K', fmt(pb.k5.secs), pb.k5.tag]);
+  if (pb.k10)     rows.push(['Fastest 10K', fmt(pb.k10.secs), pb.k10.tag]);
+  if (pb.rep)     rows.push(['Best interval rep', `${pb.rep.pace}/km`, pb.rep.tag]);
+  if (pb.longest) rows.push(['Longest run', `${unitRun==='mi'?(pb.longest.km*MI_PER_KM).toFixed(1):pb.longest.km.toFixed(1)} ${distUnit()}`, pb.longest.tag]);
+
+  if (!rows.length){
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;">No personal bests yet. Fetch Strava splits on your runs (open a session → Fetch Strava splits) to unlock fastest km / 5K / 10K.</div>`;
+    return;
+  }
+  el.innerHTML = rows.map((r,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;${i<rows.length-1?'border-bottom:.5px solid var(--border);':''}">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
+        <span style="font-size:13px;color:var(--text);">${r[0]}</span>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent);">${r[1]}</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);">${r[2]}</div>
+      </div>
+    </div>`).join('');
 }
 
 // Training stress per session = duration(min) × intensity multiplier
@@ -6612,6 +6682,19 @@ function buildCoachSystemPrompt() {
   })();
   const nextSessStr = nextSess ? `Next scheduled: W${nextSess.week} ${nextSess.day} — ${nextSess.session}` : '';
 
+  const pbStr = (() => {
+    try {
+      const {pb, fmt} = computePersonalBests();
+      const bits = [];
+      if (pb.km)  bits.push(`fastest km ${fmt(pb.km.secs)}`);
+      if (pb.k5)  bits.push(`5K ${fmt(pb.k5.secs)}`);
+      if (pb.k10) bits.push(`10K ${fmt(pb.k10.secs)}`);
+      if (pb.rep) bits.push(`best rep ${pb.rep.pace}/km`);
+      if (pb.longest) bits.push(`longest ${pb.longest.km.toFixed(1)}km`);
+      return bits.length ? 'Personal bests: '+bits.join(' · ') : '';
+    } catch(e) { return ''; }
+  })();
+
   const raceDate  = p.raceDate || 'not set';
   const priority  = p.priority    ? `\nAthlete's current priority: "${p.priority}"` : '';
   const limits    = p.limitations ? `\nInjuries/limitations: ${p.limitations}` : '';
@@ -6643,6 +6726,7 @@ ATHLETE DATA:
 ${blCtx}
 Plan week: ${currentPlanWeek}/12${hxGoal?' · '+hxGoal:''}
 Best tempo: ${bestPace||'not yet logged'}
+${pbStr}
 ${recStr}
 ${nextSessStr}
 Recent sessions:
