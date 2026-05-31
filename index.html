@@ -776,6 +776,12 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);" id="wn-content"></div>
 </div>
 
+<!-- WEEKLY DIGEST SHEET -->
+<div class="wnbackdrop" id="digest-backdrop" onclick="dismissDigest()"></div>
+<div class="wnsheet" id="digest-sheet">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);" id="digest-content"></div>
+</div>
+
 <!-- ONBOARDING OVERLAY -->
 <div class="overlay" id="onboard-overlay" style="background:var(--bg);z-index:200;display:flex;flex-direction:column;">
   <div style="flex:1;overflow-y:auto;" id="onboard-scroll">
@@ -6874,6 +6880,98 @@ function dismissUpdates() {
   localStorage.setItem('ht-last-seen-v', APP_VERSION);
 }
 
+// ── WEEKLY DIGEST ──────────────────────────────────────────────────────────
+function isoWeekId(d){
+  // ISO-ish week key YYYY-Www for once-per-week gating
+  const dt=new Date(d); dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate()+4-(dt.getDay()||7));
+  const yStart=new Date(dt.getFullYear(),0,1);
+  const wk=Math.ceil((((dt-yStart)/86400000)+1)/7);
+  return `${dt.getFullYear()}-W${String(wk).padStart(2,'0')}`;
+}
+function maybeShowWeeklyDigest(){
+  if (!localStorage.getItem('ht-onboarded')) return;
+  if (sessionStorage.getItem('digest-shown')) return;
+  const now=new Date();
+  const dow=now.getDay(); // 0=Sun
+  // Only surface Sunday or Monday
+  if (dow!==0 && dow!==1) return;
+  const thisWeek=isoWeekId(now);
+  if (localStorage.getItem('ht-last-digest')===thisWeek) return;
+  sessionStorage.setItem('digest-shown','1');
+  setTimeout(()=>showWeeklyDigest(), 1000);
+}
+function buildDigestStats(){
+  const now=new Date(); now.setHours(23,59,59,999);
+  const wk={};
+  for(let i=0;i<7;i++){const d=new Date(now);d.setDate(d.getDate()-i);wk[d.toISOString().slice(0,10)]=true;}
+  const wkSessions=sessions.filter(s=>{const iso=sessionDateISO(s);return iso&&wk[iso];});
+  const count=wkSessions.length;
+  const km=wkSessions.filter(s=>s.dist).reduce((a,s)=>a+parseFloat(s.dist||0),0);
+  const load=wkSessions.reduce((a,s)=>a+computeSessionLoad(s),0);
+  const feels=wkSessions.filter(s=>s.feel);
+  const avgFeel=feels.length?(feels.reduce((a,s)=>a+s.feel,0)/feels.length):0;
+  const hardCount=wkSessions.filter(s=>['hard','mixed'].includes((s.intensity||'').toLowerCase())).length;
+  return {count, km, load, avgFeel, hardCount, wkSessions};
+}
+async function showWeeklyDigest(){
+  const st=buildDigestStats();
+  const dist=unitRun==='mi'?(st.km*MI_PER_KM):st.km;
+  const tiles=[
+    ['Sessions', String(st.count), ''],
+    ['Volume', dist?dist.toFixed(1):'0', distUnit()],
+    ['Load', String(st.load), 'units'],
+    ['Avg feel', st.avgFeel?st.avgFeel.toFixed(1):'—', '/5'],
+  ];
+  const tileHtml=tiles.map(t=>`
+    <div style="flex:1;background:var(--bg2);border:.5px solid var(--border2);border-radius:12px;padding:12px 10px;text-align:center;">
+      <div style="font-size:22px;font-weight:600;color:var(--text);line-height:1;">${t[1]}<span style="font-size:10px;color:var(--text2);font-weight:500;">${t[2]?' '+t[2]:''}</span></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-top:5px;">${t[0]}</div>
+    </div>`).join('');
+
+  document.getElementById('digest-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-size:18px;font-weight:600;letter-spacing:-.02em;">Your week in review</div>
+      <button onclick="dismissDigest()" style="background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;">Done</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:16px;">Last 7 days · ${st.hardCount} quality session${st.hardCount===1?'':'s'}</div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;">${tileHtml}</div>
+    <div class="sec-lbl" style="margin-top:0;">Coach's note</div>
+    <div id="digest-note" style="background:var(--bg2);border:.5px solid var(--border);border-radius:12px;padding:14px;font-size:12px;color:var(--text2);line-height:1.7;min-height:40px;">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">Generating…</span>
+    </div>
+    <button class="btn btn-accent" style="width:100%;font-size:14px;padding:13px;margin-top:14px;" onclick="dismissDigest()">Got it</button>`;
+
+  document.getElementById('digest-backdrop').classList.add('open');
+  document.getElementById('digest-sheet').classList.add('open');
+
+  // AI coaching note (optional — requires key)
+  const noteEl=document.getElementById('digest-note');
+  const key=localStorage.getItem('ht-ai-key')||'';
+  if(!key||!key.startsWith('sk-ant')){
+    noteEl.innerHTML = st.count===0
+      ? 'No sessions logged this week. A fresh week is a clean slate — get one quality session and one easy session on the board to build momentum.'
+      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add a Claude API key in More → AI for personalised notes.</span>`;
+    return;
+  }
+  try{
+    const p=coachProfile||{};
+    const data=await claudeAPI(key,{
+      model:'claude-haiku-4-5-20251001', max_tokens:200,
+      system:`You are ${p.name||'an elite endurance coach'}, writing a brief weekly review note. 2-3 sentences max. Specific, encouraging, one forward-looking tip for next week. No greeting, no signature.`,
+      messages:[{role:'user',content:`This athlete's past 7 days: ${st.count} sessions, ${st.hardCount} quality/hard, ${dist.toFixed(1)}${distUnit()} volume, training load ${st.load} units, avg feel ${st.avgFeel?st.avgFeel.toFixed(1):'n/a'}/5. Plan week ${currentPlanWeek}/12. Write their weekly review note.`}],
+    });
+    noteEl.textContent = data.content?.[0]?.text || 'Great work this week — keep the momentum going.';
+  }catch(e){
+    noteEl.textContent = `${st.count} sessions, ${st.hardCount} quality efforts this week. Stay consistent and keep easy days easy.`;
+  }
+}
+function dismissDigest(){
+  document.getElementById('digest-backdrop').classList.remove('open');
+  document.getElementById('digest-sheet').classList.remove('open');
+  localStorage.setItem('ht-last-digest', isoWeekId(new Date()));
+}
+
 // ── Onboarding wizard ────────────────────────────────────────────────────────
 let _obStep = 0;
 let _obAnswers = {};
@@ -7364,6 +7462,8 @@ try { initNotifications(); } catch(e) {}
 try { maybeShowMorningCheckin(); } catch(e) {}
 // Show what's-new sheet for returning users when version advances
 try { checkForUpdates(); } catch(e) {}
+// Weekly digest (Sunday/Monday, once per week)
+try { maybeShowWeeklyDigest(); } catch(e) {}
 </script>
 </body>
 </html>
