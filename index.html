@@ -146,19 +146,30 @@ body{
 /* ── OVERLAYS ── */
 .overlay{
   position:fixed;
-  /* Use dvh so the overlay shrinks when keyboard opens, keeping the footer visible */
   top:0;left:0;right:0;height:100dvh;
   background:var(--bg);
   z-index:200;
-  overflow-y:auto;
-  overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
+  overflow:hidden;
+  display:flex;flex-direction:column;
   transform:translateY(100%);
   transition:transform .3s cubic-bezier(.16,1,.3,1);
   will-change:transform;
 }
 .overlay.open{transform:translateY(0);}
-/* What's-new bottom sheet */
+/* Overlay header — fixed, never scrolls */
+.oh{
+  flex-shrink:0;
+  padding:calc(var(--sat)+10px) calc(16px+var(--sar)) 8px calc(16px+var(--sal));
+  background:var(--bg);
+}
+/* Overlay inner (body) — scrolls */
+.oi{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  padding:4px calc(16px+var(--sal)) calc(var(--sab)+40px) calc(16px+var(--sar));
+}
 .wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
 .wnbackdrop.open{opacity:1;pointer-events:auto;}
 .wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg);z-index:299;border-radius:16px 16px 0 0;border-top:.5px solid var(--border);max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;}
@@ -167,14 +178,6 @@ body{
 .wntag-new{background:var(--accent-dim);color:var(--accent);}
 .wntag-fix{background:rgba(77,158,255,.12);color:var(--blue);}
 .wntag-improved{background:rgba(52,199,89,.12);color:var(--green,#34c759);}
-.oi{
-  /* Top padding: safe area + back button space */
-  padding-top:calc(var(--sat) + 16px);
-  padding-left:calc(16px + var(--sal));
-  padding-right:calc(16px + var(--sar));
-  /* Bottom: safe area + extra breathing room */
-  padding-bottom:calc(var(--sab) + 40px);
-}
 .back-btn{
   display:flex;align-items:center;gap:6px;
   font-size:14px;font-weight:500;color:var(--text2);
@@ -818,15 +821,18 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- ASSESSMENT OVERLAY -->
 <div class="overlay" id="assessment-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeOv('assessment-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi" id="assessment-oi"></div>
 </div>
 
 <!-- PLAN SESSION DETAIL OVERLAY -->
 <div class="overlay" id="plan-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeOv('plan-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeOv('plan-overlay')">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow" id="po-eyebrow"></div>
     <div class="overlay-title" id="po-title"></div>
     <div class="overlay-sub" id="po-sub"></div>
@@ -840,10 +846,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- LOG DETAIL OVERLAY -->
 <div class="overlay" id="log-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeOv('log-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeOv('log-overlay')">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow" id="lo-eyebrow"></div>
     <div class="overlay-title" id="lo-title"></div>
     <div class="overlay-sub" id="lo-sub"></div>
@@ -865,9 +871,11 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 </div>
 
 <!-- INTERVAL TIMER OVERLAY -->
-<div class="overlay" id="timer-overlay" style="display:flex;flex-direction:column;">
-  <div id="timer-config" style="flex:1;overflow-y:auto;padding:calc(var(--sat) + 16px) 18px calc(var(--sab) + 24px);">
+<div class="overlay" id="timer-overlay">
+  <div class="oh">
     <button class="back-btn" onclick="closeTimer()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
+  <div id="timer-config" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 18px calc(var(--sab) + 24px);">
     <div class="eyebrow">Workout tool</div>
     <div class="overlay-title">Interval Timer</div>
     <div class="overlay-sub" id="timer-prefill-note"></div>
@@ -903,7 +911,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <button class="btn btn-accent" style="width:100%;font-size:15px;padding:15px;" onclick="timerStart()">Start workout →</button>
   </div>
 
-  <div id="timer-run" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:calc(var(--sat) + 16px) 24px calc(var(--sab) + 24px);">
+  <div id="timer-run" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px 24px calc(var(--sab) + 24px);">
     <div id="tmr-phase" style="font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px;">Get ready</div>
     <div id="tmr-rep" style="font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:24px;">Rep 1 of 6</div>
     <div id="tmr-count" style="font-size:120px;font-weight:600;line-height:.9;letter-spacing:-.03em;font-variant-numeric:tabular-nums;">3:00</div>
@@ -918,10 +926,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- REVIEW IMPORTS OVERLAY -->
 <div class="overlay" id="review-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeReviewFlow()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Done</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeReviewFlow()">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Done
-    </button>
     <div class="eyebrow" id="rv-progress"></div>
     <div class="overlay-title" id="rv-title" style="margin-bottom:4px;"></div>
     <div id="rv-strava-name" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:16px;"></div>
@@ -941,10 +949,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- SESSION BUILDER OVERLAY -->
 <div class="overlay" id="builder-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeOv('builder-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeOv('builder-overlay')">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow" id="bld-eyebrow">Session Builder</div>
     <div class="overlay-title">Build Session</div>
     <div style="margin-bottom:14px;">
@@ -999,10 +1007,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- TEMPLATES OVERLAY -->
 <div class="overlay" id="templates-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeOv('templates-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeOv('templates-overlay')">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow">Saved</div>
     <div class="overlay-title" style="margin-bottom:12px;">Templates</div>
     <button class="btn" onclick="closeOv('templates-overlay');openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.2);margin-bottom:12px;">+ Build new session</button>
@@ -1012,10 +1020,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- AI SESSION BUILDER OVERLAY -->
 <div class="overlay" id="ai-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeOv('ai-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeOv('ai-overlay')">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow">AI-Powered</div>
     <div class="overlay-title" style="margin-bottom:4px;">Plan Builder</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Powered by Claude · extend your plan or build new sessions</div>
@@ -1172,10 +1180,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- COACH SETUP WIZARD -->
 <div class="overlay" id="coach-setup-overlay">
+  <div class="oh">
+    <button class="back-btn" onclick="closeCoachSetup()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
   <div class="oi">
-    <button class="back-btn" onclick="closeCoachSetup()">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow">Setup</div>
     <div class="overlay-title" style="margin-bottom:4px;">Meet Your Coach</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;">5 questions · build your personal coaching style</div>
@@ -3292,9 +3300,6 @@ function openAssessmentOverlay(id) {
   const resultHtml = done ? buildAssessmentResultHtml(id, saved) : '';
 
   document.getElementById('assessment-oi').innerHTML = `
-    <button class="back-btn" onclick="closeOv('assessment-overlay')">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
     <div class="eyebrow" style="color:${catColor};">${a.category} · Assessment</div>
     <div class="overlay-title">${a.name}</div>
     <div class="overlay-sub">${a.subtitle} · ${a.duration}</div>
