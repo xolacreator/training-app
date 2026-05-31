@@ -132,6 +132,8 @@ body{
 }
 .nb svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:transform .12s;}
 .nb:active svg{transform:scale(.86);}
+.tmr-step{width:54px;height:54px;border-radius:14px;border:.5px solid var(--border2);background:var(--bg3);color:var(--text);font-size:26px;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:transform .1s,background .15s;}
+.tmr-step:active{transform:scale(.92);background:var(--bg4);}
 .card[onclick]{transition:transform .12s,border-color .15s;}
 .card[onclick]:active{transform:scale(.985);}
 .nb.active{color:var(--blue);}
@@ -528,7 +530,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <div><div class="eyebrow">Record</div><div class="screen-title">Log</div></div>
-      <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="openTimer()" style="color:var(--accent);border-color:rgba(201,168,76,.3);">⏱ Timer</button>
+        <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
+      </div>
     </div>
     <div class="card">
       <div class="g2" style="margin-bottom:10px;">
@@ -837,6 +842,58 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   </div>
 </div>
 
+<!-- INTERVAL TIMER OVERLAY -->
+<div class="overlay" id="timer-overlay" style="display:flex;flex-direction:column;">
+  <div id="timer-config" style="flex:1;overflow-y:auto;padding:calc(var(--sat) + 16px) 18px calc(var(--sab) + 24px);">
+    <button class="back-btn" onclick="closeTimer()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+    <div class="eyebrow">Workout tool</div>
+    <div class="overlay-title">Interval Timer</div>
+    <div class="overlay-sub" id="timer-prefill-note"></div>
+
+    <div class="sec-lbl">Reps</div>
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="tmr-step" onclick="timerAdjust('reps',-1)">−</button>
+      <div style="text-align:center;"><div id="tmr-reps" style="font-size:32px;font-weight:600;line-height:1;">6</div><div style="font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">intervals</div></div>
+      <button class="tmr-step" onclick="timerAdjust('reps',1)">+</button>
+    </div>
+
+    <div class="sec-lbl">Work</div>
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="tmr-step" onclick="timerAdjust('work',-15)">−</button>
+      <div style="text-align:center;"><div id="tmr-work" style="font-size:32px;font-weight:600;line-height:1;font-family:var(--mono);">3:00</div><div style="font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">per rep · ±15s</div></div>
+      <button class="tmr-step" onclick="timerAdjust('work',15)">+</button>
+    </div>
+
+    <div class="sec-lbl">Recovery</div>
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="tmr-step" onclick="timerAdjust('rest',-15)">−</button>
+      <div style="text-align:center;"><div id="tmr-rest" style="font-size:32px;font-weight:600;line-height:1;font-family:var(--mono);">1:30</div><div style="font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">between reps · ±15s</div></div>
+      <button class="tmr-step" onclick="timerAdjust('rest',15)">+</button>
+    </div>
+
+    <div class="sec-lbl">Target pace / cue (optional)</div>
+    <input id="tmr-pace" type="text" placeholder="e.g. 3:35–3:45/km · RPE 8" style="width:100%;box-sizing:border-box;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);font-size:14px;font-family:var(--font);margin-bottom:16px;">
+
+    <div class="card" style="background:var(--bg2);margin-bottom:16px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;" id="tmr-summary"></div>
+    </div>
+
+    <button class="btn btn-accent" style="width:100%;font-size:15px;padding:15px;" onclick="timerStart()">Start workout →</button>
+  </div>
+
+  <div id="timer-run" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:calc(var(--sat) + 16px) 24px calc(var(--sab) + 24px);">
+    <div id="tmr-phase" style="font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px;">Get ready</div>
+    <div id="tmr-rep" style="font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:24px;">Rep 1 of 6</div>
+    <div id="tmr-count" style="font-size:120px;font-weight:600;line-height:.9;letter-spacing:-.03em;font-variant-numeric:tabular-nums;">3:00</div>
+    <div id="tmr-cue" style="font-size:14px;color:var(--text2);margin-top:24px;min-height:20px;line-height:1.5;max-width:320px;"></div>
+    <div id="tmr-pips" style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:28px;max-width:280px;"></div>
+    <div style="display:flex;gap:10px;margin-top:40px;width:100%;max-width:320px;">
+      <button class="btn" id="tmr-pause-btn" style="flex:1;" onclick="timerPauseToggle()">Pause</button>
+      <button class="btn" style="flex:1;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="timerStop()">Stop</button>
+    </div>
+  </div>
+</div>
+
 <!-- REVIEW IMPORTS OVERLAY -->
 <div class="overlay" id="review-overlay">
   <div class="oi">
@@ -973,6 +1030,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="btn btn-accent" onclick="aiLoadToBuilder()">Load into Builder</button>
         <button class="btn" onclick="aiLogNow()" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Log now</button>
       </div>
+      <button class="btn" style="width:100%;margin-top:8px;color:var(--accent);border-color:rgba(201,168,76,.25);" onclick="if(aiGeneratedSession){closeOv('ai-overlay');openTimer(aiGeneratedSession);}">⏱ Run as interval timer</button>
     </div>
   </div>
 </div>
@@ -3416,6 +3474,157 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r);
   ctx.arcTo(x,y,x+w,y,r);
   ctx.closePath();
+}
+
+// ── INTERVAL TIMER ─────────────────────────────────────────────────────────
+let timerCfg = {reps:6, work:180, rest:90, pace:''};
+let timerRun = {active:false, paused:false, phase:'prep', curRep:1, remaining:3, raf:null, lastTs:0, wakeLock:null};
+const tmrFmt = s => `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}`;
+
+function openTimer(prefill){
+  // best-effort prefill from a session's main set
+  let note='Set your intervals, then start.';
+  if (prefill && prefill.options){
+    const cfg = extractTimerConfig(prefill);
+    if (cfg){ timerCfg={...timerCfg,...cfg}; note=`Pre-filled from “${prefill._name||'session'}” — adjust as needed.`; }
+  }
+  document.getElementById('timer-prefill-note').textContent=note;
+  document.getElementById('timer-config').style.display='block';
+  document.getElementById('timer-run').style.display='none';
+  renderTimerConfig();
+  openOv('timer-overlay');
+}
+function extractTimerConfig(sess){
+  try{
+    const main=(sess.options[0].blocks||[]).find(b=>b.type==='main')||sess.options[0].blocks[0];
+    if(!main||!main.items)return null;
+    const repItems=main.items.filter(i=>/^rep\b|×|\bx\b|interval/i.test(i.name||'')||/\d+\s*m\b|\d+\s*km/i.test(i.detail||''));
+    const restItem=main.items.find(i=>/rest|recover/i.test(i.name||''));
+    let reps=repItems.filter(i=>/rest|recover/i.test(i.name||'')?false:true).length||6;
+    if(reps>20)reps=6;
+    let rest=90;
+    if(restItem){const m=(restItem.detail||'').match(/(\d+):(\d{2})/);if(m)rest=parseInt(m[1])*60+parseInt(m[2]);}
+    const cue=(repItems[0]?.cue)||'';
+    const pm=cue.match(/\d:\d{2}\s*[–-]\s*\d:\d{2}\s*\/?\s*km|RPE\s*\d+/i);
+    return {reps, rest, pace:(cue.split('.')[0]||'').slice(0,40)};
+  }catch(e){return null;}
+}
+function renderTimerConfig(){
+  document.getElementById('tmr-reps').textContent=timerCfg.reps;
+  document.getElementById('tmr-work').textContent=tmrFmt(timerCfg.work);
+  document.getElementById('tmr-rest').textContent=tmrFmt(timerCfg.rest);
+  document.getElementById('tmr-pace').value=timerCfg.pace||'';
+  const totalWork=timerCfg.reps*timerCfg.work, totalRest=(timerCfg.reps-1)*timerCfg.rest;
+  document.getElementById('tmr-summary').innerHTML=
+    `${timerCfg.reps} × ${tmrFmt(timerCfg.work)} work / ${tmrFmt(timerCfg.rest)} rest<br>Total active time ≈ ${tmrFmt(totalWork+totalRest)}`;
+}
+function timerAdjust(field,delta){
+  if(field==='reps')timerCfg.reps=Math.max(1,Math.min(30,timerCfg.reps+delta));
+  if(field==='work')timerCfg.work=Math.max(15,timerCfg.work+delta);
+  if(field==='rest')timerCfg.rest=Math.max(0,timerCfg.rest+delta);
+  renderTimerConfig();
+}
+function timerBeep(freq,dur){
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;
+    timerRun.audio=timerRun.audio||new Ctx();
+    const ctx=timerRun.audio; if(ctx.state==='suspended')ctx.resume();
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.frequency.value=freq||880;o.type='sine';o.connect(g);g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3,ctx.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+(dur||0.15));
+    o.start();o.stop(ctx.currentTime+(dur||0.15));
+  }catch(e){}
+}
+function timerCue(type){
+  if(navigator.vibrate)navigator.vibrate(type==='work'?[120,60,120]:80);
+  if(type==='work')timerBeep(1046,0.25); else if(type==='rest')timerBeep(660,0.2); else timerBeep(880,0.4);
+}
+async function timerStart(){
+  timerCfg.pace=document.getElementById('tmr-pace').value.trim();
+  timerBeep(880,0.05); // unlock audio on user gesture
+  timerRun={active:true,paused:false,phase:'prep',curRep:1,remaining:3,raf:null,lastTs:performance.now(),wakeLock:timerRun.wakeLock,audio:timerRun.audio};
+  document.getElementById('timer-config').style.display='none';
+  document.getElementById('timer-run').style.display='flex';
+  renderTimerPips();
+  try{ if('wakeLock' in navigator){ timerRun.wakeLock=await navigator.wakeLock.request('screen'); } }catch(e){}
+  timerTick();
+}
+function timerTick(){
+  if(!timerRun.active)return;
+  timerRun.raf=requestAnimationFrame(timerTick);
+  if(timerRun.paused){timerRun.lastTs=performance.now();return;}
+  const now=performance.now();
+  const dt=(now-timerRun.lastTs)/1000;
+  timerRun.lastTs=now;
+  const prev=timerRun.remaining;
+  timerRun.remaining-=dt;
+  // countdown beeps at 3,2,1
+  if(Math.ceil(prev)!==Math.ceil(timerRun.remaining)&&timerRun.remaining>0&&timerRun.remaining<=3){timerBeep(660,0.08);}
+  if(timerRun.remaining<=0){ timerAdvance(); }
+  renderTimerRun();
+}
+function timerAdvance(){
+  const ph=timerRun.phase;
+  if(ph==='prep'){ timerRun.phase='work'; timerRun.remaining=timerCfg.work; timerCue('work'); return; }
+  if(ph==='work'){
+    if(timerRun.curRep>=timerCfg.reps){ timerFinish(); return; }
+    timerRun.phase='rest'; timerRun.remaining=timerCfg.rest; timerCue('rest'); return;
+  }
+  if(ph==='rest'){ timerRun.curRep++; timerRun.phase='work'; timerRun.remaining=timerCfg.work; timerCue('work'); return; }
+}
+function timerFinish(){
+  timerRun.active=false;
+  if(timerRun.raf)cancelAnimationFrame(timerRun.raf);
+  timerCue('done');
+  document.getElementById('tmr-phase').textContent='Complete';
+  document.getElementById('tmr-phase').style.color='var(--green)';
+  document.getElementById('tmr-count').textContent='✓';
+  document.getElementById('tmr-rep').textContent=`${timerCfg.reps} reps done`;
+  document.getElementById('tmr-cue').textContent='Nice work. Log it from the Log tab.';
+  releaseWakeLock();
+}
+function renderTimerRun(){
+  const ph=timerRun.phase;
+  const phEl=document.getElementById('tmr-phase'), cEl=document.getElementById('tmr-count');
+  if(ph==='prep'){ phEl.textContent='Get ready'; phEl.style.color='var(--accent)'; }
+  else if(ph==='work'){ phEl.textContent='Work'; phEl.style.color='var(--accent)'; cEl.style.color='var(--text)'; }
+  else if(ph==='rest'){ phEl.textContent='Recover'; phEl.style.color='var(--blue)'; cEl.style.color='var(--text2)'; }
+  cEl.textContent=tmrFmt(Math.max(0,timerRun.remaining));
+  document.getElementById('tmr-rep').textContent=`Rep ${Math.min(timerRun.curRep,timerCfg.reps)} of ${timerCfg.reps}`;
+  document.getElementById('tmr-cue').textContent=(ph==='work'&&timerCfg.pace)?timerCfg.pace:'';
+  renderTimerPips();
+}
+function renderTimerPips(){
+  const el=document.getElementById('tmr-pips');if(!el)return;
+  el.innerHTML=Array.from({length:timerCfg.reps},(_,i)=>{
+    const n=i+1; const done=n<timerRun.curRep||(n===timerRun.curRep&&timerRun.phase==='rest');
+    const cur=n===timerRun.curRep&&timerRun.phase!=='rest';
+    const col=done?'var(--accent)':cur?'var(--text)':'var(--bg4)';
+    return `<div style="width:10px;height:10px;border-radius:50%;background:${col};"></div>`;
+  }).join('');
+}
+function timerPauseToggle(){
+  timerRun.paused=!timerRun.paused;
+  document.getElementById('tmr-pause-btn').textContent=timerRun.paused?'Resume':'Pause';
+  if(!timerRun.paused)timerRun.lastTs=performance.now();
+}
+function timerStop(){
+  timerRun.active=false;
+  if(timerRun.raf)cancelAnimationFrame(timerRun.raf);
+  releaseWakeLock();
+  document.getElementById('timer-run').style.display='none';
+  document.getElementById('timer-config').style.display='block';
+  document.getElementById('tmr-count').style.color='var(--text)';
+  renderTimerConfig();
+}
+function closeTimer(){
+  timerStop();
+  closeOv('timer-overlay');
+}
+async function releaseWakeLock(){
+  try{ if(timerRun.wakeLock){ await timerRun.wakeLock.release(); timerRun.wakeLock=null; } }catch(e){}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
