@@ -139,6 +139,8 @@ body{
 .ql-pill.sel{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
 .card[onclick]{transition:transform .12s,border-color .15s;}
 .card[onclick]:active{transform:scale(.985);}
+.metric[onclick]{cursor:pointer;}
+.metric[onclick]:active{opacity:.72;transition:opacity .12s;}
 .nb.active{color:var(--blue);}
 
 /* ── OVERLAYS ── */
@@ -800,6 +802,11 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="wnbackdrop" id="digest-backdrop" onclick="dismissDigest()"></div>
 <div class="wnsheet" id="digest-sheet">
   <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);" id="digest-content"></div>
+</div>
+
+<div class="wnbackdrop" id="ins-backdrop" onclick="closeInsight()"></div>
+<div class="wnsheet" id="ins-sheet">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px)+16px);" id="ins-content"></div>
 </div>
 
 <!-- ONBOARDING OVERLAY -->
@@ -2713,7 +2720,7 @@ function renderRaceCountdown(nextRace, daysTo) {
   }).join('');
 
   el.innerHTML = `
-    <div class="card" onclick="nav('plan',document.querySelectorAll('.nb')[2])" style="cursor:pointer;background:linear-gradient(135deg,var(--accent-dim),transparent);border-color:rgba(201,168,76,0.2);margin-bottom:16px;">
+    <div class="card" onclick="openInsight('Race Plan · Week ${wk} of ${totalWk}',insightPhaseGuide())" style="cursor:pointer;background:linear-gradient(135deg,var(--accent-dim),transparent);border-color:rgba(201,168,76,0.2);margin-bottom:16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);">Next race</div>
         <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);">Phase ${phaseNo} · ${phase}</div>
@@ -2760,19 +2767,19 @@ function renderToday() {
 
   const vo2val = baselines.vo2max_composite?.value || baselines['run-cooper']?.vo2max_predicted;
   const vo2Tile = vo2val
-    ? `<div class="metric am"><div class="mlbl">VO₂max</div>
-        <div class="mval am">${vo2val}<span class="munit">ml/kg</span></div><div class="msub">current estimate</div></div>`
-    : `<div class="metric am"><div class="mlbl">Days to ${raceShortLabel}</div>
-        <div class="mval am">${daysTo}</div><div class="msub">${nextRace?nextRace.day:''}</div></div>`;
+    ? `<div class="metric am" onclick="openInsight('VO₂max Estimate',insightVO2max())"><div class="mlbl">VO₂max</div>
+        <div class="mval am">${vo2val}<span class="munit">ml/kg</span></div><div class="msub">tap for details ›</div></div>`
+    : `<div class="metric am" onclick="openInsight('Race Plan',insightPhaseGuide())"><div class="mlbl">Days to ${raceShortLabel}</div>
+        <div class="mval am">${daysTo}</div><div class="msub">tap for phase guide ›</div></div>`;
   document.getElementById('today-metrics').innerHTML = `
     ${vo2Tile}
-    <div class="metric"><div class="mlbl">Sessions logged</div>
-      <div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
-    <div class="metric bl"><div class="mlbl">Peak tempo</div>
+    <div class="metric" onclick="openInsight('Sessions Logged',insightSessions())"><div class="mlbl">Sessions logged</div>
+      <div class="mval">${total}</div><div class="msub">all 12 weeks ›</div></div>
+    <div class="metric bl" onclick="openInsight('Tempo Pace Trend',insightTempo())"><div class="mlbl">Peak tempo</div>
       <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'—'}<span class="munit">${paceUnit()}</span></div>
-      <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'}</div></div>
-    <div class="metric gr"><div class="mlbl">W${currentPlanWeek} logged</div>
-      <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week</div></div>
+      <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'} ›</div></div>
+    <div class="metric gr" onclick="openInsight('Week ${currentPlanWeek}',insightWeekLog())"><div class="mlbl">W${currentPlanWeek} logged</div>
+      <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>
   `;
 
   // Week strip — current week, today highlighted by day-of-week
@@ -2835,7 +2842,7 @@ function renderToday() {
   for(let w=1;w<=12;w++){
     const done=wc[w], pct=Math.min(100,Math.round(done/7*100));
     const isNow=w===currentPlanWeek;
-    bars+=`<div style="display:grid;grid-template-columns:32px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
+    bars+=`<div onclick="openInsight('Week ${w}',insightWeekDetail(${w}))" style="display:grid;grid-template-columns:32px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};cursor:pointer;">
       <div style="font-family:var(--mono);font-size:8px;color:${isNow?'var(--accent)':'var(--text3)'};">W${w}${isNow?' ←':''}</div>
       <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.max(w>currentPlanWeek&&done===0?0:2,pct)}%;background:${cols[w-1]};"></div></div>
       <div style="font-family:var(--mono);font-size:8px;text-align:right;color:${cols[w-1]};">${w>currentPlanWeek&&done===0?'—':pct+'%'}</div>
@@ -3921,10 +3928,10 @@ function renderStats(){
   const avgFeel=feels.length?feels.reduce((a,s)=>a+s.feel,0)/feels.length:0;
 
   document.getElementById('stats-metrics').innerHTML=`
-    <div class="metric"><div class="mlbl">Sessions</div><div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
-    <div class="metric"><div class="mlbl">Distance</div><div class="mval">${unitRun==='mi'?Math.round(totalKm*MI_PER_KM):Math.round(totalKm)}<span class="munit">${distUnit()}</span></div><div class="msub">logged runs</div></div>
-    <div class="metric am"><div class="mlbl">Avg feel</div><div class="mval am">${avgFeel?avgFeel.toFixed(1):'—'}</div><div class="msub">out of 5</div></div>
-    <div class="metric bl"><div class="mlbl">Weeks active</div><div class="mval bl">${Object.values(wc).filter(v=>v>0).length}<span class="munit">/12</span></div><div class="msub"></div></div>
+    <div class="metric" onclick="openInsight('Sessions Breakdown',insightCategoryBreakdown())"><div class="mlbl">Sessions</div><div class="mval">${total}</div><div class="msub">by type ›</div></div>
+    <div class="metric" onclick="openInsight('Distance Breakdown',insightDistanceBreakdown())"><div class="mlbl">Distance</div><div class="mval">${unitRun==='mi'?Math.round(totalKm*MI_PER_KM):Math.round(totalKm)}<span class="munit">${distUnit()}</span></div><div class="msub">by week ›</div></div>
+    <div class="metric am" onclick="openInsight('Feel Breakdown',insightFeelBreakdown())"><div class="mlbl">Avg feel</div><div class="mval am">${avgFeel?avgFeel.toFixed(1):'—'}</div><div class="msub">by rating ›</div></div>
+    <div class="metric bl" onclick="openInsight('Sessions Logged',insightSessions())"><div class="mlbl">Weeks active</div><div class="mval bl">${Object.values(wc).filter(v=>v>0).length}<span class="munit">/12</span></div><div class="msub">week detail ›</div></div>
   `;
 
   const labels=['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12'];
@@ -4006,25 +4013,25 @@ function renderPersonalBests(){
   const {pb, fmt} = computePersonalBests();
   const u = paceUnit(); // shows /km or /mi label context
   const rows = [];
-  if (pb.km)      rows.push(['Fastest km', fmt(pb.km.secs), pb.km.tag]);
-  if (pb.k5)      rows.push(['Fastest 5K', fmt(pb.k5.secs), pb.k5.tag]);
-  if (pb.k10)     rows.push(['Fastest 10K', fmt(pb.k10.secs), pb.k10.tag]);
-  if (pb.rep)     rows.push(['Best interval rep', `${pb.rep.pace}/km`, pb.rep.tag]);
-  if (pb.longest) rows.push(['Longest run', `${unitRun==='mi'?(pb.longest.km*MI_PER_KM).toFixed(1):pb.longest.km.toFixed(1)} ${distUnit()}`, pb.longest.tag]);
+  if (pb.km)      rows.push(['Fastest km', fmt(pb.km.secs), pb.km.tag, 'km']);
+  if (pb.k5)      rows.push(['Fastest 5K', fmt(pb.k5.secs), pb.k5.tag, 'k5']);
+  if (pb.k10)     rows.push(['Fastest 10K', fmt(pb.k10.secs), pb.k10.tag, 'k10']);
+  if (pb.rep)     rows.push(['Best interval rep', `${pb.rep.pace}/km`, pb.rep.tag, 'rep']);
+  if (pb.longest) rows.push(['Longest run', `${unitRun==='mi'?(pb.longest.km*MI_PER_KM).toFixed(1):pb.longest.km.toFixed(1)} ${distUnit()}`, pb.longest.tag, 'longest']);
 
   if (!rows.length){
     el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;">No personal bests yet. Fetch Strava splits on your runs (open a session → Fetch Strava splits) to unlock fastest km / 5K / 10K.</div>`;
     return;
   }
   el.innerHTML = rows.map((r,i)=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;${i<rows.length-1?'border-bottom:.5px solid var(--border);':''}">
+    <div onclick="openInsight('${r[0]}',insightPBDetail('${r[3]}'))" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 0;${i<rows.length-1?'border-bottom:.5px solid var(--border);':''}">
       <div style="display:flex;align-items:center;gap:10px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
         <span style="font-size:13px;color:var(--text);">${r[0]}</span>
       </div>
       <div style="text-align:right;">
         <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent);">${r[1]}</div>
-        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);">${r[2]}</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);">${r[2]} ›</div>
       </div>
     </div>`).join('');
 }
@@ -4084,7 +4091,7 @@ function renderTrainingLoad(){
   else { label='High strain — caution'; col='var(--red)'; }
 
   const sum = document.getElementById('load-summary');
-  if (sum) sum.innerHTML = `
+  if (sum) { sum.style.cursor='pointer'; sum.onclick=()=>openInsight('Training Load',insightACWR()); sum.innerHTML = `
     <div style="display:flex;align-items:center;gap:14px;">
       <div style="flex-shrink:0;text-align:center;">
         <div style="font-size:30px;font-weight:600;color:${col};line-height:1;">${acwr?acwr.toFixed(2):'—'}</div>
@@ -4096,9 +4103,9 @@ function renderTrainingLoad(){
           <span>Acute <span style="color:var(--text);">${curAcute}</span></span>
           <span>Chronic <span style="color:var(--text);">${curChronic}</span></span>
         </div>
-        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:5px;">7-day vs 28-day load · sweet spot 0.8–1.3</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:5px;">7-day vs 28-day load · sweet spot 0.8–1.3 · tap for details ›</div>
       </div>
-    </div>`;
+    </div>`;}
 
   // chart: daily load bars + acute/chronic lines
   const canvas=document.getElementById('chart-load'); if(!canvas)return;
@@ -7254,6 +7261,231 @@ function dismissDigest(){
   document.getElementById('digest-backdrop').classList.remove('open');
   document.getElementById('digest-sheet').classList.remove('open');
   localStorage.setItem('ht-last-digest', isoWeekId(new Date()));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INSIGHT SHEET — generic drill-down for any metric
+// ═══════════════════════════════════════════════════════════════════════════
+
+function openInsight(title, bodyHTML) {
+  document.getElementById('ins-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-size:18px;font-weight:600;color:var(--text);line-height:1.2;">${title}</div>
+      <button onclick="closeInsight()" style="flex-shrink:0;margin-left:12px;background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:5px 12px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;">Close</button>
+    </div>
+    ${bodyHTML}`;
+  document.getElementById('ins-backdrop').classList.add('open');
+  document.getElementById('ins-sheet').classList.add('open');
+}
+function closeInsight() {
+  document.getElementById('ins-backdrop').classList.remove('open');
+  document.getElementById('ins-sheet').classList.remove('open');
+}
+
+function _insRow(label, value, sub) {
+  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--border);">
+    <span style="font-size:13px;color:var(--text2);">${label}</span>
+    <div style="text-align:right;">
+      <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);">${value}</div>
+      ${sub?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${sub}</div>`:''}
+    </div>
+  </div>`;
+}
+function _insNote(text) {
+  return `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.65;margin-top:14px;padding:10px 12px;background:var(--bg2);border-radius:10px;">${text}</div>`;
+}
+
+function insightVO2max() {
+  const v = baselines.vo2max_composite?.value || baselines['run-cooper']?.vo2max_predicted;
+  const cooper = baselines['run-cooper'];
+  let rows = '';
+  if (v) rows += _insRow('Estimated VO₂max', `${v} ml/kg/min`);
+  if (cooper?.distance_m) rows += _insRow('Cooper test distance', `${cooper.distance_m} m`, '12-min run');
+  if (cooper?.date) rows += _insRow('Test date', cooper.date);
+  const rating = !v ? '—' : v >= 60 ? 'Elite / sub-elite' : v >= 52 ? 'Excellent' : v >= 43 ? 'Good' : v >= 35 ? 'Average' : 'Below average';
+  if (v) rows += _insRow('Rating', rating, 'relative to endurance athletes');
+  if (!rows) rows = `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Log a Cooper 12-min test via Baselines to unlock your VO₂max estimate.</div>`;
+  return rows + _insNote('Calculated from your Cooper 12-min run: (distance_m − 504.9) ÷ 44.73. Updates each time you log a new baseline test.');
+}
+
+function insightSessions() {
+  const wc = {};
+  for (let w = 1; w <= 12; w++) wc[w] = [];
+  sessions.forEach(s => { if (s.week) { const w = parseInt(s.week); if (wc[w]) wc[w].push(s); } });
+  const cats = {};
+  sessions.forEach(s => { const c = s.cat || 'other'; cats[c] = (cats[c] || 0) + 1; });
+  let rows = '';
+  for (let w = 1; w <= 12; w++) {
+    const sl = wc[w];
+    if (sl.length) {
+      const names = sl.slice(0, 2).map(s => s.session || s.cat || 'session').join(', ') + (sl.length > 2 ? ' …' : '');
+      rows += _insRow(`Week ${w}`, `${sl.length} session${sl.length !== 1 ? 's' : ''}`, names);
+    }
+  }
+  if (!rows) rows = `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">No sessions logged yet.</div>`;
+  const catLine = Object.entries(cats).map(([c, n]) => `${n}× ${c}`).join(' · ');
+  return rows + (catLine ? _insNote('By type: ' + catLine) : '');
+}
+
+function insightTempo() {
+  const parse = x => { const q = x.split(':'); return q.length === 2 ? parseInt(q[0]) * 60 + parseFloat(q[1]) : 999; };
+  const tempos = sessions.filter(s => s.session && s.session.toLowerCase().includes('tempo') && s.pace)
+    .sort((a, b) => parse(a.pace) - parse(b.pace));
+  if (!tempos.length) return `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">No tempo sessions with pace logged yet.</div>`;
+  let rows = tempos.map(s => _insRow(`W${s.week} · ${s.day || s.date || ''}`.trim(), convertPaceStr(s.pace) + ' ' + paceUnit(), s.session)).join('');
+  if (tempos.length >= 2) {
+    const diff = Math.round(parse(tempos[tempos.length - 1].pace) - parse(tempos[0].pace));
+    rows += _insNote(`${diff}s/km total improvement · sorted fastest → slowest.`);
+  } else {
+    rows += _insNote('Log more tempo sessions to see your improvement trend.');
+  }
+  return rows;
+}
+
+function insightWeekLog() {
+  const w = currentPlanWeek;
+  const plan = PLAN[w]?.sessions || [];
+  const logged = sessions.filter(s => s.week === String(w));
+  let rows = `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em;">Week ${w} · ${logged.length}/${plan.length} logged</div>`;
+  plan.forEach(p => {
+    const done = logged.find(s => s.day === p.day);
+    const col = done ? 'var(--green)' : 'var(--text3)';
+    rows += `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;color:var(--text);">${p.day} · ${p.session}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${p.intensity}${done&&done.dur?' · '+done.dur+'min':''}</div>
+      </div>
+      <span style="font-size:15px;color:${col};font-weight:600;">${done ? '✓' : '—'}</span>
+    </div>`;
+  });
+  return rows;
+}
+
+function insightPhaseGuide() {
+  const wk = currentPlanWeek;
+  const phase = wk <= 6 ? 1 : 2;
+  const phaseLabel = phase === 1 ? 'Phase 1 · Base Building (Weeks 1–6)' : 'Phase 2 · VO₂max + Race Prep (Weeks 7–12)';
+  const phaseGoal = phase === 1
+    ? 'Build aerobic capacity, establish tempo pace, introduce threshold work.'
+    : 'Sharpen VO₂max, race-pace specificity, and taper into race day.';
+  let rows = '';
+  for (let w = 1; w <= 12; w++) {
+    const isCur = w === wk;
+    const keyS = PLAN[w]?.sessions?.find(s => s.intensity === 'hard')?.session
+               || PLAN[w]?.sessions?.find(s => s.intensity === 'moderate')?.session
+               || PLAN[w]?.sessions?.[0]?.session || '';
+    const phaseBadge = w <= 6 ? 'Base' : 'Race prep';
+    rows += `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
+      <div style="font-family:var(--mono);font-size:9px;width:32px;flex-shrink:0;color:${isCur?'var(--accent)':'var(--text3)'};">W${w}</div>
+      <div style="flex:1;font-size:12px;color:${isCur?'var(--text)':'var(--text2)'};">${keyS}</div>
+      ${isCur?`<div style="font-family:var(--mono);font-size:8px;color:var(--accent);background:var(--accent-dim);border-radius:4px;padding:2px 6px;">now</div>`:''}
+    </div>`;
+  }
+  return `<div style="font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;">${phaseLabel}</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">${phaseGoal}</div>
+    ${rows}`;
+}
+
+function insightACWR() {
+  const DAYS = 42;
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const daily = {};
+  for (let i = 0; i < DAYS; i++) {
+    const d = new Date(today); d.setDate(d.getDate() - (DAYS - 1 - i));
+    daily[d.toISOString().slice(0, 10)] = 0;
+  }
+  sessions.forEach(s => { const iso = sessionDateISO(s); if (iso && iso in daily) daily[iso] += computeSessionLoad(s); });
+  const loads = Object.values(daily);
+  const curAcute = loads.slice(-7).reduce((a, b) => a + b, 0);
+  const curChronic = Math.round(loads.slice(-28).reduce((a, b) => a + b, 0) * 7 / 28);
+  const acwr = curChronic > 0 ? curAcute / curChronic : 0;
+  const topS = sessions.slice().sort((a, b) => computeSessionLoad(b) - computeSessionLoad(a)).slice(0, 3);
+  let rows = _insRow('7-day load (Fatigue)', `${curAcute}`, 'sum of this week\'s training stress')
+    + _insRow('28-day weekly avg (Fitness)', `${curChronic}`, 'your baseline capacity')
+    + _insRow('A:C ratio', acwr ? acwr.toFixed(2) : '—', 'sweet spot 0.8 – 1.3');
+  if (topS.length) {
+    rows += `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:14px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Highest-load sessions</div>`;
+    topS.forEach(s => { rows += _insRow(s.session || 'Session', `${computeSessionLoad(s)} TSS`, `W${s.week} · ${s.intensity || 'moderate'}`); });
+  }
+  return rows + _insNote('Load = duration × intensity multiplier (Easy ×1.0 · Moderate ×1.6 · Hard ×2.3 · Mixed ×1.9). A:C < 0.8 = under-training · > 1.5 = injury risk zone.');
+}
+
+function insightPBDetail(pbKey) {
+  const { pb } = computePersonalBests();
+  const entry = pb[pbKey];
+  if (!entry) return `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">No data yet.</div>`;
+  const fmtSecs = s => { const m = Math.floor(s / 60), sec = Math.round(s % 60); return `${m}:${sec.toString().padStart(2,'0')}`; };
+  let val = '';
+  if (pbKey === 'rep') val = `${entry.pace}/km`;
+  else if (pbKey === 'longest') val = `${entry.km.toFixed(1)} km`;
+  else val = fmtSecs(entry.secs) + '/km';
+  const notes = {
+    km: 'Fastest single km split from Strava per-km splits across all your runs.',
+    k5: 'Best rolling 5km window from consecutive Strava per-km splits.',
+    k10: 'Best rolling 10km window from consecutive Strava per-km splits.',
+    rep: 'Fastest interval rep from Garmin/Strava lap data — bimodal speed detection filters out recovery laps.',
+    longest: 'Longest distance recorded across all your logged sessions.',
+  };
+  return _insRow('Best', val, entry.tag || '') + _insNote(notes[pbKey] || '');
+}
+
+function insightWeekDetail(week) {
+  const w = parseInt(week);
+  const plan = PLAN[w]?.sessions || [];
+  const logged = sessions.filter(s => s.week === String(w));
+  const pct = Math.min(100, Math.round(logged.length / Math.max(1, plan.length) * 100));
+  let rows = `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em;">Week ${w} · ${logged.length} logged · ${pct}% complete</div>`;
+  plan.forEach(p => {
+    const done = logged.find(s => s.day === p.day);
+    const col = done ? 'var(--green)' : w < currentPlanWeek ? 'var(--red)' : 'var(--text3)';
+    rows += `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;color:var(--text);">${p.day} · ${p.session}</div>
+        ${done ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${done.dist?done.dist+'km':''}${done.dur?' · '+done.dur+'min':''}</div>` : `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${p.intensity}</div>`}
+      </div>
+      <span style="font-size:12px;color:${col};font-weight:500;">${done ? '✓ done' : w < currentPlanWeek ? 'missed' : '—'}</span>
+    </div>`;
+  });
+  return rows;
+}
+
+function insightCategoryBreakdown() {
+  const cats = {};
+  sessions.forEach(s => { const c = s.cat || 'other'; cats[c] = (cats[c] || 0) + 1; });
+  const total = sessions.length;
+  if (!total) return `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">No sessions logged yet.</div>`;
+  let rows = '';
+  Object.entries(cats).sort((a, b) => b[1] - a[1]).forEach(([cat, n]) => {
+    rows += _insRow(cat.charAt(0).toUpperCase() + cat.slice(1), `${n} session${n !== 1 ? 's' : ''}`, `${Math.round(n / total * 100)}% of total`);
+  });
+  return rows + _insNote(`${total} sessions total across ${Object.keys(cats).length} type${Object.keys(cats).length !== 1 ? 's' : ''}.`);
+}
+
+function insightDistanceBreakdown() {
+  const runs = sessions.filter(s => s.dist && parseFloat(s.dist) > 0);
+  const totalKm = runs.reduce((a, s) => a + parseFloat(s.dist || 0), 0);
+  if (!runs.length) return `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">No runs with distance logged yet.</div>`;
+  const byWeek = {};
+  runs.forEach(s => { if (s.week) { const w = parseInt(s.week); byWeek[w] = (byWeek[w] || 0) + parseFloat(s.dist || 0); } });
+  const entries = Object.entries(byWeek).sort((a, b) => b[1] - a[1]);
+  const toU = km => unitRun === 'mi' ? (km * MI_PER_KM).toFixed(1) : km.toFixed(1);
+  let rows = _insRow('Total distance', `${toU(totalKm)} ${distUnit()}`, `${runs.length} runs`);
+  if (entries.length) rows += _insRow('Best week', `W${entries[0][0]} · ${toU(entries[0][1])} ${distUnit()}`);
+  if (entries.length > 1) rows += _insRow('Weekly avg', `${toU(totalKm / entries.length)} ${distUnit()}`, `${entries.length} active weeks`);
+  entries.slice(0, 8).forEach(([w, km]) => { rows += _insRow(`Week ${w}`, `${toU(km)} ${distUnit()}`); });
+  return rows;
+}
+
+function insightFeelBreakdown() {
+  const feels = sessions.filter(s => s.feel);
+  if (!feels.length) return `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">No feel ratings logged yet.</div>`;
+  const avg = feels.reduce((a, s) => a + s.feel, 0) / feels.length;
+  const dist = [0, 0, 0, 0, 0];
+  feels.forEach(s => { if (s.feel >= 1 && s.feel <= 5) dist[s.feel - 1]++; });
+  const labels = ['1 · Low', '2 · Tough', '3 · OK', '4 · Good', '5 · Great'];
+  let rows = _insRow('Average feel', `${avg.toFixed(1)} / 5`, `${feels.length} rated sessions`);
+  dist.forEach((count, i) => { if (count) rows += _insRow(labels[i], `${count}×`, `${Math.round(count / feels.length * 100)}%`); });
+  return rows + _insNote('Feel ratings track subjective effort and recovery quality. A declining trend alongside high load can signal overtraining.');
 }
 
 // ── Onboarding wizard ────────────────────────────────────────────────────────
