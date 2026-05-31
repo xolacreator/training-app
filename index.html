@@ -509,6 +509,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </div>
       <button onclick="toggleTheme()" style="width:34px;height:34px;background:var(--bg2);border:.5px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;" id="theme-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     </div>
+    <div id="race-countdown"></div>
     <div class="mg" id="today-metrics"></div>
     <div class="sec-lbl">This week</div>
     <div class="wstrip" id="week-strip"></div>
@@ -2609,6 +2610,47 @@ function renderAll() {
 // ═══════════════════════════════════════════════════════════════════════════
 // TODAY
 // ═══════════════════════════════════════════════════════════════════════════
+function renderRaceCountdown(nextRace, daysTo) {
+  const el = document.getElementById('race-countdown');
+  if (!el) return;
+  const wk = currentPlanWeek, totalWk = 12;
+  const phase = wk <= 6 ? 'Base Building' : 'VO₂max + Race Prep';
+  const phaseNo = wk <= 6 ? 1 : 2;
+  const pct = Math.round((wk / totalWk) * 100);
+  const raceName = nextRace ? nextRace.label.split('–')[0].trim().replace(/^RACE DAY$/,'Race Day') : 'Race Day';
+  const raceDay = nextRace ? nextRace.day : '';
+  const isRaceDay = daysTo === 0;
+  // 12 segment pips for the phase track
+  const pips = Array.from({length: totalWk}, (_, i) => {
+    const w = i + 1;
+    const filled = w < wk, current = w === wk;
+    const col = current ? 'var(--accent)' : filled ? 'var(--blue)' : 'var(--bg4)';
+    return `<div style="flex:1;height:4px;border-radius:2px;background:${col};${current?'box-shadow:0 0 0 1px var(--accent);':''}transition:background .4s;"></div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="card" onclick="nav('plan',document.querySelectorAll('.nb')[2])" style="cursor:pointer;background:linear-gradient(135deg,var(--accent-dim),transparent);border-color:rgba(201,168,76,0.2);margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);">Next race</div>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);">Phase ${phaseNo} · ${phase}</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
+        ${isRaceDay
+          ? `<div style="font-size:34px;font-weight:600;color:var(--accent);line-height:1;">Today</div>`
+          : `<div style="font-size:46px;font-weight:600;color:var(--text);line-height:.9;letter-spacing:-.02em;">${daysTo}</div>
+             <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">day${daysTo===1?'':'s'}<br>to go</div>`}
+        <div style="flex:1;text-align:right;min-width:0;">
+          <div style="font-size:15px;font-weight:500;color:var(--text);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${raceName}</div>
+          ${raceDay?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${raceDay}</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:3px;margin-bottom:6px;">${pips}</div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);">
+        <span>Week ${wk} of ${totalWk}</span><span>${pct}% through plan</span>
+      </div>
+    </div>`;
+}
+
 function renderToday() {
   const now = new Date();
   const todayDow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()];
@@ -2624,15 +2666,22 @@ function renderToday() {
   const daysTo = nextRace ? Math.max(0,Math.ceil((nextRace.date-now)/86400000)) : 0;
   const raceShortLabel = nextRace ? nextRace.label.split('–')[0].trim().replace(/^RACE DAY$/,'Race Day') : 'Race Day';
 
+  renderRaceCountdown(nextRace, daysTo);
+
   const wc={}; for(let w=1;w<=12;w++) wc[w]=0;
   sessions.forEach(s=>{ if(s.week) wc[parseInt(s.week)]=(wc[parseInt(s.week)]||0)+1; });
   const total=Object.values(wc).reduce((a,b)=>a+b,0);
   const tempo=sessions.filter(s=>s.session&&s.session.toLowerCase().includes('tempo')&&s.pace)
     .sort((a,b)=>{ const p=x=>{ const q=x.split(':');return q.length===2?parseInt(q[0])*60+parseFloat(q[1]):999; }; return p(a.pace)-p(b.pace); })[0];
 
+  const vo2val = baselines.vo2max_composite?.value || baselines['run-cooper']?.vo2max_predicted;
+  const vo2Tile = vo2val
+    ? `<div class="metric am"><div class="mlbl">VO₂max</div>
+        <div class="mval am">${vo2val}<span class="munit">ml/kg</span></div><div class="msub">current estimate</div></div>`
+    : `<div class="metric am"><div class="mlbl">Days to ${raceShortLabel}</div>
+        <div class="mval am">${daysTo}</div><div class="msub">${nextRace?nextRace.day:''}</div></div>`;
   document.getElementById('today-metrics').innerHTML = `
-    <div class="metric am"><div class="mlbl">Days to ${raceShortLabel}</div>
-      <div class="mval am">${daysTo}</div><div class="msub">${nextRace?nextRace.day:''}</div></div>
+    ${vo2Tile}
     <div class="metric"><div class="mlbl">Sessions logged</div>
       <div class="mval">${total}</div><div class="msub">all 12 weeks</div></div>
     <div class="metric bl"><div class="mlbl">Peak tempo</div>
