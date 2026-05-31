@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#1E0A4A">
 <link rel="apple-touch-icon" href="R%20Star%20App%20Icon.png">
 <title>Rev3</title>
-<link href="https://fonts.googleapis.com/css2?family=Coda:wght@400;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   /* Dark (default) — deep purple · gold accent */
@@ -22,7 +22,7 @@
   --red:#f87171; --red-dim:rgba(248,113,113,0.11);
   --purple:#A78BFA; --purple-dim:rgba(167,139,250,0.11);
   --shadow:rgba(0,0,0,0.6);
-  --font:'Coda',system-ui,-apple-system,sans-serif;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --mono:'JetBrains Mono',ui-monospace,monospace;
   --nav-h:56px;
   --screen-pt:22px;  /* consistent top breathing room below Dynamic Island */
@@ -3478,7 +3478,7 @@ async function shareSession(idx){
 
     // header: wordmark + date
     x.textBaseline='alphabetic';
-    x.fillStyle=C.accent;x.font='700 44px Coda, system-ui, sans-serif';
+    x.fillStyle=C.accent;x.font='700 44px system-ui, sans-serif';
     x.fillText('REV3',P,P+44);
     const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
     x.fillStyle=C.text3;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';
@@ -3489,7 +3489,7 @@ async function shareSession(idx){
     x.fillText(`WEEK ${s.week} · ${(s.intensity||'').toUpperCase()}`,P,P+150);
 
     // session name (wrap up to 2 lines)
-    x.fillStyle=C.text;x.font='600 66px Coda, system-ui, sans-serif';
+    x.fillStyle=C.text;x.font='600 66px system-ui, sans-serif';
     const words=(s.session||'Session').split(' ');let line='',lines=[];
     for(const w of words){const t=line?line+' '+w:w;if(x.measureText(t).width>W-2*P&&line){lines.push(line);line=w;}else line=t;}
     if(line)lines.push(line);lines=lines.slice(0,2);
@@ -3513,7 +3513,7 @@ async function shareSession(idx){
       x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
       x.fillText(t[0],tx+34,ty+58);
       const accentTile=(t[0]==='AVG PACE'||t[0]==='WORK REPS');
-      x.fillStyle=accentTile?C.accent:C.text;x.font='600 78px Coda, system-ui, sans-serif';
+      x.fillStyle=accentTile?C.accent:C.text;x.font='600 78px system-ui, sans-serif';
       const vw=x.measureText(t[1]).width;
       x.fillText(t[1],tx+34,ty+148);
       if(t[2]){x.fillStyle=C.text2;x.font='500 30px "JetBrains Mono", ui-monospace, monospace';x.fillText(t[2],tx+34+vw+12,ty+148);}
