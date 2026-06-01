@@ -159,7 +159,7 @@ body{
 /* Overlay header — fixed, never scrolls */
 .oh{
   flex-shrink:0;
-  padding:calc(var(--sat)+10px) calc(16px+var(--sar)) 8px calc(16px+var(--sal));
+  padding:max(calc(var(--sat)+14px),60px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));
   background:var(--bg);
 }
 /* Overlay inner (body) — scrolls */
@@ -354,11 +354,11 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
   border-radius:8px;padding:9px 12px;margin-top:8px;}
 .bk-warn-item{font-size:11px;color:var(--red);margin-bottom:2px;}
 .bk-warn-item:last-child{margin-bottom:0;}
-.opt-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
-.opt-tab{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.06em;
-  text-transform:uppercase;padding:5px 10px;border-radius:20px;border:.5px solid var(--border);
-  background:transparent;color:var(--text3);cursor:pointer;}
-.opt-tab.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
+.opt-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.opt-tab{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.04em;
+  padding:7px 14px;border-radius:22px;border:.5px solid var(--border);
+  background:transparent;color:var(--text2);cursor:pointer;min-height:36px;}
+.opt-tab.active{background:var(--bg3);color:var(--text);border-color:var(--accent);}
 
 /* ── STAT BOXES (log detail) ── */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;}
@@ -3760,12 +3760,14 @@ function renderBkHtml(week,day,sessionType,dl){
     html+=`<div class="opt-tabs" id="ot-${bkId}">`;
     dl.options.forEach((o,i)=>{
       const isA=o===matched;
-      html+=`<button class="opt-tab ${isA?'active':''}" onclick="switchOpt('${week}','${day}','${sessionType?.replace(/'/g,"\\'")||''}',${i},'${bkId}')">${o.label.split('—')[0].trim()}</button>`;
+      const tabLabel = i===0 ? 'Option A' : i===1 ? 'Option B' : i===2 ? 'Option C' : `Opt ${i+1}`;
+      html+=`<button class="opt-tab ${isA?'active':''}" onclick="switchOpt('${week}','${day}','${sessionType?.replace(/'/g,"\\'")||''}',${i},'${bkId}')">${tabLabel}</button>`;
     });
     html+=`</div>`;
   }
 
-  html+=`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">${matched.label}</div>
+  html+=`<div id="bkh-${bkId}" style="margin-bottom:12px;">
+    <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">${matched.label}</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${matched.subtitle||''} · ${matched.intensity||''}</div>
   </div>`;
   html+=`<div id="bkb-${bkId}">${renderBlocks(matched)}</div>`;
@@ -3796,11 +3798,16 @@ function renderBlocks(opt){
 }
 
 function switchOpt(week,day,st,idx,bkId){
-  const wl=LIB[String(week)];if(!wl)return;
-  const dl=wl[day]||wl[day?.slice(0,3)];if(!dl)return;
+  let dl;
+  const wl=LIB[String(week)];
+  if(wl) dl=wl[day]||wl[day?.slice(0,3)];
+  if(!dl){ const gen=resolveGeneric(st); if(!gen)return; dl=gen; }
   const opt=dl.options[idx];if(!opt)return;
   document.querySelectorAll(`#ot-${bkId} .opt-tab`).forEach((b,i)=>b.classList.toggle('active',i===idx));
   const bel=document.getElementById(`bkb-${bkId}`);if(bel)bel.innerHTML=renderBlocks(opt);
+  const hel=document.getElementById(`bkh-${bkId}`);
+  if(hel)hel.innerHTML=`<div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:3px;">${opt.label}</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${opt.subtitle||''} · ${opt.intensity||''}</div>`;
 }
 
 function noBreakdown(week,day){
