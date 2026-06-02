@@ -812,6 +812,23 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px)+16px);" id="ins-content"></div>
 </div>
 
+<!-- MEMORY PROPOSAL SHEET -->
+<div class="wnbackdrop" id="mem-backdrop" onclick="skipMemoryProposal()"></div>
+<div class="wnsheet" id="mem-sheet">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px)+16px);">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <div style="font-size:15px;font-weight:600;color:var(--text);">Save to memory?</div>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em;">Your coach noticed</div>
+    <div id="mem-proposal-text" style="font-size:13px;color:var(--text2);line-height:1.65;background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" onclick="skipMemoryProposal()" style="flex:1;">Skip</button>
+      <button class="btn btn-accent" onclick="approveMemoryProposal()" style="flex:2;">Save →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ONBOARDING OVERLAY -->
 <div class="overlay" id="onboard-overlay" style="background:var(--bg);z-index:200;display:flex;flex-direction:column;">
   <div style="flex:1;overflow-y:auto;" id="onboard-scroll">
@@ -1195,9 +1212,14 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header -->
   <div style="flex-shrink:0;padding:calc(var(--sat) + 14px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
-    <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-    </button>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
+      </button>
+      <button onclick="openMemoryView()" title="What your coach remembers" style="background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Memory
+      </button>
+    </div>
     <div id="coach-chat-header"></div>
   </div>
   <!-- Messages — this is the only scrolling region -->
@@ -4495,7 +4517,7 @@ async function runAI() {
 
   try {
     const data = await claudeAPI(key, {
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-opus-4-8',
       max_tokens: 4096,
       system: buildAISystemPrompt(),
       messages: [{ role: 'user', content: buildAIUserMessage(prompt) }],
@@ -5692,7 +5714,7 @@ Working weeks: ${workingWeeks} + 1 deload week`;
 
   try {
     const result = await claudeAPI(key, {
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-opus-4-8',
       system: systemPrompt,
       messages: [{role:'user', content: userMessage}],
       max_tokens: 8000,
@@ -6787,7 +6809,7 @@ async function _callCoachAPI() {
   const key = localStorage.getItem('ht-ai-key') || '';
   try {
     const data = await claudeAPI(key, {
-      model: 'claude-haiku-4-5-20251001', max_tokens: 700,
+      model: 'claude-sonnet-4-6', max_tokens: 900,
       system: buildCoachSystemPrompt(),
       messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
     });
@@ -6985,6 +7007,9 @@ function buildCoachSystemPrompt() {
   const recStr    = todayRec
     ? `Today: ${todayRec.sleepHours}h sleep${todayRec.sleepScore?' · score '+todayRec.sleepScore+'/100':''}${baseline?' (7-day avg '+baseline+')':''}${todayRec.hrv?' · HRV '+todayRec.hrv:''}${todayRec.restingHR?' · RHR '+todayRec.restingHR+'bpm':''}`
     : 'Recovery: not logged today';
+  const guardrailNote = !todayRec
+    ? `\n\nIMPORTANT — DATA GUARDRAIL: Today's recovery data has not been logged. Do NOT assume the athlete's current readiness, extrapolate from past data, or present any inference as current fact. If recovery or readiness is relevant to the conversation, explicitly acknowledge that today's data isn't in yet and ask the athlete directly how they're feeling.`
+    : '';
   const nextSess  = (() => {
     const today = todayISO();
     return sessions.find(s => s.date && s.date >= today && !s.feel) || null;
@@ -7042,7 +7067,7 @@ Recent sessions:
 ${recent||'  None logged yet'}
 
 As this coaching relationship deepens, adapt your tone and references to reflect what you know about this individual. Recall past conversations naturally when relevant.
-Respond only as ${p.name}. No AI disclaimers. Stay in character at all times.`;
+Respond only as ${p.name}. No AI disclaimers. Stay in character at all times.${guardrailNote}`;
 }
 
 function loadCoachMemory() {
@@ -7053,8 +7078,7 @@ function saveCoachMemory(mem) {
   try { localStorage.setItem('ht-coach-memory', JSON.stringify(mem)); } catch(e) {}
 }
 
-async function updateCoachMemory() {
-  // Only persist if there was a real conversation (at least 3 exchanges)
+async function proposeMemoryUpdate() {
   const exchanges = coachMessages.filter(m => m.role === 'user').length;
   if (exchanges < 2) return;
   const key = localStorage.getItem('ht-ai-key') || '';
@@ -7062,7 +7086,7 @@ async function updateCoachMemory() {
 
   const mem = loadCoachMemory();
   const transcript = coachMessages
-    .slice(-20) // last 20 messages to avoid huge prompts
+    .slice(-20)
     .map(m => `${m.role === 'user' ? 'Athlete' : 'Coach'}: ${m.text}`)
     .join('\n');
 
@@ -7078,20 +7102,63 @@ async function updateCoachMemory() {
         content: `${existingNotes}New coaching conversation:\n${transcript}\n\nYou are a coaching assistant. Based on this conversation, write a concise updated paragraph (max 180 words, third person "They...") capturing what a coach should remember about this athlete: their personality, how they respond to coaching, any physical or mental patterns, stated concerns, things that motivate or challenge them, and any breakthroughs or setbacks mentioned. Merge new observations with existing notes — don't repeat what's already there. Be specific and coach-relevant. Return only the paragraph, no preamble.`
       }],
     });
-    const updatedNotes = data.content?.[0]?.text?.trim();
-    if (updatedNotes) {
-      saveCoachMemory({
-        notes: updatedNotes,
-        sessionCount: (mem.sessionCount || 0) + 1,
-        lastUpdate: todayISO(),
-      });
+    const proposed = data.content?.[0]?.text?.trim();
+    if (proposed) {
+      try {
+        localStorage.setItem('ht-coach-memory-proposal', JSON.stringify({
+          notes: proposed,
+          sessionCount: (mem.sessionCount || 0) + 1,
+          lastUpdate: todayISO(),
+        }));
+      } catch(e) {}
+      showMemoryProposal(proposed);
     }
   } catch(e) {}
 }
 
+function showMemoryProposal(text) {
+  const el = document.getElementById('mem-proposal-text');
+  if (el) el.textContent = text;
+  document.getElementById('mem-sheet')?.classList.add('open');
+  document.getElementById('mem-backdrop')?.classList.add('open');
+}
+
+function approveMemoryProposal() {
+  try {
+    const raw = localStorage.getItem('ht-coach-memory-proposal');
+    if (raw) {
+      const proposal = JSON.parse(raw);
+      saveCoachMemory(proposal);
+      localStorage.removeItem('ht-coach-memory-proposal');
+      toast('Memory saved');
+    }
+  } catch(e) {}
+  skipMemoryProposal();
+}
+
+function skipMemoryProposal() {
+  try { localStorage.removeItem('ht-coach-memory-proposal'); } catch(e) {}
+  document.getElementById('mem-sheet')?.classList.remove('open');
+  document.getElementById('mem-backdrop')?.classList.remove('open');
+}
+
+function openMemoryView() {
+  const mem = loadCoachMemory();
+  if (!mem.notes) {
+    openInsight('Coach Memory', `<div style="padding:20px 0;text-align:center;color:var(--text3);font-size:14px;">No memory saved yet.<br><span style="font-size:12px;margin-top:6px;display:block;">After a coaching session, your coach will propose notes to remember about you.</span></div>`);
+    return;
+  }
+  const age = mem.lastUpdate ? ` · updated ${mem.lastUpdate}` : '';
+  const html = `
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">${mem.sessionCount||0} session${mem.sessionCount!==1?'s':''} remembered${age}</div>
+    <div style="font-size:14px;color:var(--text2);line-height:1.7;background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:16px;">${mem.notes}</div>
+    <button class="btn" onclick="if(confirm('Clear all coach memory?')){saveCoachMemory({});closeInsight();toast('Memory cleared');}" style="width:100%;color:var(--red);border-color:var(--red);">Clear memory</button>`;
+  openInsight('What your coach remembers', html);
+}
+
 function closeCoach() {
   closeOv('coach-overlay');
-  updateCoachMemory(); // fire-and-forget background update
+  proposeMemoryUpdate();
 }
 
 // ── What's new ───────────────────────────────────────────────────────────────
