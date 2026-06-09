@@ -1087,7 +1087,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header -->
-  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+8px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+14px),60px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
     <!-- Back button + title on one row (iOS nav pattern — keeps button reachable) -->
     <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">
       <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="padding:0;margin:0;min-height:44px;min-width:52px;flex-shrink:0;">
@@ -1212,7 +1212,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header -->
-  <div style="flex-shrink:0;padding:calc(var(--sat) + 14px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
+  <div style="flex-shrink:0;padding:max(calc(var(--sat)+14px),60px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
@@ -1243,7 +1243,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:calc(var(--sat)+8px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+14px),60px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
     <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
       <button class="back-btn" style="position:static;" onclick="closeOv('program-overlay')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
@@ -2707,6 +2707,15 @@ function secsToMMSS(s) {
   const sec = (s%60).toFixed(1);
   return `${m}:${sec.padStart(4,'0')}`;
 }
+function fmtDurMin(min) {
+  if (!min || isNaN(parseFloat(min))) return '—';
+  const totalSecs = Math.round(parseFloat(min) * 60);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) return s > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${h}:${String(m).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
 function parseDist(d) {
   if (!d) return null;
   d = String(d).toLowerCase().trim();
@@ -3186,7 +3195,7 @@ function renderRecentLog(){
   if(!recent.length){document.getElementById('recent-log').innerHTML='<div class="empty">No sessions yet.</div>';return;}
   document.getElementById('recent-log').innerHTML=recent.map((s,i)=>{
     const idx=sessions.indexOf(s);
-    const stats=[s.pace?convertPaceStr(s.pace)+paceUnit():'',s.dist?fmtDist(parseFloat(s.dist)):'',s.hr?s.hr+'bpm':'',s.dur?s.dur+'min':''].filter(Boolean);
+    const stats=[s.pace?convertPaceStr(s.pace)+paceUnit():'',s.dist?fmtDist(parseFloat(s.dist)):'',s.hr?s.hr+'bpm':'',s.dur?fmtDurMin(s.dur):''].filter(Boolean);
     const ds=new Date(s.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     return `<div class="lrow" onclick="openLogOverlay(${idx})">
       <div class="lrow-top">
@@ -3456,7 +3465,7 @@ function openLogOverlay(idx){
   if(s.pace)sc.push({l:'Avg Pace',v:convertPaceStr(s.pace),u:paceUnit(),c:'bl'});
   if(s.dist)sc.push({l:'Distance',v:unitRun==='mi'?+(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,u:distUnit(),c:''});
   if(s.hr)sc.push({l:'Avg HR',v:s.hr,u:'bpm',c:'am'});
-  if(s.dur)sc.push({l:'Duration',v:s.dur,u:'min',c:''});
+  if(s.dur)sc.push({l:'Duration',v:fmtDurMin(s.dur),u:'',c:''});
   document.getElementById('lo-stats').innerHTML=sc.map(x=>`
     <div class="stat-box ${x.c}"><div class="stat-lbl">${x.l}</div>
       <div class="stat-val ${x.c}">${x.v}<span class="stat-unit"> ${x.u}</span></div>
@@ -3537,7 +3546,7 @@ async function shareSession(idx){
     if(s.pace)stats.push(['AVG PACE',iv?iv.avgPace:convertPaceStr(s.pace),'/'+paceUnit()]);
     if(s.dist)stats.push(['DISTANCE',unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,distUnit()]);
     if(s.hr)stats.push(['AVG HR',`${s.hr}`,'bpm']);
-    if(s.dur)stats.push(['DURATION',`${s.dur}`,'min']);
+    if(s.dur)stats.push(['DURATION',fmtDurMin(s.dur),'']);
     if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
     const grid=stats.slice(0,4);
     const gy=ly+40,tileW=(W-2*P-30)/2,tileH=190;
@@ -5214,7 +5223,7 @@ function renderReviewStep() {
   if (s.pace) sc.push({l:'Avg Pace', v:convertPaceStr(s.pace), u:paceUnit(), c:'bl'});
   if (s.dist) sc.push({l:'Distance', v:unitRun==='mi'?+(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist, u:distUnit(), c:''});
   if (s.hr)   sc.push({l:'Avg HR',   v:s.hr,   u:'bpm', c:'am'});
-  if (s.dur)  sc.push({l:'Duration', v:s.dur,  u:'min', c:''});
+  if (s.dur)  sc.push({l:'Duration', v:fmtDurMin(s.dur), u:'', c:''});
   document.getElementById('rv-stats').innerHTML = sc.map(x =>
     `<div class="stat-box ${x.c}"><div class="stat-lbl">${x.l}</div>
       <div class="stat-val ${x.c}">${x.v}<span class="stat-unit"> ${x.u}</span></div></div>`
@@ -6185,7 +6194,10 @@ function isQualityRun(sessionName, notes, intensity) {
 
 function fmtSecs(s) {
   s = Math.round(s || 0);
-  const m = Math.floor(s / 60), ss = s % 60;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   return `${m}:${String(ss).padStart(2,'0')}`;
 }
 
