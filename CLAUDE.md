@@ -1,19 +1,27 @@
 # Training App — Claude Code Session Notes
 
+## Current development branch
+
+**Always develop on:** `claude/training-app-updates-yOJGn`
+
+```bash
+git checkout claude/training-app-updates-yOJGn
+```
+
 ## Pushing to GitHub
 
 **The git HTTP proxy in this environment returns HTTP 503 on `git push` for large files.**
-`git push origin main` will fail silently with a 503. Always use the script instead:
+`git push origin <branch>` will fail silently with a 503 for index.html. Always use the script instead:
 
 ```bash
-# Commit normally, then push via the MCP script:
+# Commit normally, then push via the MCP script (specify branch!):
 git add index.html && git commit -m "..."
-python3 scripts/github-push.py
+python3 scripts/github-push.py index.html bruces6 training-app claude/training-app-updates-yOJGn
 ```
 
 The script reads `CLAUDE_CODE_REMOTE_SESSION_ID` and the session token automatically — no manual tokens needed.
 
-For small files (e.g. `worker/index.js`) you can still use `git push origin main`.
+For small files (e.g. `worker/index.js`, `CLAUDE.md`) you can use `git push -u origin claude/training-app-updates-yOJGn`.
 
 ### Never use `mcp__github__push_files` for index.html
 Passing `"content": ""` to that tool wipes the file on GitHub. Use the Python script above.
