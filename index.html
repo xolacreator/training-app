@@ -161,7 +161,7 @@ body{
 /* Overlay header — fixed, never scrolls */
 .oh{
   flex-shrink:0;
-  padding:max(calc(var(--sat)+14px),60px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));
+  padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));
   background:var(--bg);
 }
 /* Overlay inner (body) — scrolls */
@@ -170,7 +170,7 @@ body{
   overflow-y:auto;
   overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  padding:4px calc(16px+var(--sal)) calc(var(--sab)+40px) calc(16px+var(--sar));
+  padding:4px calc(16px+var(--sar)) calc(var(--sab)+40px) calc(16px+var(--sal));
 }
 .wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
 .wnbackdrop.open{opacity:1;pointer-events:auto;}
@@ -1089,7 +1089,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+14px),60px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
     <!-- Back button + title on one row (iOS nav pattern — keeps button reachable) -->
     <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">
       <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="padding:0;margin:0;min-height:44px;min-width:52px;flex-shrink:0;">
@@ -1214,7 +1214,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header -->
-  <div style="flex-shrink:0;padding:max(calc(var(--sat)+14px),60px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
+  <div style="flex-shrink:0;padding:max(calc(var(--sat)+16px),72px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
@@ -1245,7 +1245,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+14px),60px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
     <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
       <button class="back-btn" style="position:static;" onclick="closeOv('program-overlay')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
@@ -8055,6 +8055,30 @@ try { load(); }      catch(e) { console.error('load() failed:', e); try { render
 try { initTheme(); } catch(e) {}
 try { initDrive(); } catch(e) {}
 try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
+
+// Safe-area probe: env() can return 0 on first load in standalone PWA mode
+// before the browser resolves viewport metrics. Measure via layout instead.
+;(function probeSafeArea() {
+  function read() {
+    const r = document.documentElement;
+    const probe = (pos, prop) => {
+      const el = document.createElement('div');
+      el.style.cssText = `position:fixed;pointer-events:none;visibility:hidden;z-index:-1;${pos}:env(safe-area-inset-${pos},0px);left:0;right:0;height:0;`;
+      document.body.appendChild(el);
+      const rect = el.getBoundingClientRect();
+      document.body.removeChild(el);
+      return pos === 'top' ? rect.top : window.innerHeight - rect.bottom;
+    };
+    const sat = probe('top');
+    const sab = probe('bottom');
+    if (sat > 0) r.style.setProperty('--sat', sat + 'px');
+    if (sab > 0) r.style.setProperty('--sab', sab + 'px');
+  }
+  // Double rAF ensures layout is stable after first paint
+  requestAnimationFrame(() => requestAnimationFrame(read));
+  // Re-read on orientation change
+  window.addEventListener('orientationchange', () => setTimeout(read, 300));
+})();
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
