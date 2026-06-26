@@ -2743,7 +2743,7 @@ function renderAll() {
   renderBaselinesCard();
   renderRecoveryCard();
   renderRecentLog();
-  renderPlan(currentPlanWeek);
+  renderPlan(savedProgram ? currentProgramWeek : currentPlanWeek);
   renderPlanTabs();
   renderDataSummary();
 }
@@ -3279,13 +3279,20 @@ function _progWeekSessions(week){
   const prog=savedProgram; if(!prog) return [];
   const spw=prog.sessionsPerWeek||4;
   const days=_progDays(spw);
+  const sched=prog.weekSchedule||[];
   const offset=(week-1)*spw;
-  const ids=(prog.weekSchedule||[]).slice(offset,offset+spw);
+  let ids=sched.slice(offset,offset+spw);
+  // Deload / unscheduled weeks aren't in weekSchedule (builder omits them) —
+  // reuse the rotation pattern so the week still shows its (deloaded) sessions.
+  if(ids.length<spw){
+    ids = sched.length>=spw ? sched.slice(0,spw) : (prog.sessions||[]).slice(0,spw).map(s=>s.id);
+  }
   return days.map((day,i)=>({day,id:ids[i]||null,session:ids[i]?prog.sessions?.find(s=>s.id===ids[i]):null}));
 }
 
 function _renderProgramTodayStrip(){
   const prog=savedProgram; if(!prog) return;
+  const todayDow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
   const week=currentProgramWeek;
   const weekSess=_progWeekSessions(week);
   const spw=prog.sessionsPerWeek||4;
@@ -8271,6 +8278,8 @@ function confirmFactoryReset() {
 
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+// Load any saved AI program FIRST so the initial render (Today + Plan) reflects it
+try { loadSavedProgram(); } catch(e) {}
 try { load(); }      catch(e) { console.error('load() failed:', e); try { renderAll(); } catch(_) {} }
 try { initTheme(); } catch(e) {}
 try { initDrive(); } catch(e) {}
@@ -8310,7 +8319,7 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
 }
 try { renderMoreSettings(); } catch(e) {}
 try { renderThemePicker(); } catch(e) {}
-try { loadSavedProgram(); renderMyProgramCard(); } catch(e) {}
+try { renderMyProgramCard(); } catch(e) {}
 try { renderNotifCard(); } catch(e) {}
 try { initNotifications(); } catch(e) {}
 try { maybeShowMorningCheckin(); } catch(e) {}
