@@ -161,7 +161,7 @@ body{
 /* Overlay header — fixed, never scrolls */
 .oh{
   flex-shrink:0;
-  padding:max(calc(var(--sat)+20px),88px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));
+  padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));
   background:var(--bg);
 }
 /* Overlay inner (body) — scrolls */
@@ -461,7 +461,7 @@ textarea{resize:none;min-height:60px;line-height:1.5;}
 .bld-inp.cue{font-size:11px;color:var(--text2);}
 
 /* ── CHARTS ── */
-.chart-wrap{position:relative;height:180px;margin-bottom:6px;}
+.chart-wrap{position:relative;height:150px;margin-bottom:6px;}
 
 /* ── IMPORT ── */
 .drop-zone{border:1.5px dashed var(--border2);border-radius:var(--r-lg);
@@ -490,7 +490,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 .screen-title{font-size:28px;font-weight:600;letter-spacing:-0.01em;line-height:1.05;}
 .overlay-title{font-size:24px;font-weight:600;letter-spacing:-0.01em;}
 .eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:3px;}
-.sec-lbl{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text2);margin-bottom:10px;margin-top:18px;display:flex;align-items:center;gap:8px;}
+.sec-lbl{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;margin-top:20px;}
 .mval{font-size:26px;font-weight:600;line-height:1;letter-spacing:-0.02em;}
 .badge{font-family:var(--mono);font-size:9px;letter-spacing:0.04em;}
 .srow-name{font-size:13px;font-weight:500;color:var(--text);line-height:1.3;margin-bottom:2px;}
@@ -616,7 +616,14 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div class="card" id="plan-days"></div>
-    <button class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <button id="plan-log-week-btn" class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <div id="plan-archive-section" style="display:none;margin-top:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;" onclick="togglePlanArchive(this)">
+        <div class="sec-lbl" style="margin:0;">Previous plan</div>
+        <span id="plan-archive-chevron" style="font-family:var(--mono);font-size:10px;color:var(--text3);">show ▼</span>
+      </div>
+      <div id="plan-archive-body" style="display:none;margin-top:8px;"></div>
+    </div>
     <div style="margin-top:16px;">
       <div class="eyebrow" style="margin-bottom:6px;">Race tools</div>
       <div class="card" onclick="openHyroxCalc()" style="cursor:pointer;">
@@ -718,7 +725,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
           <div style="font-size:14px;font-weight:500;color:var(--text1);margin-bottom:2px;">Running distance</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Paces and distances</div>
         </div>
-        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
           <button id="unit-run-km" onclick="setUnitRun('km')"
             style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KM</button>
           <button id="unit-run-mi" onclick="setUnitRun('mi')"
@@ -730,7 +737,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
           <div style="font-size:14px;font-weight:500;color:var(--text1);margin-bottom:2px;">Weight</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Lifts and body weight</div>
         </div>
-        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;gap:0;border:.5px solid var(--border);border-radius:8px;overflow:hidden;">
           <button id="unit-wt-kg" onclick="setUnitWeight('kg')"
             style="padding:8px 16px;font-family:var(--mono);font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">KG</button>
           <button id="unit-wt-lbs" onclick="setUnitWeight('lbs')"
@@ -1048,35 +1055,15 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="overlay-title" style="margin-bottom:4px;">Plan Builder</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Powered by Claude · extend your plan or build new sessions</div>
 
-    <div class="sec-lbl">AI Provider</div>
+    <div class="sec-lbl">API Key</div>
     <div class="card" style="margin-bottom:8px;">
-      <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:14px;">
-        <button id="prov-anthropic" onclick="setAIProvider('anthropic')"
-          style="flex:1;padding:9px 0;font-family:var(--mono);font-size:11px;font-weight:600;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">Claude</button>
-        <button id="prov-openai" onclick="setAIProvider('openai')"
-          style="flex:1;padding:9px 0;font-family:var(--mono);font-size:11px;font-weight:600;border:none;cursor:pointer;transition:all .15s;background:var(--bg2);color:var(--text3);">ChatGPT</button>
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Claude API Key (stored locally on device)</label>
+        <input type="password" id="ai-api-key" placeholder="sk-ant-api03-…" oninput="aiKeySave()">
       </div>
-      <div id="key-anthropic-wrap">
-        <div class="fg" style="margin-bottom:8px;">
-          <label class="flbl">Claude API Key (stored locally on device)</label>
-          <input type="password" id="ai-api-key" placeholder="sk-ant-api03-…" oninput="aiKeySave()">
-        </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">
-          Get your key at console.anthropic.com → API Keys<br>
-          Coach: claude-sonnet-4-6 · Builder: claude-opus-4-8<br>
-          Stored only in this browser · never sent elsewhere
-        </div>
-      </div>
-      <div id="key-openai-wrap" style="display:none;">
-        <div class="fg" style="margin-bottom:8px;">
-          <label class="flbl">OpenAI API Key (stored locally on device)</label>
-          <input type="password" id="openai-api-key" placeholder="sk-…" oninput="openaiKeySave()">
-        </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">
-          Get your key at platform.openai.com → API Keys<br>
-          Coach &amp; Builder: gpt-4o · Memory: gpt-4o-mini<br>
-          Stored only in this browser · never sent elsewhere
-        </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">
+        Get your key at console.anthropic.com → API Keys<br>
+        Stored only in this browser · never sent elsewhere
       </div>
     </div>
 
@@ -1109,7 +1096,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+20px),88px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
     <!-- Back button + title on one row (iOS nav pattern — keeps button reachable) -->
     <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">
       <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="padding:0;margin:0;min-height:44px;min-width:52px;flex-shrink:0;">
@@ -1234,7 +1221,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header -->
-  <div style="flex-shrink:0;padding:max(calc(var(--sat)+20px),88px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
+  <div style="flex-shrink:0;padding:max(calc(var(--sat)+16px),72px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
@@ -1265,7 +1252,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+20px),88px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
     <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
       <button class="back-btn" style="position:static;" onclick="closeOv('program-overlay')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
@@ -2485,6 +2472,7 @@ let splits = [];
 let exercises = [];
 let stations = [];
 let currentPlanWeek = 5;
+let currentProgramWeek = 1;
 let filterWeek = 'all';
 let detailIdx = null;
 let bldOptions = [{label:'Option A',blocks:[]}];
@@ -2844,34 +2832,36 @@ function renderToday() {
       <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>
   `;
 
-  // Week strip — current week, today highlighted by day-of-week
-  const pw = PLAN[currentPlanWeek];
-  const wkLogged = sessions.filter(s=>s.week===String(currentPlanWeek)).map(s=>s.day);
-  document.getElementById('week-strip').innerHTML = pw.sessions.map(p => {
-    const isToday = p.day === todayDow;
-    const done = wkLogged.some(d=>d===p.day);
-    return `<div class="dchip ${done?'done':isToday?'today':''}">
-      <div class="dchip-name">${p.day}</div>
-      <div class="dchip-dot"></div>
-    </div>`;
-  }).join('');
-
-  // Today's session — match by day of week, fall back to last in week
-  const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
-  document.getElementById('today-session').onclick = () =>
-    openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
-      `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
-  document.getElementById('today-session').innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      ${pip(todaySess.intensity,32)}
-      <div>
-        <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.session}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}</div>
+  // Week strip and today's session — AI program or default PLAN
+  if (savedProgram) {
+    _renderProgramTodayStrip();
+  } else {
+    const pw = PLAN[currentPlanWeek];
+    const wkLogged = sessions.filter(s=>s.week===String(currentPlanWeek)).map(s=>s.day);
+    document.getElementById('week-strip').innerHTML = pw.sessions.map(p => {
+      const isToday = p.day === todayDow;
+      const done = wkLogged.some(d=>d===p.day);
+      return `<div class="dchip ${done?'done':isToday?'today':''}">
+        <div class="dchip-name">${p.day}</div>
+        <div class="dchip-dot"></div>
+      </div>`;
+    }).join('');
+    const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
+    document.getElementById('today-session').onclick = () =>
+      openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
+        `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
+    document.getElementById('today-session').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        ${pip(todaySess.intensity,32)}
+        <div>
+          <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.session}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}</div>
+        </div>
+        <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
       </div>
-      <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
-    </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
-  `;
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
+    `;
+  }
 
   // Review banner — shown when Strava imports need feel rating
   const toReview = pendingReview.filter(gid => sessions.find(s => s.gid === gid && !s.feel));
@@ -3235,6 +3225,7 @@ function renderRecentLog(){
 // PLAN
 // ═══════════════════════════════════════════════════════════════════════════
 function renderPlanTabs(){
+  if (savedProgram) { _renderProgramPlanTabs(); return; }
   document.getElementById('plan-tabs').innerHTML=Object.entries(PLAN).map(([w,p])=>{
     const isRace=p.sessions.some(s=>s.race);
     const isNow=parseInt(w)===currentPlanWeek;
@@ -3243,6 +3234,7 @@ function renderPlanTabs(){
 }
 
 function renderPlan(w){
+  if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
   currentPlanWeek=parseInt(w);
   renderPlanTabs();
   const pw=PLAN[w];
@@ -3269,8 +3261,213 @@ function renderPlan(w){
 }
 
 function logThisWeek(){
-  document.getElementById('f-week').value=String(currentPlanWeek);
+  document.getElementById('f-week').value=String(savedProgram?currentProgramWeek:currentPlanWeek);
   nav('log',document.querySelectorAll('.nb')[1]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI PROGRAM CALENDAR INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+const _PROG_DAY_SLOTS={1:['Mon'],2:['Mon','Thu'],3:['Mon','Wed','Fri'],
+  4:['Mon','Tue','Thu','Fri'],5:['Mon','Tue','Wed','Fri','Sat'],
+  6:['Mon','Tue','Wed','Thu','Fri','Sat'],7:['Mon','Tue','Wed','Thu','Fri','Sat','Sun']};
+
+function _progDays(spw){return _PROG_DAY_SLOTS[Math.min(Math.max(spw,1),7)]||_PROG_DAY_SLOTS[4];}
+
+function _progWeekSessions(week){
+  const prog=savedProgram; if(!prog) return [];
+  const spw=prog.sessionsPerWeek||4;
+  const days=_progDays(spw);
+  const offset=(week-1)*spw;
+  const ids=(prog.weekSchedule||[]).slice(offset,offset+spw);
+  return days.map((day,i)=>({day,id:ids[i]||null,session:ids[i]?prog.sessions?.find(s=>s.id===ids[i]):null}));
+}
+
+function _renderProgramTodayStrip(){
+  const prog=savedProgram; if(!prog) return;
+  const week=currentProgramWeek;
+  const weekSess=_progWeekSessions(week);
+  const spw=prog.sessionsPerWeek||4;
+  const allDays=_progDays(spw);
+
+  // Build 7-day strip — scheduled days get session chips, rest days get muted dots
+  const allWeekDays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  document.getElementById('week-strip').innerHTML=allWeekDays.map(day=>{
+    const slot=weekSess.find(s=>s.day===day);
+    const hasSession=!!(slot?.session);
+    const isToday=day===todayDow;
+    const clickAttr=hasSession?`onclick="openProgramSessionOverlay('${slot.id}',${week})" style="cursor:pointer;"`:'';
+    return `<div class="dchip ${isToday?'today':''} ${!hasSession?'rest':''}" ${clickAttr}>
+      <div class="dchip-name">${day}</div>
+      <div class="dchip-dot" ${!hasSession?'style="opacity:.25"':''}></div>
+    </div>`;
+  }).join('');
+
+  // Today's session card
+  const todaySlot=weekSess.find(s=>s.day===todayDow);
+  const todaySess=todaySlot?.session;
+  const sesEl=document.getElementById('today-session');
+  if(todaySess){
+    sesEl.onclick=()=>openProgramSessionOverlay(todaySlot.id,week);
+    sesEl.innerHTML=`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:var(--accent-dim);border:1px solid rgba(212,175,55,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">🏋️</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.name}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · ${todaySess.focus||''} · ${todaySess.exercises?.length||0} exercises</div>
+        </div>
+        <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see exercises and start session →</div>`;
+  } else {
+    sesEl.onclick=null;
+    sesEl.innerHTML=`<div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">🧘</div>
+      <div>
+        <div style="font-size:14px;font-weight:500;color:var(--text);">Rest day</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · recover and recharge</div>
+      </div>
+    </div>`;
+  }
+}
+
+function _renderProgramPlanTabs(){
+  const prog=savedProgram; if(!prog) return;
+  const total=(prog.weeks||4)+1;
+  document.getElementById('plan-tabs').innerHTML=Array.from({length:total},(_,i)=>{
+    const w=i+1;
+    const isDeload=!!(prog.weeklyProgressions?.[i]?.deload);
+    const isActive=w===currentProgramWeek;
+    return `<button class="ptab ${isDeload?'race':''} ${isActive?'active':''}" onclick="renderPlan(${w})">${isDeload?'DL':'W'+w}</button>`;
+  }).join('');
+}
+
+function _renderProgramPlan(w){
+  const prog=savedProgram; if(!prog) return;
+  currentProgramWeek=Math.max(1,w);
+  try{localStorage.setItem('ht-program-week',String(currentProgramWeek));}catch(e){}
+  _renderProgramPlanTabs();
+
+  const totalWeeks=(prog.weeks||4)+1;
+  const weekProg=prog.weeklyProgressions?.[w-1]||{};
+  const isDeload=!!(weekProg.deload);
+  const weekNote=weekProg.note||'';
+  const spw=prog.sessionsPerWeek||4;
+  const weekSess=_progWeekSessions(w);
+
+  // Header
+  document.getElementById('plan-vol').textContent=isDeload
+    ?`${prog.name||'Program'} · Week ${w} of ${totalWeeks} · Deload — recover and consolidate`
+    :`${prog.name||'Program'} · Week ${w} of ${totalWeeks}${weekNote?' · '+weekNote:''}`;
+
+  // Hide assessment banner (irrelevant for custom programs)
+  const ab=document.getElementById('assessment-banner');
+  if(ab) ab.style.display='none';
+
+  // Session rows
+  document.getElementById('plan-days').innerHTML=weekSess.map(({day,id,session})=>{
+    if(!session) return `<div class="prow" style="opacity:.38;">
+      <div><div class="pday-name">${day}</div><div class="pday-date">Rest</div></div>
+      <div class="prow-session"><span style="color:var(--text3);">Rest / Recovery</span></div>
+      <div></div></div>`;
+    const exCount=session.exercises?.length||0;
+    return `<div class="prow" onclick="openProgramSessionOverlay('${id}',${w})">
+      <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||''}</div></div>
+      <div class="prow-session"><span>${session.name}</span></div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${exCount} ex</div>
+    </div>`;
+  }).join('');
+
+  // Week-nav buttons (replace log-week-btn once, then update in-place)
+  const prevBtn=currentProgramWeek>1?`<button class="btn" style="flex:1;" onclick="renderPlan(${w-1})">← W${w-1}</button>`:'<div style="flex:1;"></div>';
+  const nextBtn=currentProgramWeek<totalWeeks?`<button class="btn" style="flex:1;" onclick="renderPlan(${w+1})">W${w+1} →</button>`:'<div style="flex:1;"></div>';
+  const navHtml=`<div style="display:flex;gap:8px;margin-top:4px;" id="plan-week-nav">${prevBtn}${nextBtn}</div>`;
+  const navEl=document.getElementById('plan-week-nav');
+  if(navEl){navEl.outerHTML=navHtml;}
+  else{const lb=document.getElementById('plan-log-week-btn');if(lb)lb.outerHTML=navHtml;}
+
+  // Show archive section (original PLAN)
+  const archEl=document.getElementById('plan-archive-section');
+  if(archEl) archEl.style.display='';
+}
+
+function openProgramSessionOverlay(id,week){
+  const prog=savedProgram; if(!prog) return;
+  const sess=prog.sessions?.find(s=>s.id===id);
+  if(!sess) return;
+  const weekProg=prog.weeklyProgressions?.[week-1]||{};
+  const isDeload=!!(weekProg.deload);
+  const setsAdd=isDeload?0:(weekProg.setsAdd||0);
+
+  document.getElementById('po-eyebrow').textContent=`${prog.name||'Program'} · Week ${week}`;
+  document.getElementById('po-title').textContent=sess.name;
+  document.getElementById('po-sub').textContent=sess.focus||'';
+
+  // Deload banner
+  const deloadBanner=isDeload?`<div style="background:var(--accent-dim);border:1px solid rgba(212,175,55,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--accent);">Deload week — reduce volume by ~50%, maintain load</div>`:'';
+
+  // Week note
+  const noteBanner=weekProg.note&&!isDeload?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${weekProg.note}</div>`:'';
+
+  // Exercise list
+  const exRows=(sess.exercises||[]).map((ex,i)=>{
+    const baseSets=parseInt(ex.sets)||3;
+    const sets=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+setsAdd;
+    const isLast=i===sess.exercises.length-1;
+    return `<div style="padding:12px 0;${isLast?'':'border-bottom:.5px solid var(--border)'}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${sets}×${ex.reps||'8-10'}</div>
+      </div>
+      ${ex.load?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ex.load}${ex.rest?' · rest '+ex.rest:''}</div>`:''}
+      ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('po-breakdown').innerHTML=`
+    ${deloadBanner}${noteBanner}
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
+
+  document.getElementById('po-log-btn').textContent='Log this session';
+  document.getElementById('po-log-btn').onclick=()=>{
+    closeOv('plan-overlay');
+    nav('log',document.querySelectorAll('.nb')[1]);
+  };
+  const editBtn=document.getElementById('po-edit-btn');
+  if(editBtn) editBtn.style.display='none';
+
+  openOv('plan-overlay');
+}
+
+function togglePlanArchive(el){
+  const body=document.getElementById('plan-archive-body');
+  const chevron=document.getElementById('plan-archive-chevron');
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  if(chevron) chevron.textContent=open?'show ▼':'hide ▲';
+  if(!open) _renderPlanArchiveBody();
+}
+
+function _renderPlanArchiveBody(){
+  const body=document.getElementById('plan-archive-body');
+  if(!body) return;
+  const tabs=Object.entries(PLAN).map(([w,pw])=>
+    `<button class="ptab" onclick="_showArchiveWeek(${w})" id="atab-${w}">${pw.label}</button>`
+  ).join('');
+  body.innerHTML=`<div class="ptabs" style="margin-bottom:8px;">${tabs}</div><div class="card" id="archive-days"></div>`;
+  _showArchiveWeek(1);
+}
+
+function _showArchiveWeek(w){
+  document.querySelectorAll('[id^="atab-"]').forEach(b=>b.classList.toggle('active',b.id===`atab-${w}`));
+  const pw=PLAN[w]; if(!pw) return;
+  document.getElementById('archive-days').innerHTML=pw.sessions.map(p=>`
+    <div class="prow">
+      <div><div class="pday-name">${p.day}</div><div class="pday-date">${p.date}</div></div>
+      <div class="prow-session">${pip(p.intensity,11)}<span>${p.session}</span></div>
+      <div></div>
+    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3287,17 +3484,19 @@ function openPlanOverlay(week,day,sessionType,sessionName,sub){
   document.getElementById('po-title').textContent=sessionName;
   document.getElementById('po-sub').textContent='';
   document.getElementById('po-breakdown').innerHTML=getBreakdown(week,day,sessionType);
+  document.getElementById('po-log-btn').textContent='Log this session';
   document.getElementById('po-log-btn').onclick=()=>{
     document.getElementById('f-week').value=String(week);
     const dayFull=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].find(d=>d.startsWith(day))||day;
     document.getElementById('f-day').value=dayFull;
     closeOv('plan-overlay');nav('log',document.querySelectorAll('.nb')[1]);
   };
-  document.getElementById('po-edit-btn').onclick=()=>{
+  const editBtn=document.getElementById('po-edit-btn');
+  if(editBtn){editBtn.style.display='';editBtn.onclick=()=>{
     const existing=LIB[String(week)]?.[day];
     closeOv('plan-overlay');
     openBuilder(week,day,existing||null);
-  };
+  };}
   openOv('plan-overlay');
 }
 
@@ -4462,13 +4661,11 @@ function confirmClear(){
 let aiGeneratedSession = null;
 
 function openAI() {
+  const key = localStorage.getItem('ht-ai-key') || '';
   const keyEl = document.getElementById('ai-api-key');
-  if (keyEl) keyEl.value = localStorage.getItem('ht-ai-key') || '';
-  const oEl = document.getElementById('openai-api-key');
-  if (oEl) oEl.value = localStorage.getItem('ht-openai-key') || '';
+  if (keyEl) keyEl.value = key;
   renderAIContext();
   renderAIQuickPrompts();
-  renderAIProviderUI();
   document.getElementById('ai-output').style.display = 'none';
   aiGeneratedSession = null;
   openOv('ai-overlay');
@@ -4477,27 +4674,6 @@ function openAI() {
 function aiKeySave() {
   const k = document.getElementById('ai-api-key')?.value || '';
   try { localStorage.setItem('ht-ai-key', k); } catch(e) {}
-}
-function openaiKeySave() {
-  const k = document.getElementById('openai-api-key')?.value || '';
-  try { localStorage.setItem('ht-openai-key', k); } catch(e) {}
-}
-function setAIProvider(p) {
-  try { localStorage.setItem('ht-ai-provider', p); } catch(e) {}
-  renderAIProviderUI();
-}
-function renderAIProviderUI() {
-  const prov = getAIProvider();
-  const aWrap = document.getElementById('key-anthropic-wrap');
-  const oWrap = document.getElementById('key-openai-wrap');
-  if (aWrap) aWrap.style.display = prov === 'anthropic' ? '' : 'none';
-  if (oWrap) oWrap.style.display = prov === 'openai'    ? '' : 'none';
-  const on  = 'background:var(--accent);color:#000;';
-  const off = 'background:var(--bg2);color:var(--text3);';
-  const bA = document.getElementById('prov-anthropic');
-  const bO = document.getElementById('prov-openai');
-  if (bA) { bA.style.background = prov==='anthropic'?'var(--accent)':'var(--bg2)'; bA.style.color = prov==='anthropic'?'#000':'var(--text3)'; }
-  if (bO) { bO.style.background = prov==='openai'?'var(--accent)':'var(--bg2)';    bO.style.color = prov==='openai'?'#000':'var(--text3)'; }
 }
 
 function renderAIContext() {
@@ -4559,8 +4735,9 @@ function setAIPrompt(btn) {
 }
 
 async function runAI() {
-  if (!hasValidAIKey()) {
-    toast('Enter a valid API key first'); return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) {
+    toast('Enter a valid Claude API key first'); return;
   }
   const prompt = document.getElementById('ai-prompt')?.value?.trim();
   if (!prompt) { toast('Describe what you need first'); return; }
@@ -4570,7 +4747,7 @@ async function runAI() {
   document.getElementById('ai-output').style.display = 'none';
 
   try {
-    const data = await aiAPI({
+    const data = await claudeAPI(key, {
       model: 'claude-opus-4-8',
       max_tokens: 4096,
       system: buildAISystemPrompt(),
@@ -5518,6 +5695,7 @@ let programViewWeek = 1;
 
 function loadSavedProgram() {
   try { savedProgram = JSON.parse(localStorage.getItem('ht-program') || 'null'); } catch(e) {}
+  currentProgramWeek = parseInt(localStorage.getItem('ht-program-week') || '1') || 1;
 }
 function saveProgramData(data) {
   savedProgram = data;
@@ -5690,7 +5868,8 @@ function renderSavedProgram() {
 async function generateStrengthProgram() {
   const body = document.getElementById('program-overlay-body');
   if (!body) return;
-  if (!hasValidAIKey() && !(getAIProvider()==='anthropic' && stravaWorker)) { toast('Add an API key in AI Session Builder → AI Provider'); return; }
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key && !stravaWorker) { toast('Add a Claude API key in AI Session Builder first'); return; }
 
   const p      = coachProfile || {};
   const method = p.strengthMethod || 'auto';
@@ -5766,7 +5945,7 @@ Sessions/week: ${cfg.sessionsPerWeek}
 Working weeks: ${workingWeeks} + 1 deload week`;
 
   try {
-    const result = await aiAPI({
+    const result = await claudeAPI(key, {
       model: 'claude-opus-4-8',
       system: systemPrompt,
       messages: [{role:'user', content: userMessage}],
@@ -6777,8 +6956,9 @@ function autoGrowCoachInput(el) {
 
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
-  if (!hasValidAIKey()) {
-    toast('Add an API key in AI Session Builder → AI Provider'); return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) {
+    toast('Add a Claude API key in AI Session Builder first'); return;
   }
   localStorage.setItem('ht-last-coach-open', Date.now().toString());
   renderCoachHeader();
@@ -6860,49 +7040,10 @@ async function claudeAPI(key, opts) {
   return res.json();
 }
 
-// ── OpenAI / Provider helpers ─────────────────────────────────────────────────
-function getAIProvider() { return localStorage.getItem('ht-ai-provider') || 'anthropic'; }
-function getAIKey() {
-  return getAIProvider() === 'openai'
-    ? localStorage.getItem('ht-openai-key') || ''
-    : localStorage.getItem('ht-ai-key') || '';
-}
-function hasValidAIKey() {
-  const key = getAIKey();
-  if (!key) return false;
-  return getAIProvider() === 'openai' ? key.startsWith('sk-') : key.startsWith('sk-ant');
-}
-const _OPENAI_MODELS = { large:'gpt-4o', medium:'gpt-4o', small:'gpt-4o-mini' };
-function resolveModel(m) {
-  if (getAIProvider() !== 'openai') return m;
-  if (m === 'claude-opus-4-8')        return _OPENAI_MODELS.large;
-  if (m === 'claude-sonnet-4-6')      return _OPENAI_MODELS.medium;
-  if (m.startsWith('claude-haiku'))   return _OPENAI_MODELS.small;
-  return m;
-}
-async function openaiAPI(key, opts) {
-  const msgs = [];
-  if (opts.system) msgs.push({role:'system', content:opts.system});
-  msgs.push(...(opts.messages||[]));
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
-    body: JSON.stringify({model:opts.model, max_tokens:opts.max_tokens, messages:msgs}),
-  });
-  if (!res.ok) {const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`API ${res.status}`);}
-  const d = await res.json();
-  // Normalize to Claude response shape so all callsites work unchanged
-  return {content:[{text: d.choices?.[0]?.message?.content||''}]};
-}
-async function aiAPI(opts) {
-  const key = getAIKey();
-  const resolved = {...opts, model: resolveModel(opts.model)};
-  return getAIProvider() === 'openai' ? openaiAPI(key, resolved) : claudeAPI(key, resolved);
-}
-
 async function _callCoachAPI() {
+  const key = localStorage.getItem('ht-ai-key') || '';
   try {
-    const data = await aiAPI({
+    const data = await claudeAPI(key, {
       model: 'claude-sonnet-4-6', max_tokens: 900,
       system: buildCoachSystemPrompt(),
       messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
@@ -7037,7 +7178,8 @@ async function sendCoachMessage() {
   const input = document.getElementById('coach-input');
   const text = input?.value?.trim();
   if (!text || coachTyping) return;
-  if (!hasValidAIKey()) { toast('Add an API key in AI Session Builder → AI Provider'); return; }
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) { toast('Add a Claude API key in AI Session Builder first'); return; }
   input.value = '';
   input.style.height = '';
   coachMessages.push({role:'user', text});
@@ -7174,7 +7316,8 @@ function saveCoachMemory(mem) {
 async function proposeMemoryUpdate() {
   const exchanges = coachMessages.filter(m => m.role === 'user').length;
   if (exchanges < 2) return;
-  if (!hasValidAIKey()) return;
+  const key = localStorage.getItem('ht-ai-key') || '';
+  if (!key || !key.startsWith('sk-ant')) return;
 
   const mem = loadCoachMemory();
   const transcript = coachMessages
@@ -7187,7 +7330,7 @@ async function proposeMemoryUpdate() {
     : '';
 
   try {
-    const data = await aiAPI({
+    const data = await claudeAPI(key, {
       model: 'claude-haiku-4-5-20251001', max_tokens: 220,
       messages: [{
         role: 'user',
@@ -7409,15 +7552,16 @@ async function showWeeklyDigest(){
 
   // AI coaching note (optional — requires key)
   const noteEl=document.getElementById('digest-note');
-  if(!hasValidAIKey()){
+  const key=localStorage.getItem('ht-ai-key')||'';
+  if(!key||!key.startsWith('sk-ant')){
     noteEl.innerHTML = st.count===0
       ? 'No sessions logged this week. A fresh week is a clean slate — get one quality session and one easy session on the board to build momentum.'
-      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add an API key in More → AI for personalised notes.</span>`;
+      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add a Claude API key in More → AI for personalised notes.</span>`;
     return;
   }
   try{
     const p=coachProfile||{};
-    const data=await aiAPI({
+    const data=await claudeAPI(key,{
       model:'claude-haiku-4-5-20251001', max_tokens:200,
       system:`You are ${p.name||'an elite endurance coach'}, writing a brief weekly review note. 2-3 sentences max. Specific, encouraging, one forward-looking tip for next week. No greeting, no signature.`,
       messages:[{role:'user',content:`This athlete's past 7 days: ${st.count} sessions, ${st.hardCount} quality/hard, ${dist.toFixed(1)}${distUnit()} volume, training load ${st.load} units, avg feel ${st.avgFeel?st.avgFeel.toFixed(1):'n/a'}/5. Plan week ${currentPlanWeek}/12. Write their weekly review note.`}],
@@ -8152,50 +8296,8 @@ try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
   }
   // Double rAF ensures layout is stable after first paint
   requestAnimationFrame(() => requestAnimationFrame(read));
-  // Re-read once the page is fully loaded (catches late safe-area resolution in PWA)
-  window.addEventListener('load', () => requestAnimationFrame(read), {once: true});
-  // Re-read on orientation change and viewport resize
+  // Re-read on orientation change
   window.addEventListener('orientationchange', () => setTimeout(read, 300));
-  window.addEventListener('resize', () => requestAnimationFrame(read), {passive: true});
-})();
-// Swipe-down-to-dismiss for all overlays (critical for large phones where back
-// button is physically distant — the user can swipe from anywhere in the header zone)
-;(function initSwipeDismiss() {
-  let sy = 0, sx = 0, tracking = false, ov = null;
-  document.addEventListener('touchstart', e => {
-    const el = e.target.closest('.overlay.open');
-    if (!el) { tracking = false; return; }
-    sy = e.touches[0].clientY;
-    sx = e.touches[0].clientX;
-    const inner = el.querySelector('.oi') || el.querySelector('[style*="overflow-y"]');
-    const atTop = !inner || inner.scrollTop < 4;
-    // Activate from the header zone (top 130px) or when body is scrolled to top
-    tracking = sy < 130 || atTop;
-    ov = el;
-  }, {passive: true});
-  document.addEventListener('touchmove', e => {
-    if (!tracking || !ov) return;
-    const dy = e.touches[0].clientY - sy;
-    const dx = Math.abs(e.touches[0].clientX - sx);
-    if (dx > 24) { tracking = false; ov.style.transform = ''; return; }
-    if (dy > 0) {
-      ov.style.transition = 'none';
-      ov.style.transform = `translateY(${Math.round(Math.pow(dy, 0.78))}px)`;
-    }
-  }, {passive: true});
-  document.addEventListener('touchend', e => {
-    if (!tracking || !ov) return;
-    const dy = e.changedTouches[0].clientY - sy;
-    ov.style.transition = '';
-    if (dy > 72) {
-      ov.style.transform = '';
-      const btn = ov.querySelector('.back-btn');
-      if (btn) btn.click(); else ov.classList.remove('open');
-    } else {
-      ov.style.transform = '';
-    }
-    tracking = false; ov = null;
-  }, {passive: true});
 })();
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
