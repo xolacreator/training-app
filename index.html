@@ -82,12 +82,12 @@ body{
 /* ── APP SHELL ── */
 #app{
   position:fixed;
-  /* Top: below dynamic island/notch */
-  top:var(--sat);
-  left:var(--sal);
-  right:var(--sar);
-  /* Bottom: above nav bar */
-  bottom:calc(var(--nav-h) + var(--sab));
+  /* Use env() directly — CSS engine evaluates at layout time, immune to JS timing bugs.
+     min 44px top guarantees Dynamic Island clearance even if env() transiently returns 0. */
+  top: max(env(safe-area-inset-top, 0px), 44px);
+  left: env(safe-area-inset-left, 0px);
+  right: env(safe-area-inset-right, 0px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   overflow:hidden;
 }
 
@@ -114,9 +114,9 @@ body{
 .nav{
   position:fixed;
   bottom:0;left:0;right:0;
-  height:calc(var(--nav-h) + var(--sab));
-  padding-bottom:var(--sab);
-  padding-left:var(--sal);padding-right:var(--sar);
+  height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+  padding-left:env(safe-area-inset-left, 0px);padding-right:env(safe-area-inset-right, 0px);
   /* Solid bg — matches html background behind home indicator; no backdrop-filter gap */
   background:var(--bg);
   border-top:0.5px solid var(--border2);
@@ -161,8 +161,9 @@ body{
 /* Overlay header — fixed, never scrolls */
 .oh{
   flex-shrink:0;
-  /* Safe-area spacer only — back button lives in .of footer now */
-  padding:max(calc(var(--sat)+10px),58px) 0 10px;
+  /* env() used directly: CSS engine evaluates at layout time, no JS timing dependency.
+     min 58px clears Dynamic Island (typically 59px) even if env() transiently returns 0. */
+  padding:max(calc(env(safe-area-inset-top, 0px) + 10px), 58px) 0 10px;
   background:var(--bg);
   display:flex;align-items:center;justify-content:center;
 }
@@ -174,15 +175,18 @@ body{
   overflow-y:auto;
   overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  /* bottom padding: .of handles the home-indicator safe-area, just leave room for the button */
-  padding:4px calc(16px+var(--sar)) 20px calc(16px+var(--sal));
+  padding:4px calc(16px + env(safe-area-inset-right, 0px)) 20px calc(16px + env(safe-area-inset-left, 0px));
 }
-/* Overlay footer — pinned to bottom, always thumb-reachable */
+/* Overlay footer — pinned to bottom, always thumb-reachable.
+   44px minimum clears the home-indicator zone (~34px) with 10px breathing room,
+   even when env() transiently returns 0 on first PWA load. */
 .of{
   flex-shrink:0;
   background:var(--bg);
   border-top:.5px solid var(--border);
-  padding:10px calc(16px+var(--sar)) max(calc(var(--sab)+14px),30px) calc(16px+var(--sal));
+  padding:10px calc(16px + env(safe-area-inset-right, 0px))
+          max(calc(env(safe-area-inset-bottom, 0px) + 14px), 44px)
+          calc(16px + env(safe-area-inset-left, 0px));
 }
 .wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
 .wnbackdrop.open{opacity:1;pointer-events:auto;}
@@ -908,7 +912,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- INTERVAL TIMER OVERLAY -->
 <div class="overlay" id="timer-overlay">
   <!-- Timer keeps back button at top: active-timer view uses Pause/Stop at bottom, no room for .of -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),80px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+16px),80px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <button class="back-btn" onclick="closeTimer()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
   <div id="timer-config" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 18px calc(var(--sab) + 24px);">
@@ -1101,7 +1105,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header — drag handle + safe-area spacer; back button lives in footer -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+10px),56px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;justify-content:center;margin-bottom:10px;"><div class="drag-handle"></div></div>
     <div style="margin-bottom:10px;">
       <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
@@ -1150,7 +1154,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div id="hx-table" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px calc(16px+var(--sar)) 6px calc(16px+var(--sal));"></div>
 
   <!-- Fixed footer: summary + actions + back button -->
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+var(--sar)) max(calc(var(--sab)+14px),30px) calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+14px),44px) calc(16px+env(safe-area-inset-left,0px));">
     <div id="hx-summary"></div>
     <button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);touch-action:manipulation;" onclick="hyroxPullTraining()">
       ↑ Pull run splits from training log
@@ -1221,7 +1225,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header — drag handle + safe-area spacer; back button is in the input row footer -->
-  <div style="flex-shrink:0;padding:max(calc(var(--sat)+10px),56px) calc(16px + var(--sar)) 8px calc(16px + var(--sal));">
+  <div style="flex-shrink:0;padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 8px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;justify-content:center;flex:1;"><div class="drag-handle"></div></div>
       <button onclick="openMemoryView()" title="What your coach remembers" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;">
@@ -1233,7 +1237,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Messages — this is the only scrolling region -->
   <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
   <!-- Input bar — always pinned to bottom, full width -->
-  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
+  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+12px),46px) calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <textarea id="coach-input" rows="1" placeholder="Reply to your coach…"
         style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;max-height:80px;overflow-y:auto;line-height:1.45;"
@@ -1253,13 +1257,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+10px),56px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="drag-handle"></div></div>
     <div class="eyebrow">Strength</div>
     <div style="font-size:22px;font-weight:600;letter-spacing:-.02em;">Program Builder</div>
   </div>
   <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:20px;"></div>
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+var(--sar)) max(calc(var(--sab)+14px),30px) calc(16px+var(--sal));">
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+14px),44px) calc(16px+env(safe-area-inset-left,0px));">
     <button class="back-btn" onclick="closeOv('program-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
 </div>
@@ -8285,29 +8289,9 @@ try { initTheme(); } catch(e) {}
 try { initDrive(); } catch(e) {}
 try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
 
-// Safe-area probe: env() can return 0 on first load in standalone PWA mode
-// before the browser resolves viewport metrics. Measure via layout instead.
-;(function probeSafeArea() {
-  function read() {
-    const r = document.documentElement;
-    const probe = (pos, prop) => {
-      const el = document.createElement('div');
-      el.style.cssText = `position:fixed;pointer-events:none;visibility:hidden;z-index:-1;${pos}:env(safe-area-inset-${pos},0px);left:0;right:0;height:0;`;
-      document.body.appendChild(el);
-      const rect = el.getBoundingClientRect();
-      document.body.removeChild(el);
-      return pos === 'top' ? rect.top : window.innerHeight - rect.bottom;
-    };
-    const sat = probe('top');
-    const sab = probe('bottom');
-    if (sat > 0) r.style.setProperty('--sat', sat + 'px');
-    if (sab > 0) r.style.setProperty('--sab', sab + 'px');
-  }
-  // Double rAF ensures layout is stable after first paint
-  requestAnimationFrame(() => requestAnimationFrame(read));
-  // Re-read on orientation change
-  window.addEventListener('orientationchange', () => setTimeout(read, 300));
-})();
+// Safe-area: env() is used directly in all layout-critical CSS rules (no JS override needed).
+// The CSS engine evaluates env() at layout time — always correct, no timing race.
+// CSS variables --sat/--sab are kept for any remaining inline-style references.
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
