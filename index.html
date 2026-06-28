@@ -82,12 +82,12 @@ body{
 /* ── APP SHELL ── */
 #app{
   position:fixed;
-  /* Top: below dynamic island/notch */
-  top:var(--sat);
-  left:var(--sal);
-  right:var(--sar);
-  /* Bottom: above nav bar */
-  bottom:calc(var(--nav-h) + var(--sab));
+  /* Use env() directly — CSS engine evaluates at layout time, immune to JS timing bugs.
+     min 44px top guarantees Dynamic Island clearance even if env() transiently returns 0. */
+  top: max(env(safe-area-inset-top, 0px), 44px);
+  left: env(safe-area-inset-left, 0px);
+  right: env(safe-area-inset-right, 0px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   overflow:hidden;
 }
 
@@ -114,9 +114,9 @@ body{
 .nav{
   position:fixed;
   bottom:0;left:0;right:0;
-  height:calc(var(--nav-h) + var(--sab));
-  padding-bottom:var(--sab);
-  padding-left:var(--sal);padding-right:var(--sar);
+  height:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+  padding-left:env(safe-area-inset-left, 0px);padding-right:env(safe-area-inset-right, 0px);
   /* Solid bg — matches html background behind home indicator; no backdrop-filter gap */
   background:var(--bg);
   border-top:0.5px solid var(--border2);
@@ -148,7 +148,13 @@ body{
 /* ── OVERLAYS ── */
 .overlay{
   position:fixed;
-  top:0;left:0;right:0;height:100dvh;
+  /* Pin ALL FOUR edges to the viewport instead of height:100dvh.
+     This makes height = the real fixed-positioning containing block (the visible
+     viewport) with zero dependence on how iOS resolves dvh. On standalone PWAs
+     with a black-translucent status bar, 100dvh could resolve taller than the
+     visible area, pushing the footer (and its Back button) below the fold — that
+     was the "stuck on screen, can't reach Back" bug. inset:0 makes it impossible. */
+  inset:0;
   background:var(--bg);
   z-index:200;
   overflow:hidden;
@@ -161,16 +167,32 @@ body{
 /* Overlay header — fixed, never scrolls */
 .oh{
   flex-shrink:0;
-  padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));
+  /* env() used directly: CSS engine evaluates at layout time, no JS timing dependency.
+     min 58px clears Dynamic Island (typically 59px) even if env() transiently returns 0. */
+  padding:max(calc(env(safe-area-inset-top, 0px) + 10px), 58px) 0 10px;
   background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
 }
+/* Drag-handle pill — swipe-to-dismiss affordance */
+.drag-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;}
 /* Overlay inner (body) — scrolls */
 .oi{
   flex:1;
   overflow-y:auto;
   overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  padding:4px calc(16px+var(--sar)) calc(var(--sab)+40px) calc(16px+var(--sal));
+  padding:4px calc(16px + env(safe-area-inset-right, 0px)) 20px calc(16px + env(safe-area-inset-left, 0px));
+}
+/* Overlay footer — pinned to bottom, always thumb-reachable.
+   44px minimum clears the home-indicator zone (~34px) with 10px breathing room,
+   even when env() transiently returns 0 on first PWA load. */
+.of{
+  flex-shrink:0;
+  background:var(--bg);
+  border-top:.5px solid var(--border);
+  padding:10px calc(16px + env(safe-area-inset-right, 0px))
+          max(calc(env(safe-area-inset-bottom, 0px) + 14px), 44px)
+          calc(16px + env(safe-area-inset-left, 0px));
 }
 .wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
 .wnbackdrop.open{opacity:1;pointer-events:auto;}
@@ -185,8 +207,7 @@ body{
   font-size:14px;font-weight:500;color:var(--text2);
   background:none;border:none;cursor:pointer;
   font-family:var(--font);
-  padding:8px 0 20px;
-  /* Tap target at least 44px */
+  padding:10px 0;
   min-height:44px;
 }
 .back-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;}
@@ -616,7 +637,14 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div class="card" id="plan-days"></div>
-    <button class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <button id="plan-log-week-btn" class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <div id="plan-archive-section" style="display:none;margin-top:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;" onclick="togglePlanArchive(this)">
+        <div class="sec-lbl" style="margin:0;">Previous plan</div>
+        <span id="plan-archive-chevron" style="font-family:var(--mono);font-size:10px;color:var(--text3);">show ▼</span>
+      </div>
+      <div id="plan-archive-body" style="display:none;margin-top:8px;"></div>
+    </div>
     <div style="margin-top:16px;">
       <div class="eyebrow" style="margin-bottom:6px;">Race tools</div>
       <div class="card" onclick="openHyroxCalc()" style="cursor:pointer;">
@@ -841,17 +869,14 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- ASSESSMENT OVERLAY -->
 <div class="overlay" id="assessment-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeOv('assessment-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi" id="assessment-oi"></div>
+  <div class="of"><button class="back-btn" onclick="closeOv('assessment-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- PLAN SESSION DETAIL OVERLAY -->
 <div class="overlay" id="plan-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeOv('plan-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow" id="po-eyebrow"></div>
     <div class="overlay-title" id="po-title"></div>
@@ -862,13 +887,12 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn" id="po-edit-btn" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Edit / customise</button>
     </div>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeOv('plan-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- LOG DETAIL OVERLAY -->
 <div class="overlay" id="log-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeOv('log-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow" id="lo-eyebrow"></div>
     <div class="overlay-title" id="lo-title"></div>
@@ -888,11 +912,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn" style="color:var(--red);border-color:rgba(240,101,101,.15);" id="lo-del-btn">Remove session</button>
     </div>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeOv('log-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- INTERVAL TIMER OVERLAY -->
 <div class="overlay" id="timer-overlay">
-  <div class="oh">
+  <!-- Timer keeps back button at top: active-timer view uses Pause/Stop at bottom, no room for .of -->
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+16px),80px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <button class="back-btn" onclick="closeTimer()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
   <div id="timer-config" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 18px calc(var(--sab) + 24px);">
@@ -946,9 +972,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- REVIEW IMPORTS OVERLAY -->
 <div class="overlay" id="review-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeReviewFlow()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Done</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow" id="rv-progress"></div>
     <div class="overlay-title" id="rv-title" style="margin-bottom:4px;"></div>
@@ -965,13 +989,12 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-accent" onclick="reviewSave()" style="flex:2;" id="rv-save-btn">Next →</button>
     </div>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeReviewFlow()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Done</button></div>
 </div>
 
 <!-- SESSION BUILDER OVERLAY -->
 <div class="overlay" id="builder-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeOv('builder-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow" id="bld-eyebrow">Session Builder</div>
     <div class="overlay-title">Build Session</div>
@@ -1023,40 +1046,50 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <button class="btn" onclick="bldUseToLog()" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Use this session → Log now</button>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeOv('builder-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- TEMPLATES OVERLAY -->
 <div class="overlay" id="templates-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeOv('templates-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow">Saved</div>
     <div class="overlay-title" style="margin-bottom:12px;">Templates</div>
     <button class="btn" onclick="closeOv('templates-overlay');openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.2);margin-bottom:12px;">+ Build new session</button>
     <div class="card" id="tmpl-list"></div>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeOv('templates-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- AI SESSION BUILDER OVERLAY -->
 <div class="overlay" id="ai-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeOv('ai-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow">AI-Powered</div>
     <div class="overlay-title" style="margin-bottom:4px;">Plan Builder</div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Powered by Claude · extend your plan or build new sessions</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;" id="ai-provider-tagline">Powered by Claude · extend your plan or build new sessions</div>
 
-    <div class="sec-lbl">API Key</div>
+    <div class="sec-lbl">AI Provider</div>
     <div class="card" style="margin-bottom:8px;">
-      <div class="fg" style="margin-bottom:8px;">
+      <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:14px;">
+        <button id="prov-anthropic" onclick="setAIProvider('anthropic')" style="flex:1;border:none;padding:9px 0;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;background:var(--accent);color:#000;">Claude</button>
+        <button id="prov-openai" onclick="setAIProvider('openai')" style="flex:1;border:none;padding:9px 0;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;background:var(--bg2);color:var(--text3);">ChatGPT</button>
+      </div>
+      <div class="fg" id="key-anthropic-wrap" style="margin-bottom:0;">
         <label class="flbl">Claude API Key (stored locally on device)</label>
         <input type="password" id="ai-api-key" placeholder="sk-ant-api03-…" oninput="aiKeySave()">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-top:6px;">
+          Get your key at console.anthropic.com → API Keys<br>
+          Stored only in this browser · never sent elsewhere
+        </div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">
-        Get your key at console.anthropic.com → API Keys<br>
-        Stored only in this browser · never sent elsewhere
+      <div class="fg" id="key-openai-wrap" style="margin-bottom:0;display:none;">
+        <label class="flbl">OpenAI API Key (stored locally on device)</label>
+        <input type="password" id="ai-openai-key" placeholder="sk-…" oninput="aiKeySave()">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-top:6px;">
+          Get your key at platform.openai.com → API keys<br>
+          Stored only in this browser · never sent elsewhere
+        </div>
       </div>
     </div>
 
@@ -1083,22 +1116,18 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn" style="width:100%;margin-top:8px;color:var(--accent);border-color:rgba(201,168,76,.25);" onclick="if(aiGeneratedSession){closeOv('ai-overlay');openTimer(aiGeneratedSession);}">⏱ Run as interval timer</button>
     </div>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeOv('ai-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- HYROX RACE CALCULATOR -->
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
-  <!-- Fixed header -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 10px calc(16px+var(--sal));">
-    <!-- Back button + title on one row (iOS nav pattern — keeps button reachable) -->
-    <div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">
-      <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="padding:0;margin:0;min-height:44px;min-width:52px;flex-shrink:0;">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-      </button>
-      <div style="flex:1;">
-        <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
-        <div style="font-size:19px;font-weight:600;letter-spacing:-.02em;line-height:1.15;">HYROX Calculator</div>
-      </div>
+  <!-- Fixed header — drag handle + safe-area spacer; back button lives in footer -->
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+    <div style="display:flex;justify-content:center;margin-bottom:10px;"><div class="drag-handle"></div></div>
+    <div style="margin-bottom:10px;">
+      <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
+      <div style="font-size:19px;font-weight:600;letter-spacing:-.02em;line-height:1.15;">HYROX Calculator</div>
     </div>
     <!-- Category picker: Division | Gender -->
     <div style="display:flex;gap:8px;margin-bottom:10px;">
@@ -1142,12 +1171,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Scrollable segment table -->
   <div id="hx-table" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px calc(16px+var(--sar)) 6px calc(16px+var(--sal));"></div>
 
-  <!-- Fixed footer -->
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+var(--sar)) calc(10px+var(--sab)) calc(16px+var(--sal));">
+  <!-- Fixed footer: summary + actions + back button -->
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+14px),44px) calc(16px+env(safe-area-inset-left,0px));">
     <div id="hx-summary"></div>
     <button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);touch-action:manipulation;" onclick="hyroxPullTraining()">
       ↑ Pull run splits from training log
     </button>
+    <button class="back-btn" onclick="closeOv('hyrox-overlay')" style="margin-top:4px;"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
 </div>
 
@@ -1200,25 +1230,22 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- COACH SETUP WIZARD -->
 <div class="overlay" id="coach-setup-overlay">
-  <div class="oh">
-    <button class="back-btn" onclick="closeCoachSetup()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
-  </div>
+  <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow">Setup</div>
     <div class="overlay-title" style="margin-bottom:4px;">Meet Your Coach</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:24px;">5 questions · build your personal coaching style</div>
     <div id="coach-setup-content"></div>
   </div>
+  <div class="of"><button class="back-btn" onclick="closeCoachSetup()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <!-- Header -->
-  <div style="flex-shrink:0;padding:max(calc(var(--sat)+16px),72px) calc(16px + var(--sar)) 0 calc(16px + var(--sal));">
+  <!-- Header — drag handle + safe-area spacer; back button is in the input row footer -->
+  <div style="flex-shrink:0;padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 8px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <button class="back-btn" onclick="closeCoach()" style="position:static;margin-bottom:4px;">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-      </button>
+      <div style="display:flex;justify-content:center;flex:1;"><div class="drag-handle"></div></div>
       <button onclick="openMemoryView()" title="What your coach remembers" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Memory
       </button>
@@ -1228,7 +1255,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Messages — this is the only scrolling region -->
   <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
   <!-- Input bar — always pinned to bottom, full width -->
-  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px + var(--sar)) calc(12px + var(--sab)) calc(16px + var(--sal));">
+  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+12px),46px) calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <textarea id="coach-input" rows="1" placeholder="Reply to your coach…"
         style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;max-height:80px;overflow-y:auto;line-height:1.45;"
@@ -1237,24 +1264,26 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-accent" onclick="sendCoachMessage()" id="coach-send-btn" style="flex-shrink:0;width:44px;height:44px;padding:0;font-size:20px;line-height:1;border-radius:var(--r);">↑</button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;">
-      <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="coachMessages=[];coachMode=null;renderCoachModePicker();">← Change mode</button>
-      <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Edit coach profile</button>
+      <button class="back-btn" onclick="closeCoach()" style="font-size:13px;padding:6px 0 0;"><svg viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+      <div style="display:flex;gap:14px;">
+        <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="coachMessages=[];coachMode=null;renderCoachModePicker();">Change mode</button>
+        <button style="font-family:var(--mono);font-size:9px;color:var(--text3);background:none;border:none;cursor:pointer;padding:6px 0 0;display:block;" onclick="openCoachSetup()">Edit profile</button>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(var(--sat)+16px),72px) calc(16px+var(--sar)) 12px calc(16px+var(--sal));">
-    <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
-      <button class="back-btn" style="position:static;" onclick="closeOv('program-overlay')">
-        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back
-      </button>
-    </div>
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+    <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="drag-handle"></div></div>
     <div class="eyebrow">Strength</div>
     <div style="font-size:22px;font-weight:600;letter-spacing:-.02em;">Program Builder</div>
   </div>
-  <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;"></div>
+  <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:20px;"></div>
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+14px),44px) calc(16px+env(safe-area-inset-left,0px));">
+    <button class="back-btn" onclick="closeOv('program-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -2465,6 +2494,7 @@ let splits = [];
 let exercises = [];
 let stations = [];
 let currentPlanWeek = 5;
+let currentProgramWeek = 1;
 let filterWeek = 'all';
 let detailIdx = null;
 let bldOptions = [{label:'Option A',blocks:[]}];
@@ -2735,7 +2765,7 @@ function renderAll() {
   renderBaselinesCard();
   renderRecoveryCard();
   renderRecentLog();
-  renderPlan(currentPlanWeek);
+  renderPlan(savedProgram ? currentProgramWeek : currentPlanWeek);
   renderPlanTabs();
   renderDataSummary();
 }
@@ -2824,34 +2854,36 @@ function renderToday() {
       <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>
   `;
 
-  // Week strip — current week, today highlighted by day-of-week
-  const pw = PLAN[currentPlanWeek];
-  const wkLogged = sessions.filter(s=>s.week===String(currentPlanWeek)).map(s=>s.day);
-  document.getElementById('week-strip').innerHTML = pw.sessions.map(p => {
-    const isToday = p.day === todayDow;
-    const done = wkLogged.some(d=>d===p.day);
-    return `<div class="dchip ${done?'done':isToday?'today':''}">
-      <div class="dchip-name">${p.day}</div>
-      <div class="dchip-dot"></div>
-    </div>`;
-  }).join('');
-
-  // Today's session — match by day of week, fall back to last in week
-  const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
-  document.getElementById('today-session').onclick = () =>
-    openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
-      `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
-  document.getElementById('today-session').innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      ${pip(todaySess.intensity,32)}
-      <div>
-        <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.session}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}</div>
+  // Week strip and today's session — AI program or default PLAN
+  if (savedProgram) {
+    _renderProgramTodayStrip();
+  } else {
+    const pw = PLAN[currentPlanWeek];
+    const wkLogged = sessions.filter(s=>s.week===String(currentPlanWeek)).map(s=>s.day);
+    document.getElementById('week-strip').innerHTML = pw.sessions.map(p => {
+      const isToday = p.day === todayDow;
+      const done = wkLogged.some(d=>d===p.day);
+      return `<div class="dchip ${done?'done':isToday?'today':''}">
+        <div class="dchip-name">${p.day}</div>
+        <div class="dchip-dot"></div>
+      </div>`;
+    }).join('');
+    const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
+    document.getElementById('today-session').onclick = () =>
+      openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
+        `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
+    document.getElementById('today-session').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        ${pip(todaySess.intensity,32)}
+        <div>
+          <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.session}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}</div>
+        </div>
+        <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
       </div>
-      <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
-    </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
-  `;
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see full session breakdown →</div>
+    `;
+  }
 
   // Review banner — shown when Strava imports need feel rating
   const toReview = pendingReview.filter(gid => sessions.find(s => s.gid === gid && !s.feel));
@@ -3117,16 +3149,19 @@ function saveSession(){
   const hr=(document.getElementById('f-hr')?.value||'').trim();
   const dur=(document.getElementById('f-dur')?.value||'').trim();
   const notes=buildNotes();
-  sessions.unshift({week,day,session,intensity,pace,dist,hr,dur,feel,notes,ts:Date.now(),
+  const entry={week,day,session,intensity,pace,dist,hr,dur,feel,notes,ts:Date.now(),
     cat,splits:[...splits],exercises:JSON.parse(JSON.stringify(exercises)),
-    stations:JSON.parse(JSON.stringify(stations)),sUnit});
+    stations:JSON.parse(JSON.stringify(stations)),sUnit};
+  // Link to a program session if this log was started from one (→ completion tracking)
+  if(_pendingProgLink){ entry.progId=_pendingProgLink.progId; entry.progWeek=_pendingProgLink.progWeek; entry.progSid=_pendingProgLink.progSid; }
+  sessions.unshift(entry);
   saveData();clearForm();renderAll();
   toast('Session saved');
   nav('log',document.querySelectorAll('.nb')[1]);
 }
 
 function clearForm(){
-  feel=null;splits=[];exercises=[];stations=[];
+  feel=null;splits=[];exercises=[];stations=[];_pendingProgLink=null;
   document.querySelectorAll('.feel-btn').forEach(b=>b.classList.remove('sel'));
   const fn=document.getElementById('f-notes');if(fn)fn.value='';
   renderMetrics();
@@ -3215,6 +3250,7 @@ function renderRecentLog(){
 // PLAN
 // ═══════════════════════════════════════════════════════════════════════════
 function renderPlanTabs(){
+  if (savedProgram) { _renderProgramPlanTabs(); return; }
   document.getElementById('plan-tabs').innerHTML=Object.entries(PLAN).map(([w,p])=>{
     const isRace=p.sessions.some(s=>s.race);
     const isNow=parseInt(w)===currentPlanWeek;
@@ -3223,6 +3259,7 @@ function renderPlanTabs(){
 }
 
 function renderPlan(w){
+  if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
   currentPlanWeek=parseInt(w);
   renderPlanTabs();
   const pw=PLAN[w];
@@ -3249,8 +3286,382 @@ function renderPlan(w){
 }
 
 function logThisWeek(){
-  document.getElementById('f-week').value=String(currentPlanWeek);
+  document.getElementById('f-week').value=String(savedProgram?currentProgramWeek:currentPlanWeek);
   nav('log',document.querySelectorAll('.nb')[1]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI PROGRAM CALENDAR INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+const _PROG_DAY_SLOTS={1:['Mon'],2:['Mon','Thu'],3:['Mon','Wed','Fri'],
+  4:['Mon','Tue','Thu','Fri'],5:['Mon','Tue','Wed','Fri','Sat'],
+  6:['Mon','Tue','Wed','Thu','Fri','Sat'],7:['Mon','Tue','Wed','Thu','Fri','Sat','Sun']};
+
+function _progDays(spw){return _PROG_DAY_SLOTS[Math.min(Math.max(spw,1),7)]||_PROG_DAY_SLOTS[4];}
+
+const _ALL_DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function _progWeekSessions(week){
+  const prog=savedProgram; if(!prog) return [];
+  // Composite/multi-discipline programs (and all new ones) use an explicit
+  // 7-entry dayMap (Mon..Sun) — each entry is a sessionId or null (rest). This
+  // lets one program place mixed session types (e.g. Fitstop + endurance) on
+  // specific weekdays. Returns all 7 days so the calendar can show rest days too.
+  if(Array.isArray(prog.dayMap) && prog.dayMap.length===7){
+    return _ALL_DOW.map((day,i)=>{
+      const id=prog.dayMap[i]||null;
+      return {day,id,session:id?prog.sessions?.find(s=>s.id===id):null};
+    });
+  }
+  // Legacy fallback: flat weekSchedule rotation + sessions-per-week day slots.
+  const spw=prog.sessionsPerWeek||4;
+  const days=_progDays(spw);
+  const sched=prog.weekSchedule||[];
+  const offset=(week-1)*spw;
+  let ids=sched.slice(offset,offset+spw);
+  if(ids.length<spw){
+    ids = sched.length>=spw ? sched.slice(0,spw) : (prog.sessions||[]).slice(0,spw).map(s=>s.id);
+  }
+  return days.map((day,i)=>({day,id:ids[i]||null,session:ids[i]?prog.sessions?.find(s=>s.id===ids[i]):null}));
+}
+
+// A program session's discipline. Defaults to 'strength' for legacy programs.
+function _sessType(sess){ return (sess && sess.type) ? sess.type : 'strength'; }
+// One-line summary for a session, adapted to its type (shown in calendar rows/cards).
+function _sessSummary(sess){
+  if(!sess) return '';
+  const t=_sessType(sess);
+  if(t==='endurance'||t==='run'){
+    return [sess.intervals, sess.distance, sess.pace||sess.zone, sess.duration].filter(Boolean).join(' · ')
+      || (sess.exercises?.length? sess.exercises.length+' blocks':'');
+  }
+  if(t==='fitstop'||t==='conditioning'||t==='mixed'){
+    return sess.format || (sess.exercises?.length? sess.exercises.length+' stations':'circuit');
+  }
+  return (sess.exercises?.length||0)+' ex'; // strength
+}
+// Map a program session type → the log-form category used by the logger.
+function _sessLogCat(sess){
+  const t=_sessType(sess);
+  if(t==='endurance'||t==='run') return 'run';
+  if(t==='fitstop'||t==='conditioning'||t==='mixed') return 'mixed';
+  return 'strength';
+}
+// Icon per discipline (calendar/home).
+function _sessIcon(sess){
+  const t=_sessType(sess);
+  if(t==='endurance'||t==='run') return '🏃';
+  if(t==='fitstop'||t==='conditioning'||t==='mixed') return '🔥';
+  return '🏋️';
+}
+
+// ── PROGRAM DATE ANCHOR + COMPLETION ─────────────────────────────────────────
+// A program is anchored to a startDate (Monday of the week it was generated).
+// The "actual" week is derived from today's date so the homepage is always right;
+// the calendar can still browse other weeks via currentProgramWeek.
+function _progTotalWeeks(){ const p=savedProgram; return p ? ((p.weeks||4)+1) : 0; }
+function _progStartDate(){
+  const p=savedProgram; if(!p||!p.startDate) return null;
+  const d=new Date(p.startDate+'T00:00:00'); return isNaN(d.getTime())?null:d;
+}
+// ISO date (YYYY-MM-DD) of the Monday on/just before the given date.
+function _mondayISO(dt){
+  const d=new Date(dt); d.setHours(0,0,0,0);
+  const dow=d.getDay(); // 0=Sun..6=Sat
+  const diff=(dow===0?-6:1-dow); // back to Monday
+  d.setDate(d.getDate()+diff);
+  const mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function _progActualWeek(){
+  const start=_progStartDate(); if(!start) return currentProgramWeek||1;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const wk=Math.floor((today-start)/86400000/7)+1;
+  return Math.min(Math.max(wk,1),_progTotalWeeks()||wk);
+}
+function _progWeekForDate(iso){
+  const start=_progStartDate(); if(!start) return null;
+  const d=new Date(iso+'T00:00:00'); if(isNaN(d.getTime())) return null;
+  const days=Math.floor((d-start)/86400000); if(days<0) return null;
+  const wk=Math.floor(days/7)+1;
+  return (wk>=1 && wk<=(_progTotalWeeks()||wk)) ? wk : null;
+}
+// A program slot counts as done when a logged session is linked to it
+// (program id + week + session id), stamped at log time or by Strava sync.
+function _progSessionDone(week,sid){
+  const pid=savedProgram?.id;
+  return sessions.some(s=> s.progSid===sid && String(s.progWeek)===String(week) &&
+    (!pid || !s.progId || s.progId===pid));
+}
+
+function _renderProgramTodayStrip(){
+  const prog=savedProgram; if(!prog) return;
+  const todayDow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+  const week=_progActualWeek();
+  const weekSess=_progWeekSessions(week);
+  const spw=prog.sessionsPerWeek||4;
+  const allDays=_progDays(spw);
+
+  // Build 7-day strip — scheduled days get session chips, rest days get muted dots
+  const allWeekDays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  document.getElementById('week-strip').innerHTML=allWeekDays.map(day=>{
+    const slot=weekSess.find(s=>s.day===day);
+    const hasSession=!!(slot?.session);
+    const isToday=day===todayDow;
+    const done=hasSession&&_progSessionDone(week,slot.id);
+    const clickAttr=hasSession?`onclick="openProgramSessionOverlay('${slot.id}',${week},'${day}')" style="cursor:pointer;"`:'';
+    const dot=done
+      ? `<div class="dchip-dot" style="background:var(--green,#34c759);border-color:var(--green,#34c759);">✓</div>`
+      : `<div class="dchip-dot" ${!hasSession?'style="opacity:.25"':''}></div>`;
+    return `<div class="dchip ${isToday?'today':''} ${!hasSession?'rest':''} ${done?'done':''}" ${clickAttr}>
+      <div class="dchip-name">${day}</div>
+      ${dot}
+    </div>`;
+  }).join('');
+
+  // Today's session card
+  const todaySlot=weekSess.find(s=>s.day===todayDow);
+  const todaySess=todaySlot?.session;
+  const sesEl=document.getElementById('today-session');
+  if(todaySess){
+    const todayDone=_progSessionDone(week,todaySlot.id);
+    const summary=[todaySess.focus, _sessSummary(todaySess)].filter(Boolean).join(' · ');
+    sesEl.onclick=()=>openProgramSessionOverlay(todaySlot.id,week,todayDow);
+    sesEl.innerHTML=`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:${todayDone?'rgba(52,199,89,.15)':'var(--accent-dim)'};border:1px solid ${todayDone?'rgba(52,199,89,.4)':'rgba(212,175,55,.25)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">${todayDone?'✓':_sessIcon(todaySess)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.name}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · ${summary}</div>
+        </div>
+        <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:${todayDone?'var(--green,#34c759)':'var(--text3)'};">${todayDone?'Logged ✓ · tap to view or log again':'Tap to see details and log session →'}</div>`;
+  } else {
+    sesEl.onclick=null;
+    sesEl.innerHTML=`<div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">🧘</div>
+      <div>
+        <div style="font-size:14px;font-weight:500;color:var(--text);">Rest day</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · recover and recharge</div>
+      </div>
+    </div>`;
+  }
+}
+
+function _renderProgramPlanTabs(){
+  const prog=savedProgram; if(!prog) return;
+  const total=(prog.weeks||4)+1;
+  document.getElementById('plan-tabs').innerHTML=Array.from({length:total},(_,i)=>{
+    const w=i+1;
+    const isDeload=!!(prog.weeklyProgressions?.[i]?.deload);
+    const isActive=w===currentProgramWeek;
+    return `<button class="ptab ${isDeload?'race':''} ${isActive?'active':''}" onclick="renderPlan(${w})">${isDeload?'DL':'W'+w}</button>`;
+  }).join('');
+}
+
+function _renderProgramPlan(w){
+  const prog=savedProgram; if(!prog) return;
+  currentProgramWeek=Math.max(1,w);
+  try{localStorage.setItem('ht-program-week',String(currentProgramWeek));}catch(e){}
+  _renderProgramPlanTabs();
+
+  const totalWeeks=(prog.weeks||4)+1;
+  const weekProg=prog.weeklyProgressions?.[w-1]||{};
+  const isDeload=!!(weekProg.deload);
+  const weekNote=weekProg.note||'';
+  const spw=prog.sessionsPerWeek||4;
+  const weekSess=_progWeekSessions(w);
+
+  // Header
+  document.getElementById('plan-vol').textContent=isDeload
+    ?`${prog.name||'Program'} · Week ${w} of ${totalWeeks} · Deload — recover and consolidate`
+    :`${prog.name||'Program'} · Week ${w} of ${totalWeeks}${weekNote?' · '+weekNote:''}`;
+
+  // Hide assessment banner (irrelevant for custom programs)
+  const ab=document.getElementById('assessment-banner');
+  if(ab) ab.style.display='none';
+
+  // Session rows
+  document.getElementById('plan-days').innerHTML=weekSess.map(({day,id,session})=>{
+    if(!session) return `<div class="prow" style="opacity:.38;">
+      <div><div class="pday-name">${day}</div><div class="pday-date">Rest</div></div>
+      <div class="prow-session"><span style="color:var(--text3);">Rest / Recovery</span></div>
+      <div></div></div>`;
+    const done=_progSessionDone(w,id);
+    const meta=_sessSummary(session);
+    return `<div class="prow ${done?'done':''}" onclick="openProgramSessionOverlay('${id}',${w},'${day}')">
+      <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||_sessType(session)}</div></div>
+      <div class="prow-session"><span>${done?'<span style="color:var(--green,#34c759);">✓ </span>':_sessIcon(session)+' '}${session.name}</span></div>
+      <div style="font-family:var(--mono);font-size:9px;color:${done?'var(--green,#34c759)':'var(--text3)'};">${done?'done':(meta||'')}</div>
+    </div>`;
+  }).join('');
+
+  // Week-nav buttons (replace log-week-btn once, then update in-place)
+  const prevBtn=currentProgramWeek>1?`<button class="btn" style="flex:1;" onclick="renderPlan(${w-1})">← W${w-1}</button>`:'<div style="flex:1;"></div>';
+  const nextBtn=currentProgramWeek<totalWeeks?`<button class="btn" style="flex:1;" onclick="renderPlan(${w+1})">W${w+1} →</button>`:'<div style="flex:1;"></div>';
+  const navHtml=`<div style="display:flex;gap:8px;margin-top:4px;" id="plan-week-nav">${prevBtn}${nextBtn}</div>`;
+  const navEl=document.getElementById('plan-week-nav');
+  if(navEl){navEl.outerHTML=navHtml;}
+  else{const lb=document.getElementById('plan-log-week-btn');if(lb)lb.outerHTML=navHtml;}
+
+  // Show archive section (original PLAN)
+  const archEl=document.getElementById('plan-archive-section');
+  if(archEl) archEl.style.display='';
+}
+
+function openProgramSessionOverlay(id,week,day){
+  const prog=savedProgram; if(!prog) return;
+  const sess=prog.sessions?.find(s=>s.id===id);
+  if(!sess) return;
+  const weekProg=prog.weeklyProgressions?.[week-1]||{};
+  const isDeload=!!(weekProg.deload);
+  const setsAdd=isDeload?0:(weekProg.setsAdd||0);
+
+  document.getElementById('po-eyebrow').textContent=`${prog.name||'Program'} · Week ${week}`;
+  document.getElementById('po-title').textContent=sess.name;
+  document.getElementById('po-sub').textContent=sess.focus||'';
+
+  // Deload banner
+  const deloadBanner=isDeload?`<div style="background:var(--accent-dim);border:1px solid rgba(212,175,55,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--accent);">Deload week — reduce volume by ~50%, maintain load</div>`:'';
+
+  // Week note
+  const noteBanner=weekProg.note&&!isDeload?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${weekProg.note}</div>`:'';
+
+  // Body — rendered by discipline.
+  const type=_sessType(sess);
+  let bodyHtml='';
+  if(type==='endurance'||type==='run'){
+    // Endurance: target line(s) + optional structure blocks (warmup/main/cooldown or intervals).
+    const targets=[
+      sess.distance?['Distance',sess.distance]:null,
+      sess.duration?['Duration',sess.duration]:null,
+      (sess.pace||sess.zone)?['Target',[sess.pace,sess.zone].filter(Boolean).join(' · ')]:null,
+      sess.intervals?['Intervals',sess.intervals]:null,
+      sess.rpe?['RPE',sess.rpe]:null,
+    ].filter(Boolean).map(([l,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:.5px solid var(--border);">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${l}</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text);text-align:right;">${v}</span></div>`).join('');
+    const blocks=(sess.blocks||sess.exercises||[]).map((b,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${b.name||b.title||'Block'}${b.detail||b.reps?` <span style="font-family:var(--mono);font-size:11px;color:var(--text2);font-weight:400;">${b.detail||b.reps}</span>`:''}</div>
+        ${b.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${b.cue}</div>`:''}</div>`).join('');
+    bodyHtml=`${targets?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:${blocks?'10px':'16px'};">${targets}</div>`:''}
+      ${blocks?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${blocks}</div>`:''}`;
+  } else if(type==='fitstop'||type==='conditioning'||type==='mixed'){
+    // Conditioning/Fitstop: format line + stations/exercises.
+    const fmt=sess.format?`<div style="font-family:var(--mono);font-size:11px;color:var(--blue);margin-bottom:10px;line-height:1.6;">${sess.format}</div>`:'';
+    const rows=(sess.exercises||sess.stations||sess.blocks||[]).map((ex,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
+        <div style="display:flex;justify-content:space-between;gap:8px;">
+          <span style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name||ex.title||'Station'}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${ex.detail||(ex.sets&&ex.reps?ex.sets+'×'+ex.reps:ex.reps||'')}</span>
+        </div>
+        ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${ex.cue}</div>`:''}</div>`).join('');
+    bodyHtml=`${fmt}${rows?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${rows}</div>`:''}`;
+  } else {
+    // Strength: exercise list with progressive set bumps.
+    const exRows=(sess.exercises||[]).map((ex,i)=>{
+      const baseSets=parseInt(ex.sets)||3;
+      const sets=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+setsAdd;
+      const isLast=i===sess.exercises.length-1;
+      return `<div style="padding:12px 0;${isLast?'':'border-bottom:.5px solid var(--border)'}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${sets}×${ex.reps||'8-10'}</div>
+        </div>
+        ${ex.load?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ex.load}${ex.rest?' · rest '+ex.rest:''}</div>`:''}
+        ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
+      </div>`;
+    }).join('');
+    bodyHtml=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
+  }
+
+  document.getElementById('po-breakdown').innerHTML=`${deloadBanner}${noteBanner}${bodyHtml}`;
+
+  const alreadyDone=_progSessionDone(week,id);
+  document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
+  document.getElementById('po-log-btn').onclick=()=>{
+    closeOv('plan-overlay');
+    logProgramSession(id, week, day, setsAdd, isDeload);
+  };
+  const editBtn=document.getElementById('po-edit-btn');
+  if(editBtn) editBtn.style.display='none';
+
+  openOv('plan-overlay');
+}
+
+// Open the log form pre-filled from a program session, and remember the link so
+// the saved log is stamped with progId/progWeek/progSid (→ completion tracking).
+let _pendingProgLink = null;
+const _DAY_FULL = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'};
+function logProgramSession(id, week, day, setsAdd, isDeload){
+  const prog=savedProgram; if(!prog) return;
+  const sess=prog.sessions?.find(s=>s.id===id); if(!sess) return;
+  const logCat=_sessLogCat(sess);
+
+  // Reset all metric buffers, then prefill the ones for this discipline.
+  exercises=[]; splits=[]; stations=[]; feel=null;
+  if(logCat==='strength'){
+    // Editable exercise list from the program (week-adjusted set counts).
+    exercises = (sess.exercises||[]).map(ex=>{
+      const baseSets=parseInt(ex.sets)||3;
+      const n=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+(setsAdd||0);
+      return { name: ex.name||'', sets: Array.from({length:Math.max(1,n)},()=>({reps:(ex.reps||'').toString(),weight:''})) };
+    });
+  } else if(logCat==='mixed'){
+    // Fitstop/conditioning → station list (type + label), user fills results.
+    stations = (sess.exercises||sess.stations||sess.blocks||[]).map(ex=>({type:'Custom', v1:(ex.name||ex.title||''), v2:(ex.detail||ex.reps||'')}));
+    if(!stations.length) stations=[{type:'Custom',v1:'',v2:''}];
+  }
+  // endurance → 'run' category; splits stay empty for the user to add reps if interval.
+
+  // Remember the program link for saveSession() to stamp onto the log.
+  _pendingProgLink = { progId: prog.id||prog.name||'prog', progWeek: week, progSid: id };
+
+  nav('log', document.querySelectorAll('.nb')[1]);
+
+  // Select the right category, then inject the program session name as a (selected) option.
+  const catBtn=document.querySelector('.cat-tab.'+(logCat==='run'?'run':logCat)) || document.querySelector('.cat-tab.'+logCat);
+  setCat(logCat, catBtn||document.createElement('button'));
+  const sel=document.getElementById('f-session');
+  if(sel){
+    const base=(CAT_SESSIONS[logCat]||[]).filter(n=>n!==sess.name);
+    sel.innerHTML=[`<option selected>${sess.name}</option>`,...base.map(n=>`<option>${n}</option>`)].join('');
+  }
+  const wEl=document.getElementById('f-week'); if(wEl) wEl.value=String(week);
+  const dEl=document.getElementById('f-day'); if(dEl && day && _DAY_FULL[day]) dEl.value=_DAY_FULL[day];
+  const iEl=document.getElementById('f-intensity'); if(iEl) iEl.value=sess.intensity|| (logCat==='run'?'moderate':'moderate');
+  renderMetrics(); // re-render metrics now that the buffers are populated
+  toast('Logging '+sess.name+(logCat==='strength'?' — fill in your weights':logCat==='run'?' — add your run details':' — log your results'));
+}
+
+function togglePlanArchive(el){
+  const body=document.getElementById('plan-archive-body');
+  const chevron=document.getElementById('plan-archive-chevron');
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  if(chevron) chevron.textContent=open?'show ▼':'hide ▲';
+  if(!open) _renderPlanArchiveBody();
+}
+
+function _renderPlanArchiveBody(){
+  const body=document.getElementById('plan-archive-body');
+  if(!body) return;
+  const tabs=Object.entries(PLAN).map(([w,pw])=>
+    `<button class="ptab" onclick="_showArchiveWeek(${w})" id="atab-${w}">${pw.label}</button>`
+  ).join('');
+  body.innerHTML=`<div class="ptabs" style="margin-bottom:8px;">${tabs}</div><div class="card" id="archive-days"></div>`;
+  _showArchiveWeek(1);
+}
+
+function _showArchiveWeek(w){
+  document.querySelectorAll('[id^="atab-"]').forEach(b=>b.classList.toggle('active',b.id===`atab-${w}`));
+  const pw=PLAN[w]; if(!pw) return;
+  document.getElementById('archive-days').innerHTML=pw.sessions.map(p=>`
+    <div class="prow">
+      <div><div class="pday-name">${p.day}</div><div class="pday-date">${p.date}</div></div>
+      <div class="prow-session">${pip(p.intensity,11)}<span>${p.session}</span></div>
+      <div></div>
+    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3267,17 +3678,19 @@ function openPlanOverlay(week,day,sessionType,sessionName,sub){
   document.getElementById('po-title').textContent=sessionName;
   document.getElementById('po-sub').textContent='';
   document.getElementById('po-breakdown').innerHTML=getBreakdown(week,day,sessionType);
+  document.getElementById('po-log-btn').textContent='Log this session';
   document.getElementById('po-log-btn').onclick=()=>{
     document.getElementById('f-week').value=String(week);
     const dayFull=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].find(d=>d.startsWith(day))||day;
     document.getElementById('f-day').value=dayFull;
     closeOv('plan-overlay');nav('log',document.querySelectorAll('.nb')[1]);
   };
-  document.getElementById('po-edit-btn').onclick=()=>{
+  const editBtn=document.getElementById('po-edit-btn');
+  if(editBtn){editBtn.style.display='';editBtn.onclick=()=>{
     const existing=LIB[String(week)]?.[day];
     closeOv('plan-overlay');
     openBuilder(week,day,existing||null);
-  };
+  };}
   openOv('plan-overlay');
 }
 
@@ -4442,9 +4855,11 @@ function confirmClear(){
 let aiGeneratedSession = null;
 
 function openAI() {
-  const key = localStorage.getItem('ht-ai-key') || '';
   const keyEl = document.getElementById('ai-api-key');
-  if (keyEl) keyEl.value = key;
+  if (keyEl) keyEl.value = localStorage.getItem('ht-ai-key') || '';
+  const oaEl = document.getElementById('ai-openai-key');
+  if (oaEl) oaEl.value = localStorage.getItem('ht-openai-key') || '';
+  syncAIProviderUI();
   renderAIContext();
   renderAIQuickPrompts();
   document.getElementById('ai-output').style.display = 'none';
@@ -4455,6 +4870,31 @@ function openAI() {
 function aiKeySave() {
   const k = document.getElementById('ai-api-key')?.value || '';
   try { localStorage.setItem('ht-ai-key', k); } catch(e) {}
+  const oa = document.getElementById('ai-openai-key')?.value || '';
+  try { localStorage.setItem('ht-openai-key', oa); } catch(e) {}
+}
+
+// Reflect the selected provider in the AI overlay: toggle button styling, which
+// key field is shown, and the tagline.
+function syncAIProviderUI() {
+  const prov = getAIProvider();
+  const isOA = prov === 'openai';
+  const aBtn = document.getElementById('prov-anthropic');
+  const oBtn = document.getElementById('prov-openai');
+  if (aBtn && oBtn) {
+    aBtn.style.background = isOA ? 'var(--bg2)' : 'var(--accent)';
+    aBtn.style.color      = isOA ? 'var(--text3)' : '#000';
+    oBtn.style.background = isOA ? 'var(--accent)' : 'var(--bg2)';
+    oBtn.style.color      = isOA ? '#000' : 'var(--text3)';
+  }
+  const aWrap = document.getElementById('key-anthropic-wrap');
+  const oWrap = document.getElementById('key-openai-wrap');
+  if (aWrap) aWrap.style.display = isOA ? 'none' : '';
+  if (oWrap) oWrap.style.display = isOA ? '' : 'none';
+  const tag = document.getElementById('ai-provider-tagline');
+  if (tag) tag.textContent = isOA
+    ? 'Powered by ChatGPT · extend your plan or build new sessions'
+    : 'Powered by Claude · extend your plan or build new sessions';
 }
 
 function renderAIContext() {
@@ -4516,9 +4956,8 @@ function setAIPrompt(btn) {
 }
 
 async function runAI() {
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) {
-    toast('Enter a valid Claude API key first'); return;
+  if (!hasValidAIKey()) {
+    toast(getAIProvider()==='openai' ? 'Enter a valid OpenAI API key first' : 'Enter a valid Claude API key first'); return;
   }
   const prompt = document.getElementById('ai-prompt')?.value?.trim();
   if (!prompt) { toast('Describe what you need first'); return; }
@@ -4528,7 +4967,7 @@ async function runAI() {
   document.getElementById('ai-output').style.display = 'none';
 
   try {
-    const data = await claudeAPI(key, {
+    const data = await aiAPI({
       model: 'claude-opus-4-8',
       max_tokens: 4096,
       system: buildAISystemPrompt(),
@@ -5099,8 +5538,11 @@ async function syncFromStrava(silent = false) {
   stravaState = 'syncing'; renderStravaCard();
 
   try {
-    // Fetch from start of plan Week 1 only — earlier dates fill the page limit with pre-plan activities
-    const since = Math.floor(new Date(WMAP[0][1]).getTime() / 1000);
+    // Fetch from the earlier of the running-plan start and the active program start,
+    // so both run-plan and strength-program activities are covered.
+    const planSince = new Date(WMAP[0][1]).getTime();
+    const progSince = _progStartDate() ? _progStartDate().getTime() : Infinity;
+    const since = Math.floor(Math.min(planSince, progSince) / 1000);
     const resp = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=200`,
       { headers: { Authorization: `Bearer ${tok}` } }
@@ -5132,19 +5574,47 @@ async function syncFromStrava(silent = false) {
 
       const localDate = (act.start_date_local || act.start_date || '').slice(0, 10);
       if (!localDate) continue;
-      const week = weekFor(localDate);
-      if (!week) { skippedRange++; continue; }
 
       const d = new Date(localDate + 'T12:00:00');
       const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
 
-      // Match to plan session for this week/day
-      const planSess = PLAN[parseInt(week)]?.sessions.find(s => s.day === dow);
+      // Resolve which week this lands in + which planned session it matches.
+      // Prefer the active AI program (date-anchored); fall back to the built-in plan.
+      let week=null, sessName=null, intensity=null, link=null;
+      const actType=(act.sport_type||act.type||'').toLowerCase();
+      const isStrengthAct = actType.includes('weight')||actType.includes('strength')||actType==='workout';
+      const isRunAct = actType.includes('run');
+      if (savedProgram && savedProgram.startDate) {
+        const pw=_progWeekForDate(localDate);
+        if (pw){
+          week=String(pw);
+          const slot=_progWeekSessions(pw).find(x=>x.day===dow && x.session);
+          if (slot){
+            // Link when the activity discipline matches the program slot's type:
+            // runs → endurance sessions; weights/workouts → strength/fitstop sessions.
+            const st=_sessType(slot.session);
+            const enduranceSlot=(st==='endurance'||st==='run');
+            const strengthSlot=(st==='strength'||st==='fitstop'||st==='conditioning'||st==='mixed');
+            if ((enduranceSlot && isRunAct) || (strengthSlot && isStrengthAct)){
+              sessName=slot.session.name; intensity=slot.session.intensity||'moderate';
+              link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
+            }
+          }
+        }
+      }
+      if (week===null) {
+        // Fall back to the built-in running plan calendar
+        const w=weekFor(localDate);
+        if (!w) { skippedRange++; continue; }
+        week=w;
+        const planSess = PLAN[parseInt(w)]?.sessions.find(s => s.day === dow);
+        if (planSess){ sessName=planSess.session; intensity=planSess.intensity; }
+      }
 
       sessions.unshift({
         week, day: dow,
-        session:   planSess?.session || stravaClassify(act),
-        intensity: planSess?.intensity || stravaIntensity(act),
+        session:   sessName   || stravaClassify(act),
+        intensity: intensity  || stravaIntensity(act),
         pace:      mpsToMinKm(act.average_speed),
         dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
         hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
@@ -5152,6 +5622,7 @@ async function syncFromStrava(silent = false) {
         feel: '', notes: `Strava: ${act.name}`,
         ts: new Date(act.start_date).getTime(),
         gid,
+        ...(link || {}),
       });
       newGids.push(gid);
       imported++;
@@ -5471,11 +5942,16 @@ function setUnitWeight(u) {
 // PROGRAM BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
 let savedProgram = null;
-let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4 };
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '' };
 let programViewWeek = 1;
 
 function loadSavedProgram() {
   try { savedProgram = JSON.parse(localStorage.getItem('ht-program') || 'null'); } catch(e) {}
+  if (savedProgram && !savedProgram.id) savedProgram.id = 'prog-legacy'; // backfill pre-anchor programs
+  currentProgramWeek = parseInt(localStorage.getItem('ht-program-week') || '1') || 1;
+  // With a date anchor, default the viewed week to the real current week
+  // (the calendar can still browse others; this just fixes "today").
+  if (savedProgram && savedProgram.startDate) currentProgramWeek = _progActualWeek();
 }
 function saveProgramData(data) {
   savedProgram = data;
@@ -5502,8 +5978,8 @@ function renderMyProgramCard() {
     const totalWeeks = (savedProgram.weeklyProgressions || []).length || savedProgram.weeks || 0;
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:14px;font-weight:500;">${savedProgram.name || 'Strength Program'}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.split||'').toUpperCase()}</div>
+        <div style="font-size:14px;font-weight:500;">${savedProgram.name || 'Training Program'}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.type||'strength').toUpperCase()}</div>
       </div>
       <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
     </div>`;
@@ -5511,7 +5987,7 @@ function renderMyProgramCard() {
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-size:14px;font-weight:500;">Program Builder</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Build strength, endurance, hybrid or Fitstop</div>
       </div>
       <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
     </div>`;
@@ -5532,10 +6008,35 @@ function renderProgramBuilder() {
 
   const pill = (val, label, cur, fn) =>
     `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:500;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+  const typePill = (val, label, desc) =>
+    `<button onclick="programBuilderConfig.type='${val}';renderProgramBuilder();" style="flex:1;padding:10px 6px;border:none;cursor:pointer;border-radius:8px;text-align:center;background:${cfg.type===val?'var(--accent)':'var(--bg2)'};color:${cfg.type===val?'#000':'var(--text2)'};">
+      <div style="font-size:12px;font-weight:600;">${label}</div>
+      <div style="font-family:var(--mono);font-size:8px;opacity:.8;margin-top:2px;line-height:1.3;">${desc}</div></button>`;
+
+  const isStrengthy = cfg.type==='strength';
+  const goalPlaceholder = ({
+    strength:'e.g. Build my squat and bench, 4 days/week upper-lower',
+    endurance:'e.g. Sub-45 10K — Zone 2 base, one tempo + one interval/week, long run Sun',
+    hybrid:'e.g. HYROX prep — 2 strength days + 3 runs + 1 erg/conditioning per week',
+    fitstop:'e.g. 2× Fitstop LIFT + 2× Fitstop PERFORM, plus a Zone 2 run',
+  })[cfg.type] || 'Describe your goal and weekly structure…';
 
   body.innerHTML = `<div style="padding-bottom:40px;">
-    <div class="card" style="margin-bottom:20px;">
-      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Selected Settings</div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Program Type</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">What kind of block — one discipline or a mix</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        ${typePill('strength','Strength','Lifting mesocycle')}
+        ${typePill('endurance','Endurance','Run / cardio block')}
+      </div>
+      <div style="display:flex;gap:6px;">
+        ${typePill('hybrid','Hybrid','Strength + endurance')}
+        ${typePill('fitstop','Fitstop','LIFT / PERFORM mix')}
+      </div>
+    </div>
+
+    ${isStrengthy ? `<div class="card" style="margin-bottom:20px;">
+      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Strength Settings</div>
       ${[
         ['Methodology', methodLabels[method]||method, 'var(--accent)'],
         ['Split',       splitLabels[split]||split,    'var(--blue)'],
@@ -5545,6 +6046,12 @@ function renderProgramBuilder() {
         <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:${c};">${v}</span>
       </div>`).join('')}
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
+    </div>` : ''}
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Goal & weekly structure</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Describe your target and how you want the week split across disciplines${cfg.type==='hybrid'||cfg.type==='fitstop'?' (e.g. how many of each per week)':''}</div>
+      <textarea id="prog-goal" placeholder="${goalPlaceholder}" oninput="programBuilderConfig.goal=this.value" style="width:100%;box-sizing:border-box;min-height:80px;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);font-size:13px;font-family:var(--font);line-height:1.5;">${cfg.goal||''}</textarea>
     </div>
 
     <div style="margin-bottom:20px;">
@@ -5554,13 +6061,14 @@ function renderProgramBuilder() {
         ${pill(4,'4 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
         ${pill(5,'5 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
         ${pill(6,'6 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+        ${pill(8,'8 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
       </div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">${cfg.weeks} working weeks + 1 deload = ${cfg.weeks+1} total weeks</div>
     </div>
 
     <div style="margin-bottom:28px;">
       <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Sessions per Week</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">How many training days per week</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Total training days/week${cfg.type==='hybrid'||cfg.type==='fitstop'?' across all disciplines':''}</div>
       <div style="display:flex;gap:8px;">
         ${pill(3,'3×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
         ${pill(4,'4×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
@@ -5569,9 +6077,9 @@ function renderProgramBuilder() {
       </div>
     </div>
 
-    <button class="btn btn-accent" onclick="generateStrengthProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
+    <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
-      Uses your Claude API key (set in AI Session Builder).<br>
+      Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
       Generation takes 15–30 seconds.
     </div>
   </div>`;
@@ -5597,135 +6105,171 @@ function renderSavedProgram() {
     return `<button onclick="programViewWeek=${w};renderSavedProgram();" style="flex-shrink:0;padding:7px 14px;font-family:var(--mono);font-size:10px;font-weight:500;border:none;cursor:pointer;border-radius:6px;white-space:nowrap;background:${active?'var(--accent)':'var(--bg2)'};color:${active?'#000':wd.deload?'var(--text3)':'var(--text2)'};">${wd.deload?'Deload':'W'+w}</button>`;
   }).join('');
 
-  // Sessions this week
-  const startIdx = (wk-1)*sPerWeek;
-  const weekSessions = Array.from({length:sPerWeek},(_,i) => {
-    const sid = rotation[(startIdx+i) % rotation.length];
-    return sessions.find(s=>s.id===sid) || sessions[i % sessions.length] || null;
-  }).filter(Boolean);
+  // Sessions this week — uses the integrated dayMap (or legacy rotation) so it
+  // renders mixed disciplines (strength / endurance / fitstop) correctly.
+  const _savedWeek = currentProgramWeek;
+  currentProgramWeek = wk; // _progWeekSessions reads the program; week passed explicitly
+  const weekSlots = _progWeekSessions(wk).filter(s=>s.session);
+  currentProgramWeek = _savedWeek;
 
-  const sessionCards = weekSessions.map((sess, dayIdx) => {
-    const exHtml = (sess.exercises||[]).map(ex => {
-      const adjSets = isDeload ? Math.max(1, Math.round(ex.sets*0.5)) : ex.sets + setsAdd;
-      return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
-          <div style="font-size:13px;font-weight:500;line-height:1.3;">${ex.name}</div>
-          <div style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
-        </div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
-      </div>`;
-    }).join('');
+  const sessionCards = weekSlots.map(({day,session:sess}) => {
+    const t=_sessType(sess);
+    let inner='';
+    if(t==='endurance'||t==='run'){
+      const rows=[
+        sess.intervals?['Intervals',sess.intervals]:null,
+        sess.distance?['Distance',sess.distance]:null,
+        sess.duration?['Duration',sess.duration]:null,
+        (sess.pace||sess.zone)?['Target',[sess.pace,sess.zone].filter(Boolean).join(' · ')]:null,
+      ].filter(Boolean).map(([l,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;"><span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${l}</span><span style="font-size:12px;font-weight:500;color:var(--text);text-align:right;">${v}</span></div>`).join('');
+      inner=rows+(sess.cue?`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:4px;">↳ ${sess.cue}</div>`:'');
+    } else if(t==='fitstop'||t==='conditioning'||t==='mixed'){
+      const fmt=sess.format?`<div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:6px;">${sess.format}</div>`:'';
+      inner=fmt+(sess.exercises||sess.stations||[]).map(ex=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border);"><span style="font-size:12px;font-weight:500;">${ex.name||ex.title||''}</span><span style="font-family:var(--mono);font-size:11px;color:var(--text2);">${ex.detail||ex.reps||''}</span></div>`).join('');
+    } else {
+      inner=(sess.exercises||[]).map(ex => {
+        const adjSets = isDeload ? Math.max(1, Math.round((parseInt(ex.sets)||3)*0.5)) : (parseInt(ex.sets)||3) + setsAdd;
+        return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
+            <div style="font-size:13px;font-weight:500;line-height:1.3;">${ex.name}</div>
+            <div style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
+        </div>`;
+      }).join('');
+    }
     return `<div class="card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div>
-          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Day ${dayIdx+1}</div>
+          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">${day} · ${_sessIcon(sess)} ${t}</div>
           <div style="font-size:17px;font-weight:600;margin-top:2px;">${sess.name}</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:1px;">${sess.focus||''}</div>
         </div>
         ${isDeload?'<div style="font-family:var(--mono);font-size:9px;background:var(--bg3);color:var(--text3);padding:4px 8px;border-radius:4px;flex-shrink:0;">DELOAD</div>':''}
       </div>
-      ${exHtml}
+      ${inner}
     </div>`;
   }).join('');
 
   body.innerHTML = `<div style="padding-bottom:40px;">
     <div style="margin-bottom:16px;">
-      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.split||'').toUpperCase()}</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${prog.name||'Training Program'}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.type||'strength').toUpperCase()}${prog.split&&(prog.type==='strength'||prog.type==='hybrid')?' · '+prog.split.toUpperCase():''}</div>
+      ${prog.startDate?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;">Started ${prog.startDate} · currently Week ${_progActualWeek()} of ${totalWks}</div>`:`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:6px;">No start date set — <span onclick="restartProgramToday()" style="text-decoration:underline;cursor:pointer;">anchor to this week</span> to enable date tracking</div>`}
       ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
     </div>
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${weekTabs}</div>
     ${wkMod.note?`<div style="background:var(--accent-dim);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${wkMod.note}</div>`:''}
     ${sessionCards}
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+      <button class="btn" onclick="restartProgramToday()" style="color:var(--accent);border-color:rgba(212,175,55,.25);">↻ Restart from this week</button>
       <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
       <button class="btn" onclick="if(confirm('Delete this program?')){localStorage.removeItem('ht-program');savedProgram=null;renderProgramBuilder();renderMyProgramCard();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
     </div>
   </div>`;
 }
 
-async function generateStrengthProgram() {
+// Re-anchor the program to start on the Monday of the current week. Resets the
+// date→week mapping so "today" lands on Week 1 again (completion history is kept).
+function restartProgramToday(){
+  if(!savedProgram) return;
+  savedProgram.startDate = _mondayISO(new Date());
+  saveProgramData(savedProgram);
+  currentProgramWeek = 1; programViewWeek = 1;
+  try{ localStorage.setItem('ht-program-week','1'); }catch(e){}
+  renderSavedProgram(); renderMyProgramCard(); renderAll();
+  toast('Program anchored to this week');
+}
+
+// Backward-compatible alias.
+function generateStrengthProgram(){ return generateProgram(); }
+
+// Build any program type (strength / endurance / hybrid / fitstop) into the unified
+// composite schema: per-session `type` + an explicit 7-day `dayMap`.
+async function generateProgram() {
   const body = document.getElementById('program-overlay-body');
   if (!body) return;
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key && !stravaWorker) { toast('Add a Claude API key in AI Session Builder first'); return; }
+  if (!hasValidAIKey()) { toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return; }
 
   const p      = coachProfile || {};
   const method = p.strengthMethod || 'auto';
   const split  = p.trainingSplit  || 'ppl';
   const hyApp  = p.hypertrophyApproach || '';
   const cfg    = programBuilderConfig;
-  const strengthCtx = buildStrengthMethodContext();
+  const type   = cfg.type || 'strength';
   const blCtx  = getBaselineContext();
+  const strengthCtx = (type==='strength'||type==='hybrid'||type==='fitstop') ? buildStrengthMethodContext() : '';
+  const spw          = cfg.sessionsPerWeek;
   const workingWeeks = cfg.weeks;
   const totalWeeks   = cfg.weeks + 1; // +1 deload
+  const typeLabel = {strength:'Strength',endurance:'Endurance',hybrid:'Hybrid (strength + endurance)',fitstop:'Fitstop'}[type]||type;
 
   body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px;">
     <div style="font-size:40px;margin-bottom:16px;">⚡</div>
-    <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Building your program…</div>
+    <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Building your ${typeLabel.toLowerCase()} program…</div>
     <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:2;">
-      ${cfg.weeks} working weeks + 1 deload<br>
-      ${cfg.sessionsPerWeek} sessions/week · ${split.toUpperCase()} split<br>
-      ${method !== 'auto' ? method.toUpperCase()+' methodology' : 'Auto methodology'}<br>
+      ${workingWeeks} working weeks + 1 deload<br>
+      ${spw} sessions/week<br>
     </div>
     <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:16px;">This takes 15–30 seconds…</div>
   </div>`;
 
   const splitMap = {'ppl':'Push/Pull/Legs','upper-lower':'Upper/Lower','total-body':'Total Body','body-part':'Body Part Split'};
   const methodMap = {auto:'Auto-selected best approach',westside:'Westside Conjugate',jts:'Juggernaut Training Systems',kabuki:'Kabuki Strength Lab'};
-  const hyMap = {israetel:'Mike Israetel / RP',schoenfeld:'Brad Schoenfeld',peters:'Jordan Peters (HFT)',bennett:'Joe Bennett'};
 
-  const systemPrompt = `You are an elite strength and conditioning coach. Generate a complete structured training program as JSON.
-${strengthCtx ? '\n'+strengthCtx : ''}
-${blCtx ? '\n'+blCtx : ''}
+  // Per-type session-shape guidance and rules.
+  const sessionShapes = `Each session object has an "id" (kebab-case), "name", "focus", and a "type" — one of:
+  • "strength"  → include "exercises":[{ "name","sets":4,"reps":"8-10","load":"% 1RM / @RPE","rest":"2 min","cue":"…" }]
+  • "endurance" → include "runType" (easy|tempo|threshold|intervals|long|recovery), "distance" (e.g. "10 km" or ""),
+                  "duration" (e.g. "50 min"), "pace" (e.g. "4:45/km" or ""), "zone" (e.g. "Z2"), "intervals" (e.g. "6×800m @ 3:30, 90s jog" or ""), "rpe", "cue"
+  • "fitstop"   → a class-style conditioning session: include "format" (e.g. "AMRAP 20 / 4 stations") and
+                  "exercises":[{ "name","detail":"reps or time","cue":"…" }]`;
 
-Return ONLY a \`\`\`json ... \`\`\` block. No preamble or explanation outside the block.
+  const typeRules = ({
+    strength:`This is a STRENGTH program. All sessions type "strength". Split: ${splitMap[split]||split}. ${spw<=4?'5-6':'4-5'} exercises/session (compound + isolation). Loads: give BOTH % 1RM and RPE where possible. Apply methodology: ${method==='westside'?'ME/DE structure, rotated main lift, weak-point accessories':method==='jts'?'RPE-based autoregulation, block identity, technical standards':method==='kabuki'?'wedge/brace cues, position quality, specialty bars':'evidence-based volume + progressive overload'}.`,
+    endurance:`This is an ENDURANCE program. All sessions type "endurance". Build a balanced week: mostly easy/Zone-2 aerobic volume, with 1-2 quality sessions (tempo/threshold/intervals) and (if 5+ days) a long run. Provide pace OR zone targets and concrete interval structures. Respect easy/hard polarisation.`,
+    hybrid:`This is a HYBRID program mixing STRENGTH and ENDURANCE in the same week (concurrent training). Use BOTH "strength" and "endurance" session types. Follow the user's requested split of disciplines across the week. Place hard runs and heavy lifts on separate days where possible; keep easy aerobic work around the lifting. ${splitMap[split]?'Strength split: '+splitMap[split]+'.':''}`,
+    fitstop:`This is a FITSTOP-style program built around class formats. Use "fitstop" sessions for LIFT (strength-biased) and PERFORM (conditioning/HIIT) days, and you MAY add "endurance" sessions (Zone 2 runs/bike) if the user asks. Give each fitstop session a clear "format" and station list.`,
+  })[type] || '';
 
-EXACT JSON schema:
+  const systemPrompt = `You are an elite hybrid strength & endurance coach. Generate a complete, structured ${typeLabel} training program as JSON.
+${strengthCtx ? '\n'+strengthCtx : ''}${blCtx ? '\n'+blCtx : ''}
+
+Return ONLY a \`\`\`json ... \`\`\` block. No prose outside it.
+
+${sessionShapes}
+
+TOP-LEVEL schema:
 {
   "name": "Descriptive program name",
+  "type": "${type}",
   "weeks": ${totalWeeks},
-  "sessionsPerWeek": ${cfg.sessionsPerWeek},
-  "split": "${split}",
-  "progression": "One sentence: how load/volume evolves week to week",
-  "sessions": [
-    {
-      "id": "kebab-id",
-      "name": "Session Name",
-      "focus": "Target muscles",
-      "exercises": [
-        { "name": "Exercise", "sets": 4, "reps": "8-10", "load": "% 1RM + RPE", "rest": "2 min", "cue": "Key technique note" }
-      ]
-    }
-  ],
-  "weekSchedule": ["id1","id2",...],
+  "sessionsPerWeek": ${spw},
+  "progression": "One sentence on how the program evolves week to week",
+  "sessions": [ /* the UNIQUE sessions used in a week (see shapes above) */ ],
+  "dayMap": [ /* EXACTLY 7 entries for Mon,Tue,Wed,Thu,Fri,Sat,Sun — each is a session "id" or null for a rest day */ ],
   "weeklyProgressions": [
-    { "week": 1, "note": "..." },
-    { "week": 2, "setsAdd": 1, "note": "..." },
-    { "week": ${totalWeeks}, "deload": true, "note": "Deload — 50% volume, maintain load" }
+    { "week": 1, "note": "…" },
+    { "week": 2, "setsAdd": 1, "note": "…" },
+    { "week": ${totalWeeks}, "deload": true, "note": "Deload — reduce volume ~50%" }
   ]
 }
 
 RULES:
-• sessions: define ${cfg.sessionsPerWeek <= 3 ? '3' : cfg.sessionsPerWeek <= 4 ? '4-6' : '5-6'} unique sessions appropriate for ${splitMap[split]||split}.
-• exercises per session: ${cfg.sessionsPerWeek <= 4 ? '5-6' : '4-5'} exercises. Include compound + isolation.
-• weekSchedule: length = ${workingWeeks} × ${cfg.sessionsPerWeek} = ${workingWeeks * cfg.sessionsPerWeek} entries. Rotate the sessions in order for each week. Do NOT include deload in the schedule.
-• weeklyProgressions: exactly ${totalWeeks} entries (weeks 1–${workingWeeks} working, week ${totalWeeks} = deload: true).
-• setsAdd cumulates from week 1 (week 1: 0, week 2: +1, week 3: +2, etc.).
-• Loads: provide BOTH % 1RM and RPE where possible (e.g. "70% 1RM / @RPE 7"). Use RPE-only if no baseline.
-• Apply methodology strictly: ${method==='westside'?'ME/DE structure, rotated main exercise, accessory weak-point work':method==='jts'?'RPE-based autoregulation, block identity in notes, technical standards':method==='kabuki'?'wedge/brace cues in every session, position quality notes, specialty bar variants':'volume landmarks for RP, contraction cues for Bennett, eccentric tempo for Peters, evidence-based variety for Schoenfeld'}.`;
+• ${typeRules}
+• dayMap: EXACTLY 7 entries (Mon→Sun). EXACTLY ${spw} of them are non-null session ids; the rest are null. Every non-null id MUST exist in "sessions". Distribute training days sensibly across the week.
+• Define enough unique "sessions" to fill those ${spw} weekly slots (reuse an id on multiple days only if the session truly repeats).
+• weeklyProgressions: EXACTLY ${totalWeeks} entries (weeks 1–${workingWeeks} working, week ${totalWeeks} has "deload": true). "setsAdd" (strength) cumulates from 0.
+• Keep it realistic and specific. Every session needs concrete targets a trainee can execute and log.`;
 
-  const userMessage = `Generate the program.
-Goal: ${p.goal||'build strength and muscle'}
-Methodology: ${methodMap[method]||method}
-Hypertrophy approach: ${hyMap[hyApp]||'not set'}
-Split: ${splitMap[split]||split}
-Sessions/week: ${cfg.sessionsPerWeek}
-Working weeks: ${workingWeeks} + 1 deload week`;
+  const userMessage = `Generate the ${typeLabel} program.
+Primary goal / weekly structure (user's words): ${cfg.goal?.trim() || p.goal || 'general fitness and progression'}
+${type==='strength'||type==='hybrid'?`Strength methodology: ${methodMap[method]||method}\nStrength split: ${splitMap[split]||split}\n`:''}Total sessions/week: ${spw}
+Working weeks: ${workingWeeks} + 1 deload week (total ${totalWeeks})`;
 
   try {
-    const result = await claudeAPI(key, {
+    const result = await aiAPI({
       model: 'claude-opus-4-8',
       system: systemPrompt,
       messages: [{role:'user', content: userMessage}],
@@ -5736,10 +6280,13 @@ Working weeks: ${workingWeeks} + 1 deload week`;
     const match = text.match(/```json\s*([\s\S]+?)\s*```/);
     if (!match) throw new Error('No JSON block found in response. Try again.');
     const data = JSON.parse(match[1]);
+    _normalizeProgram(data, cfg);
     saveProgramData(data);
+    currentProgramWeek = 1;
     programViewWeek = 1;
     renderSavedProgram();
     renderMyProgramCard();
+    renderAll();
     toast('Program generated!');
   } catch(e) {
     body.innerHTML = `<div style="padding:24px;">
@@ -5747,6 +6294,35 @@ Working weeks: ${workingWeeks} + 1 deload week`;
       <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:20px;">${e.message}</div>
       <button class="btn" onclick="renderProgramBuilder()">← Back to Builder</button>
     </div>`;
+  }
+}
+
+// Normalise/repair an AI-generated program into the integrated schema: anchor it,
+// ensure per-session types, and guarantee a valid 7-day dayMap.
+function _normalizeProgram(data, cfg){
+  data.id = 'prog-' + Date.now();
+  data.startDate = _mondayISO(new Date());
+  data.type = data.type || cfg.type || 'strength';
+  data.weeks = data.weeks || (cfg.weeks+1);
+  data.sessionsPerWeek = data.sessionsPerWeek || cfg.sessionsPerWeek;
+  const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  // Default each session's type from the program type when missing.
+  const defType = data.type==='endurance' ? 'endurance' : data.type==='fitstop' ? 'fitstop' : 'strength';
+  sessions.forEach(s=>{ if(!s.type) s.type = (s.exercises&&s.exercises[0]&&'sets' in s.exercises[0]) ? 'strength' : defType; });
+  // Ensure a valid 7-entry dayMap; build one from default slots if missing/wrong.
+  const ids = sessions.map(s=>s.id).filter(Boolean);
+  let dm = Array.isArray(data.dayMap) ? data.dayMap.slice(0,7) : null;
+  const validDm = dm && dm.length===7 && dm.some(x=>x) && dm.every(x=>x===null||ids.includes(x));
+  if(!validDm){
+    const slotDays=_progDays(data.sessionsPerWeek||ids.length||4); // e.g. ['Mon','Tue','Thu','Fri']
+    const order=_ALL_DOW;
+    dm=order.map(d=>{ const i=slotDays.indexOf(d); return i>=0 ? (ids[i]||ids[i%ids.length]||null) : null; });
+  }
+  data.dayMap = dm;
+  // Ensure weeklyProgressions covers all weeks with a deload last.
+  if(!Array.isArray(data.weeklyProgressions) || !data.weeklyProgressions.length){
+    data.weeklyProgressions = Array.from({length:data.weeks},(_,i)=>({week:i+1, setsAdd:i, note:'',
+      ...(i===data.weeks-1?{deload:true,note:'Deload — reduce volume ~50%'}:{})}));
   }
 }
 
@@ -6736,9 +7312,8 @@ function autoGrowCoachInput(el) {
 
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) {
-    toast('Add a Claude API key in AI Session Builder first'); return;
+  if (!hasValidAIKey()) {
+    toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return;
   }
   localStorage.setItem('ht-last-coach-open', Date.now().toString());
   renderCoachHeader();
@@ -6820,10 +7395,72 @@ async function claudeAPI(key, opts) {
   return res.json();
 }
 
+// ── AI PROVIDER ABSTRACTION (Claude or ChatGPT) ──────────────────────────────
+// All app AI calls go through aiAPI(); it picks the provider, resolves the model
+// name, and normalizes responses to Claude's {content:[{text}]} shape so every
+// callsite stays provider-agnostic.
+function getAIProvider() { return localStorage.getItem('ht-ai-provider') || 'anthropic'; }
+function getAIKey() {
+  return getAIProvider() === 'openai'
+    ? (localStorage.getItem('ht-openai-key') || '')
+    : (localStorage.getItem('ht-ai-key') || '');
+}
+// True when the current provider has a plausibly-valid key. Worker-proxied Claude
+// can also run keyless (the worker holds the key), matching prior behaviour.
+function hasValidAIKey() {
+  const key = getAIKey();
+  if (getAIProvider() === 'openai') return key.startsWith('sk-');
+  return key.startsWith('sk-ant') || !!stravaWorker;
+}
+// Map the Claude model ids used throughout the app onto OpenAI equivalents.
+const _OPENAI_MODELS = { large:'gpt-4o', small:'gpt-4o-mini' };
+function resolveModel(m) {
+  if (getAIProvider() !== 'openai') return m;
+  if (typeof m === 'string' && m.startsWith('claude-haiku')) return _OPENAI_MODELS.small;
+  return _OPENAI_MODELS.large; // opus / sonnet → gpt-4o
+}
+async function openaiAPI(key, opts) {
+  const via = stravaWorker;
+  if (via) {
+    // Route through the worker (avoids iOS PWA CORS), same as claudeAPI.
+    const res = await fetch(`${via}/openai`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ key, model: opts.model, system: opts.system,
+        messages: opts.messages, max_tokens: opts.max_tokens }),
+    });
+    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API ${res.status}`); }
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message || 'OpenAI error');
+    return { content: [{ text: d.choices?.[0]?.message?.content || '' }] };
+  }
+  // Direct call (desktop / non-PWA). OpenAI blocks browser CORS on iOS PWAs, so
+  // the worker path above is required there.
+  const msgs = [];
+  if (opts.system) msgs.push({ role:'system', content: opts.system });
+  msgs.push(...(opts.messages || []));
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+    body: JSON.stringify({ model: opts.model, max_tokens: opts.max_tokens, messages: msgs }),
+  });
+  if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API ${res.status}`); }
+  const d = await res.json();
+  return { content: [{ text: d.choices?.[0]?.message?.content || '' }] };
+}
+// Single entry point — resolves provider + model and returns a Claude-shaped result.
+async function aiAPI(opts) {
+  const key = getAIKey();
+  const resolved = { ...opts, model: resolveModel(opts.model) };
+  return getAIProvider() === 'openai' ? openaiAPI(key, resolved) : claudeAPI(key, resolved);
+}
+function setAIProvider(p) {
+  localStorage.setItem('ht-ai-provider', p === 'openai' ? 'openai' : 'anthropic');
+  if (typeof syncAIProviderUI === 'function') syncAIProviderUI();
+}
+
 async function _callCoachAPI() {
-  const key = localStorage.getItem('ht-ai-key') || '';
   try {
-    const data = await claudeAPI(key, {
+    const data = await aiAPI({
       model: 'claude-sonnet-4-6', max_tokens: 900,
       system: buildCoachSystemPrompt(),
       messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
@@ -6958,8 +7595,7 @@ async function sendCoachMessage() {
   const input = document.getElementById('coach-input');
   const text = input?.value?.trim();
   if (!text || coachTyping) return;
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) { toast('Add a Claude API key in AI Session Builder first'); return; }
+  if (!hasValidAIKey()) { toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return; }
   input.value = '';
   input.style.height = '';
   coachMessages.push({role:'user', text});
@@ -7096,8 +7732,7 @@ function saveCoachMemory(mem) {
 async function proposeMemoryUpdate() {
   const exchanges = coachMessages.filter(m => m.role === 'user').length;
   if (exchanges < 2) return;
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) return;
+  if (!hasValidAIKey()) return;
 
   const mem = loadCoachMemory();
   const transcript = coachMessages
@@ -7110,7 +7745,7 @@ async function proposeMemoryUpdate() {
     : '';
 
   try {
-    const data = await claudeAPI(key, {
+    const data = await aiAPI({
       model: 'claude-haiku-4-5-20251001', max_tokens: 220,
       messages: [{
         role: 'user',
@@ -7332,16 +7967,15 @@ async function showWeeklyDigest(){
 
   // AI coaching note (optional — requires key)
   const noteEl=document.getElementById('digest-note');
-  const key=localStorage.getItem('ht-ai-key')||'';
-  if(!key||!key.startsWith('sk-ant')){
+  if(!hasValidAIKey()){
     noteEl.innerHTML = st.count===0
       ? 'No sessions logged this week. A fresh week is a clean slate — get one quality session and one easy session on the board to build momentum.'
-      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add a Claude API key in More → AI for personalised notes.</span>`;
+      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add an AI key in More → AI for personalised notes.</span>`;
     return;
   }
   try{
     const p=coachProfile||{};
-    const data=await claudeAPI(key,{
+    const data=await aiAPI({
       model:'claude-haiku-4-5-20251001', max_tokens:200,
       system:`You are ${p.name||'an elite endurance coach'}, writing a brief weekly review note. 2-3 sentences max. Specific, encouraging, one forward-looking tip for next week. No greeting, no signature.`,
       messages:[{role:'user',content:`This athlete's past 7 days: ${st.count} sessions, ${st.hardCount} quality/hard, ${dist.toFixed(1)}${distUnit()} volume, training load ${st.load} units, avg feel ${st.avgFeel?st.avgFeel.toFixed(1):'n/a'}/5. Plan week ${currentPlanWeek}/12. Write their weekly review note.`}],
@@ -8051,34 +8685,16 @@ function confirmFactoryReset() {
 
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+// Load any saved AI program FIRST so the initial render (Today + Plan) reflects it
+try { loadSavedProgram(); } catch(e) {}
 try { load(); }      catch(e) { console.error('load() failed:', e); try { renderAll(); } catch(_) {} }
 try { initTheme(); } catch(e) {}
 try { initDrive(); } catch(e) {}
 try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
 
-// Safe-area probe: env() can return 0 on first load in standalone PWA mode
-// before the browser resolves viewport metrics. Measure via layout instead.
-;(function probeSafeArea() {
-  function read() {
-    const r = document.documentElement;
-    const probe = (pos, prop) => {
-      const el = document.createElement('div');
-      el.style.cssText = `position:fixed;pointer-events:none;visibility:hidden;z-index:-1;${pos}:env(safe-area-inset-${pos},0px);left:0;right:0;height:0;`;
-      document.body.appendChild(el);
-      const rect = el.getBoundingClientRect();
-      document.body.removeChild(el);
-      return pos === 'top' ? rect.top : window.innerHeight - rect.bottom;
-    };
-    const sat = probe('top');
-    const sab = probe('bottom');
-    if (sat > 0) r.style.setProperty('--sat', sat + 'px');
-    if (sab > 0) r.style.setProperty('--sab', sab + 'px');
-  }
-  // Double rAF ensures layout is stable after first paint
-  requestAnimationFrame(() => requestAnimationFrame(read));
-  // Re-read on orientation change
-  window.addEventListener('orientationchange', () => setTimeout(read, 300));
-})();
+// Safe-area: env() is used directly in all layout-critical CSS rules (no JS override needed).
+// The CSS engine evaluates env() at layout time — always correct, no timing race.
+// CSS variables --sat/--sab are kept for any remaining inline-style references.
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
@@ -8090,7 +8706,7 @@ if (localStorage.getItem('ht-onboarded') === 'pending') {
 }
 try { renderMoreSettings(); } catch(e) {}
 try { renderThemePicker(); } catch(e) {}
-try { loadSavedProgram(); renderMyProgramCard(); } catch(e) {}
+try { renderMyProgramCard(); } catch(e) {}
 try { renderNotifCard(); } catch(e) {}
 try { initNotifications(); } catch(e) {}
 try { maybeShowMorningCheckin(); } catch(e) {}
