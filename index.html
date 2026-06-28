@@ -6092,6 +6092,21 @@ function renderProgramBuilder() {
     </div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a custom block with AI —</div>` : ''}
 
+    ${cfg.type==='hybrid' ? `<div class="card" style="margin-bottom:12px;border-color:rgba(212,175,55,.3);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Fitstop + Endurance</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Keep some Fitstop class days (real BLOCK C dates) and fill the rest with running — hard runs are placed away from Fitstop days, long run on Sunday.</div>
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Running goal (optional)</label>
+        <input type="text" id="hybrid-run-goal" placeholder="e.g. sub-45 10K, marathon base" value="${(cfg.goal||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" oninput="programBuilderConfig.goal=this.value">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-accent" onclick="buildFitstopHybrid(['Tue','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;">2 Fitstop (LIFT) + 4 runs</button>
+        <button class="btn" onclick="buildFitstopHybrid(['Mon','Tue','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);">3 Fitstop + 3 runs</button>
+        <button class="btn" onclick="buildFitstopHybrid(['Mon','Tue','Thu','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);">4 Fitstop + 2 runs</button>
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a fully custom hybrid block with AI —</div>` : ''}
+
     <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
       Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
@@ -6161,6 +6176,85 @@ function loadFitstopBlockC(){
   try { renderMyProgramCard(); } catch(e){}
   try { renderAll(); } catch(e){}
   toast('Fitstop BLOCK C 2026 loaded — following the real dates');
+}
+
+// ── Hybrid: Fitstop block + endurance overlay ───────────────────────────────
+// Keep selected Fitstop class days (date-anchored to BLOCK C) and fill the rest of
+// the week with interference-aware endurance: hard runs avoid days adjacent to a kept
+// Fitstop day; easy runs sit next to them; long run on Sunday. Applies the
+// concurrent-training principle (separate hard runs from heavy Fitstop sessions).
+const _FS_DAY_SESSION = { Mon:'perform', Tue:'lift', Wed:'condition', Thu:'perform', Fri:'lift', Sat:'sweat' };
+const _RUN_DEFS = {
+  easy:      { id:'run-easy',  type:'endurance', name:'Zone 2 Run',   focus:'Aerobic base', runType:'easy',      distance:'8 km',  duration:'45 min', zone:'Z2', cue:'Conversational — keep it genuinely easy around Fitstop days.' },
+  tempo:     { id:'run-tempo', type:'endurance', name:'Tempo Run',    focus:'Threshold',    runType:'tempo',     duration:'45 min', intervals:'3×8 min @ threshold, 2 min jog', zone:'Z3–4' },
+  intervals: { id:'run-int',   type:'endurance', name:'VO2 Intervals',focus:'VO2max',       runType:'intervals', duration:'40 min', intervals:'6×800 m @ ~5K pace, 90s jog',   zone:'Z5' },
+  long:      { id:'run-long',  type:'endurance', name:'Long Run',     focus:'Endurance',    runType:'long',      distance:'16 km', duration:'85 min', zone:'Z2' },
+};
+// Compose a hybrid week template (Mon..Sun) of session ids from kept Fitstop days + runs.
+// Interference-aware: quality runs go on the least-conflicting days (LIFT neighbours hurt
+// most), isolated days preferred; at least one quality run when a running goal is set.
+// Returns { map, flags } — flags note any unavoidable interference for the Validation Engine.
+function _composeHybridDayMap(keptDays, runGoal){
+  const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const kept = new Set(keptDays);
+  const map = DOW.map(d => d!=='Sun' && kept.has(d) ? _FS_DAY_SESSION[d] : null);
+  const freeIdx = DOW.map((d,i)=>({d,i})).filter(x => x.d!=='Sun' && !kept.has(x.d)).map(x=>x.i);
+  // Interference score for a free day: LIFT neighbour = 2 (heavy lower-body), other Fitstop = 1.
+  const score = (i) => [DOW[(i+6)%7], DOW[(i+1)%7]].reduce((s,nb)=>
+    s + (kept.has(nb) ? (_FS_DAY_SESSION[nb]==='lift' ? 2 : 1) : 0), 0);
+  const isolated = freeIdx.filter(i => score(i)===0);
+  // Hard-run budget: ≤1 when keeping ≥3 Fitstop days (already high load), else ≤2.
+  // Guarantee ≥1 quality run when a running goal is set and there is somewhere to put it.
+  let hardBudget = kept.size >= 3 ? 1 : 2;
+  hardBudget = Math.min(hardBudget, Math.max(isolated.length, (runGoal && freeIdx.length) ? 1 : 0));
+  const ranked = [...freeIdx].sort((a,b)=> score(a)-score(b)); // least interference first
+  const assign = {}; const flags = [];
+  ranked.forEach((i,n) => {
+    if (n < hardBudget) {
+      assign[i] = (n===0 ? 'tempo' : 'intervals');
+      if (score(i) > 0) flags.push(`${DOW[i]} ${assign[i]} run sits next to a Fitstop day (unavoidable in this split) — keep it controlled.`);
+    } else assign[i] = 'easy';
+  });
+  freeIdx.forEach(i => { map[i] = _RUN_DEFS[assign[i]].id; });
+  map[6] = (freeIdx.length || kept.size < 6) ? _RUN_DEFS.long.id : null; // Sunday long run if any running
+  return { map, flags };
+}
+function buildFitstopHybrid(keptDays, runGoal){
+  const B = FITSTOP_BLOCK_C;
+  const { map, flags } = _composeHybridDayMap(keptDays, runGoal);
+  const fitstopSessions = [
+    { id:'perform',   type:'fitstop',  name:'PERFORM',   focus:'Fitness / intervals' },
+    { id:'lift',      type:'strength', name:'LIFT',      focus:'Strength — main lifts', exercises:[
+        {name:'Back Squat',sets:3,reps:'see phase',load:'phase RM',cue:'brace'},
+        {name:'Deadlift',sets:3,reps:'see phase',load:'phase RM',cue:'wedge'},
+        {name:'Bench Press',sets:3,reps:'see phase',load:'phase RM',cue:'tuck'},
+        {name:'Chin-Up',sets:3,reps:'see phase',load:'phase RM',cue:'full ROM'} ] },
+    { id:'condition', type:'fitstop',  name:'CONDITION', focus:'Sustained conditioning' },
+    { id:'sweat',     type:'fitstop',  name:'SWEAT',     focus:'Mixed conditioning' },
+  ];
+  const usedIds = new Set(map.filter(Boolean));
+  const sessions = [
+    ...fitstopSessions.filter(s => usedIds.has(s.id)),
+    ...Object.values(_RUN_DEFS).filter(r => usedIds.has(r.id)),
+  ];
+  const weeklyProgressions = B.plan.map(([label],i)=>{
+    const ph=_fitstopPhase(i+1);
+    return { week:i+1, note:`${label} · Fitstop: ${ph.strength} · Running: easy base + quality, placed away from Fitstop days${runGoal?` · Goal: ${runGoal}`:''}` };
+  });
+  const data = {
+    id:'fitstop-hybrid-block-c', name:'Fitstop + Endurance (BLOCK C)', type:'hybrid',
+    source:'Fitstop BLOCK C 2026 + endurance overlay',
+    startDate:B.startDate, weeks:B.weeks, sessionsPerWeek: map.filter(Boolean).length,
+    sessions, dayMap: map, weeklyProgressions, fitstopBlock:B,
+    interferenceFlags: flags, // surfaced by the Validation Engine / coaching notes
+  };
+  saveProgramData(data);
+  currentProgramWeek = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
+  programViewWeek = 1;
+  try { renderSavedProgram(); } catch(e){}
+  try { renderMyProgramCard(); } catch(e){}
+  try { renderAll(); } catch(e){}
+  toast('Fitstop + endurance block built — running scheduled around your Fitstop days');
 }
 
 function renderSavedProgram() {
