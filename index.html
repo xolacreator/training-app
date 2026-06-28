@@ -3451,7 +3451,7 @@ function _renderProgramTodayStrip(){
 
 function _renderProgramPlanTabs(){
   const prog=savedProgram; if(!prog) return;
-  const total=(prog.weeks||4)+1;
+  const total=prog.weeklyProgressions?.length || ((prog.weeks||4)+1);
   document.getElementById('plan-tabs').innerHTML=Array.from({length:total},(_,i)=>{
     const w=i+1;
     const isDeload=!!(prog.weeklyProgressions?.[i]?.deload);
@@ -3466,7 +3466,7 @@ function _renderProgramPlan(w){
   try{localStorage.setItem('ht-program-week',String(currentProgramWeek));}catch(e){}
   _renderProgramPlanTabs();
 
-  const totalWeeks=(prog.weeks||4)+1;
+  const totalWeeks=prog.weeklyProgressions?.length || ((prog.weeks||4)+1);
   const weekProg=prog.weeklyProgressions?.[w-1]||{};
   const isDeload=!!(weekProg.deload);
   const weekNote=weekProg.note||'';
@@ -3575,7 +3575,15 @@ function openProgramSessionOverlay(id,week,day){
     bodyHtml=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
   }
 
-  document.getElementById('po-breakdown').innerHTML=`${deloadBanner}${noteBanner}${bodyHtml}`;
+  // For a loaded Fitstop block, surface the published format for this exact day/week.
+  let fitstopBanner='';
+  if(prog.fitstopBlock && day){
+    const di=['Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(day);
+    const fmt=di>=0 ? (prog.fitstopBlock.plan?.[week-1]?.[1]?.[di]||'') : '';
+    if(fmt) fitstopBanner=`<div style="background:var(--accent-dim);border:1px solid rgba(212,175,55,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;"><div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Today's format</div><div style="font-size:15px;font-weight:600;color:var(--accent);margin-top:2px;">${fmt}</div></div>`;
+  }
+
+  document.getElementById('po-breakdown').innerHTML=`${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}`;
 
   const alreadyDone=_progSessionDone(week,id);
   document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
@@ -6077,12 +6085,82 @@ function renderProgramBuilder() {
       </div>
     </div>
 
+    ${cfg.type==='fitstop' ? `<div class="card" style="margin-bottom:12px;border-color:rgba(212,175,55,.3);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Official Fitstop block</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Follow the real Fitstop programming on its actual dates (BASE→BUILD→PERFORMANCE→PEAK).</div>
+      <button class="btn btn-accent" onclick="loadFitstopBlockC()" style="width:100%;">Load Fitstop BLOCK C 2026 (22 Jun – 12 Sep)</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a custom block with AI —</div>` : ''}
+
     <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
       Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
       Generation takes 15–30 seconds.
     </div>
   </div>`;
+}
+
+// ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
+// Compact in-app copy of the dated block so "Fitstop" can follow the real schedule
+// without AI generation. Mirrors knowledge/fitstop_block_c_2026.mjs.
+const FITSTOP_BLOCK_C = {
+  id:'fitstop-block-c-2026', name:'Fitstop BLOCK C 2026', startDate:'2026-06-22', weeks:12,
+  phases:[
+    {name:'BASE',        weeks:[1,2,3],   strength:'Main-lift variations @ RIR 1–3', fitness:'Capacity intervals (30s on/off → 3–5 min)'},
+    {name:'BUILD',       weeks:[4,5,6],   strength:'Main lifts → 5RM by wk 3',       fitness:'40s / 4-min efforts, WFT, E3MOM'},
+    {name:'PERFORMANCE', weeks:[7,8,9],   strength:'Main lifts → 3RM by wk 3',       fitness:'Short & long ergs, WFT, 1 km efforts'},
+    {name:'PEAK',        weeks:[10,11,12],strength:'Main lifts → 1RM by wk 3',       fitness:'2 km time trials (test efforts)'},
+  ],
+  // [label, Mon..Sat formats] per week (Sun = rest)
+  plan:[
+    ['BASE 1.0',        ['4x9 MIN','LIFT','6x6 MIN','4x9 MIN','LIFT','R-EMOM + FINISHER']],
+    ['BASE 2.0',        ['3x12 MIN','LIFT','2x18 MIN','4x9 MIN','LIFT','36 MIN AMRAP']],
+    ['BASE 3.0',        ['2x18 MIN','LIFT','7x5 MIN','6x6 MIN','LIFT','5x6 MIN + FINISHER']],
+    ['BUILD 1.0',       ['4x9 MIN','LIFT 5RM','2x18 MIN','4x9 MIN','LIFT 5RM','2x15 MIN + FINISHER']],
+    ['BUILD 2.0',       ['3x12 MIN','LIFT 5RM','4x9 MIN','3x12 MIN','LIFT 5RM','5x7 MIN']],
+    ['BUILD 3.0',       ['4x9 MIN','LIFT 5RM','2x18 MIN','4x9 MIN','LIFT 5RM','24 MIN AMRAP']],
+    ['PERFORMANCE 1.0', ['3x10 MIN + FINISHER','LIFT 3RM','3x12 MIN','5x7 MIN','LIFT 3RM','SWEAT']],
+    ['PERFORMANCE 2.0', ['3x12 MIN','LIFT 3RM','4x8 MIN + FINISHER','3x12 MIN','LIFT 3RM','SWEAT']],
+    ['PERFORMANCE 3.0', ['4x9 MIN','LIFT 3RM','2x18 MIN','4x9 MIN','LIFT 3RM','5x6 MIN + FINISHER']],
+    ['PEAK 1.0',        ['4x9 MIN','LIFT 1RM','2KM TIME TRIAL','4x9 MIN','LIFT 1RM','SWEAT']],
+    ['PEAK 2.0',        ['4x9 MIN','LIFT 1RM','2KM TIME TRIAL','3x12 MIN','LIFT 1RM','5x7 MIN']],
+    ['PEAK 3.0',        ['4x9 MIN','LIFT 1RM','2KM TIME TRIAL','5x14 MIN','LIFT 1RM','36 MIN AMRAP']],
+  ],
+};
+function _fitstopPhase(week){ return FITSTOP_BLOCK_C.phases.find(p=>p.weeks.includes(week)) || FITSTOP_BLOCK_C.phases[0]; }
+
+// Build a savedProgram from BLOCK C and load it (reuses all calendar/logging/completion).
+function loadFitstopBlockC(){
+  const B = FITSTOP_BLOCK_C;
+  const sessions = [
+    { id:'perform',   type:'fitstop',  name:'PERFORM',   focus:'Fitness / intervals' },
+    { id:'lift',      type:'strength', name:'LIFT',      focus:'Strength — main lifts', exercises:[
+        {name:'Back Squat',sets:3,reps:'see phase',load:'phase RM',cue:'brace'},
+        {name:'Deadlift',sets:3,reps:'see phase',load:'phase RM',cue:'wedge'},
+        {name:'Bench Press',sets:3,reps:'see phase',load:'phase RM',cue:'tuck'},
+        {name:'Chin-Up',sets:3,reps:'see phase',load:'phase RM',cue:'full ROM'} ] },
+    { id:'condition', type:'fitstop',  name:'CONDITION', focus:'Sustained conditioning' },
+    { id:'sweat',     type:'fitstop',  name:'SWEAT',     focus:'Mixed conditioning' },
+  ];
+  const weeklyProgressions = B.plan.map(([label],i)=>{
+    const ph=_fitstopPhase(i+1);
+    return { week:i+1, note:`${label} · Strength: ${ph.strength} · Fitness: ${ph.fitness}` };
+  });
+  const data = {
+    id: B.id, name: B.name, type:'fitstop', source: B.name,
+    startDate: B.startDate, weeks: B.weeks, sessionsPerWeek: 6,
+    sessions,
+    dayMap: ['perform','lift','condition','perform','lift','sweat',null], // Mon..Sun
+    weeklyProgressions,
+    fitstopBlock: B, // drives per-week format display
+  };
+  saveProgramData(data);
+  currentProgramWeek = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
+  programViewWeek = 1;
+  try { renderSavedProgram(); } catch(e){}
+  try { renderMyProgramCard(); } catch(e){}
+  try { renderAll(); } catch(e){}
+  toast('Fitstop BLOCK C 2026 loaded — following the real dates');
 }
 
 function renderSavedProgram() {
