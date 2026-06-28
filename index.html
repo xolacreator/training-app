@@ -3300,19 +3300,59 @@ const _PROG_DAY_SLOTS={1:['Mon'],2:['Mon','Thu'],3:['Mon','Wed','Fri'],
 
 function _progDays(spw){return _PROG_DAY_SLOTS[Math.min(Math.max(spw,1),7)]||_PROG_DAY_SLOTS[4];}
 
+const _ALL_DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function _progWeekSessions(week){
   const prog=savedProgram; if(!prog) return [];
+  // Composite/multi-discipline programs (and all new ones) use an explicit
+  // 7-entry dayMap (Mon..Sun) — each entry is a sessionId or null (rest). This
+  // lets one program place mixed session types (e.g. Fitstop + endurance) on
+  // specific weekdays. Returns all 7 days so the calendar can show rest days too.
+  if(Array.isArray(prog.dayMap) && prog.dayMap.length===7){
+    return _ALL_DOW.map((day,i)=>{
+      const id=prog.dayMap[i]||null;
+      return {day,id,session:id?prog.sessions?.find(s=>s.id===id):null};
+    });
+  }
+  // Legacy fallback: flat weekSchedule rotation + sessions-per-week day slots.
   const spw=prog.sessionsPerWeek||4;
   const days=_progDays(spw);
   const sched=prog.weekSchedule||[];
   const offset=(week-1)*spw;
   let ids=sched.slice(offset,offset+spw);
-  // Deload / unscheduled weeks aren't in weekSchedule (builder omits them) —
-  // reuse the rotation pattern so the week still shows its (deloaded) sessions.
   if(ids.length<spw){
     ids = sched.length>=spw ? sched.slice(0,spw) : (prog.sessions||[]).slice(0,spw).map(s=>s.id);
   }
   return days.map((day,i)=>({day,id:ids[i]||null,session:ids[i]?prog.sessions?.find(s=>s.id===ids[i]):null}));
+}
+
+// A program session's discipline. Defaults to 'strength' for legacy programs.
+function _sessType(sess){ return (sess && sess.type) ? sess.type : 'strength'; }
+// One-line summary for a session, adapted to its type (shown in calendar rows/cards).
+function _sessSummary(sess){
+  if(!sess) return '';
+  const t=_sessType(sess);
+  if(t==='endurance'||t==='run'){
+    return [sess.intervals, sess.distance, sess.pace||sess.zone, sess.duration].filter(Boolean).join(' · ')
+      || (sess.exercises?.length? sess.exercises.length+' blocks':'');
+  }
+  if(t==='fitstop'||t==='conditioning'||t==='mixed'){
+    return sess.format || (sess.exercises?.length? sess.exercises.length+' stations':'circuit');
+  }
+  return (sess.exercises?.length||0)+' ex'; // strength
+}
+// Map a program session type → the log-form category used by the logger.
+function _sessLogCat(sess){
+  const t=_sessType(sess);
+  if(t==='endurance'||t==='run') return 'run';
+  if(t==='fitstop'||t==='conditioning'||t==='mixed') return 'mixed';
+  return 'strength';
+}
+// Icon per discipline (calendar/home).
+function _sessIcon(sess){
+  const t=_sessType(sess);
+  if(t==='endurance'||t==='run') return '🏃';
+  if(t==='fitstop'||t==='conditioning'||t==='mixed') return '🔥';
+  return '🏋️';
 }
 
 // ── PROGRAM DATE ANCHOR + COMPLETION ─────────────────────────────────────────
@@ -3385,17 +3425,18 @@ function _renderProgramTodayStrip(){
   const sesEl=document.getElementById('today-session');
   if(todaySess){
     const todayDone=_progSessionDone(week,todaySlot.id);
+    const summary=[todaySess.focus, _sessSummary(todaySess)].filter(Boolean).join(' · ');
     sesEl.onclick=()=>openProgramSessionOverlay(todaySlot.id,week,todayDow);
     sesEl.innerHTML=`
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <div style="width:32px;height:32px;border-radius:8px;background:${todayDone?'rgba(52,199,89,.15)':'var(--accent-dim)'};border:1px solid ${todayDone?'rgba(52,199,89,.4)':'rgba(212,175,55,.25)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">${todayDone?'✓':'🏋️'}</div>
+        <div style="width:32px;height:32px;border-radius:8px;background:${todayDone?'rgba(52,199,89,.15)':'var(--accent-dim)'};border:1px solid ${todayDone?'rgba(52,199,89,.4)':'rgba(212,175,55,.25)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">${todayDone?'✓':_sessIcon(todaySess)}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.name}</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · ${todaySess.focus||''} · ${todaySess.exercises?.length||0} exercises</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · ${summary}</div>
         </div>
         <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:${todayDone?'var(--green,#34c759)':'var(--text3)'};">${todayDone?'Logged ✓ · tap to view or log again':'Tap to see exercises and start session →'}</div>`;
+      <div style="font-family:var(--mono);font-size:9px;color:${todayDone?'var(--green,#34c759)':'var(--text3)'};">${todayDone?'Logged ✓ · tap to view or log again':'Tap to see details and log session →'}</div>`;
   } else {
     sesEl.onclick=null;
     sesEl.innerHTML=`<div style="display:flex;align-items:center;gap:10px;">
@@ -3447,12 +3488,12 @@ function _renderProgramPlan(w){
       <div><div class="pday-name">${day}</div><div class="pday-date">Rest</div></div>
       <div class="prow-session"><span style="color:var(--text3);">Rest / Recovery</span></div>
       <div></div></div>`;
-    const exCount=session.exercises?.length||0;
     const done=_progSessionDone(w,id);
+    const meta=_sessSummary(session);
     return `<div class="prow ${done?'done':''}" onclick="openProgramSessionOverlay('${id}',${w},'${day}')">
-      <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||''}</div></div>
-      <div class="prow-session"><span>${done?'<span style="color:var(--green,#34c759);">✓ </span>':''}${session.name}</span></div>
-      <div style="font-family:var(--mono);font-size:9px;color:${done?'var(--green,#34c759)':'var(--text3)'};">${done?'done':exCount+' ex'}</div>
+      <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||_sessType(session)}</div></div>
+      <div class="prow-session"><span>${done?'<span style="color:var(--green,#34c759);">✓ </span>':_sessIcon(session)+' '}${session.name}</span></div>
+      <div style="font-family:var(--mono);font-size:9px;color:${done?'var(--green,#34c759)':'var(--text3)'};">${done?'done':(meta||'')}</div>
     </div>`;
   }).join('');
 
@@ -3487,24 +3528,54 @@ function openProgramSessionOverlay(id,week,day){
   // Week note
   const noteBanner=weekProg.note&&!isDeload?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${weekProg.note}</div>`:'';
 
-  // Exercise list
-  const exRows=(sess.exercises||[]).map((ex,i)=>{
-    const baseSets=parseInt(ex.sets)||3;
-    const sets=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+setsAdd;
-    const isLast=i===sess.exercises.length-1;
-    return `<div style="padding:12px 0;${isLast?'':'border-bottom:.5px solid var(--border)'}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
-        <div style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name}</div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${sets}×${ex.reps||'8-10'}</div>
-      </div>
-      ${ex.load?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ex.load}${ex.rest?' · rest '+ex.rest:''}</div>`:''}
-      ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
-    </div>`;
-  }).join('');
+  // Body — rendered by discipline.
+  const type=_sessType(sess);
+  let bodyHtml='';
+  if(type==='endurance'||type==='run'){
+    // Endurance: target line(s) + optional structure blocks (warmup/main/cooldown or intervals).
+    const targets=[
+      sess.distance?['Distance',sess.distance]:null,
+      sess.duration?['Duration',sess.duration]:null,
+      (sess.pace||sess.zone)?['Target',[sess.pace,sess.zone].filter(Boolean).join(' · ')]:null,
+      sess.intervals?['Intervals',sess.intervals]:null,
+      sess.rpe?['RPE',sess.rpe]:null,
+    ].filter(Boolean).map(([l,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:.5px solid var(--border);">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${l}</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text);text-align:right;">${v}</span></div>`).join('');
+    const blocks=(sess.blocks||sess.exercises||[]).map((b,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${b.name||b.title||'Block'}${b.detail||b.reps?` <span style="font-family:var(--mono);font-size:11px;color:var(--text2);font-weight:400;">${b.detail||b.reps}</span>`:''}</div>
+        ${b.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${b.cue}</div>`:''}</div>`).join('');
+    bodyHtml=`${targets?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:${blocks?'10px':'16px'};">${targets}</div>`:''}
+      ${blocks?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${blocks}</div>`:''}`;
+  } else if(type==='fitstop'||type==='conditioning'||type==='mixed'){
+    // Conditioning/Fitstop: format line + stations/exercises.
+    const fmt=sess.format?`<div style="font-family:var(--mono);font-size:11px;color:var(--blue);margin-bottom:10px;line-height:1.6;">${sess.format}</div>`:'';
+    const rows=(sess.exercises||sess.stations||sess.blocks||[]).map((ex,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
+        <div style="display:flex;justify-content:space-between;gap:8px;">
+          <span style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name||ex.title||'Station'}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${ex.detail||(ex.sets&&ex.reps?ex.sets+'×'+ex.reps:ex.reps||'')}</span>
+        </div>
+        ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${ex.cue}</div>`:''}</div>`).join('');
+    bodyHtml=`${fmt}${rows?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${rows}</div>`:''}`;
+  } else {
+    // Strength: exercise list with progressive set bumps.
+    const exRows=(sess.exercises||[]).map((ex,i)=>{
+      const baseSets=parseInt(ex.sets)||3;
+      const sets=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+setsAdd;
+      const isLast=i===sess.exercises.length-1;
+      return `<div style="padding:12px 0;${isLast?'':'border-bottom:.5px solid var(--border)'}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${sets}×${ex.reps||'8-10'}</div>
+        </div>
+        ${ex.load?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ex.load}${ex.rest?' · rest '+ex.rest:''}</div>`:''}
+        ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
+      </div>`;
+    }).join('');
+    bodyHtml=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
+  }
 
-  document.getElementById('po-breakdown').innerHTML=`
-    ${deloadBanner}${noteBanner}
-    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
+  document.getElementById('po-breakdown').innerHTML=`${deloadBanner}${noteBanner}${bodyHtml}`;
 
   const alreadyDone=_progSessionDone(week,id);
   document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
@@ -3525,33 +3596,42 @@ const _DAY_FULL = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri
 function logProgramSession(id, week, day, setsAdd, isDeload){
   const prog=savedProgram; if(!prog) return;
   const sess=prog.sessions?.find(s=>s.id===id); if(!sess) return;
+  const logCat=_sessLogCat(sess);
 
-  // Build the editable exercise list from the program (week-adjusted set counts).
-  exercises = (sess.exercises||[]).map(ex=>{
-    const baseSets=parseInt(ex.sets)||3;
-    const n=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+(setsAdd||0);
-    return { name: ex.name||'', sets: Array.from({length:Math.max(1,n)},()=>({reps:(ex.reps||'').toString(),weight:''})) };
-  });
-  splits=[]; stations=[]; feel=null;
+  // Reset all metric buffers, then prefill the ones for this discipline.
+  exercises=[]; splits=[]; stations=[]; feel=null;
+  if(logCat==='strength'){
+    // Editable exercise list from the program (week-adjusted set counts).
+    exercises = (sess.exercises||[]).map(ex=>{
+      const baseSets=parseInt(ex.sets)||3;
+      const n=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+(setsAdd||0);
+      return { name: ex.name||'', sets: Array.from({length:Math.max(1,n)},()=>({reps:(ex.reps||'').toString(),weight:''})) };
+    });
+  } else if(logCat==='mixed'){
+    // Fitstop/conditioning → station list (type + label), user fills results.
+    stations = (sess.exercises||sess.stations||sess.blocks||[]).map(ex=>({type:'Custom', v1:(ex.name||ex.title||''), v2:(ex.detail||ex.reps||'')}));
+    if(!stations.length) stations=[{type:'Custom',v1:'',v2:''}];
+  }
+  // endurance → 'run' category; splits stay empty for the user to add reps if interval.
 
   // Remember the program link for saveSession() to stamp onto the log.
   _pendingProgLink = { progId: prog.id||prog.name||'prog', progWeek: week, progSid: id };
 
   nav('log', document.querySelectorAll('.nb')[1]);
 
-  // cat → strength, then set the program session name as a (selected) option.
-  const stBtn=document.querySelector('.cat-tab.strength');
-  setCat('strength', stBtn||document.createElement('button'));
+  // Select the right category, then inject the program session name as a (selected) option.
+  const catBtn=document.querySelector('.cat-tab.'+(logCat==='run'?'run':logCat)) || document.querySelector('.cat-tab.'+logCat);
+  setCat(logCat, catBtn||document.createElement('button'));
   const sel=document.getElementById('f-session');
   if(sel){
-    const opts=(CAT_SESSIONS.strength||[]).filter(n=>n!==sess.name);
-    sel.innerHTML=[`<option selected>${sess.name}</option>`,...opts.map(n=>`<option>${n}</option>`)].join('');
+    const base=(CAT_SESSIONS[logCat]||[]).filter(n=>n!==sess.name);
+    sel.innerHTML=[`<option selected>${sess.name}</option>`,...base.map(n=>`<option>${n}</option>`)].join('');
   }
   const wEl=document.getElementById('f-week'); if(wEl) wEl.value=String(week);
   const dEl=document.getElementById('f-day'); if(dEl && day && _DAY_FULL[day]) dEl.value=_DAY_FULL[day];
-  const iEl=document.getElementById('f-intensity'); if(iEl) iEl.value='moderate';
-  renderMetrics(); // re-render strength metrics now that exercises[] is populated
-  toast('Logging '+sess.name+' — fill in your weights');
+  const iEl=document.getElementById('f-intensity'); if(iEl) iEl.value=sess.intensity|| (logCat==='run'?'moderate':'moderate');
+  renderMetrics(); // re-render metrics now that the buffers are populated
+  toast('Logging '+sess.name+(logCat==='strength'?' — fill in your weights':logCat==='run'?' — add your run details':' — log your results'));
 }
 
 function togglePlanArchive(el){
@@ -5503,14 +5583,22 @@ async function syncFromStrava(silent = false) {
       let week=null, sessName=null, intensity=null, link=null;
       const actType=(act.sport_type||act.type||'').toLowerCase();
       const isStrengthAct = actType.includes('weight')||actType.includes('strength')||actType==='workout';
+      const isRunAct = actType.includes('run');
       if (savedProgram && savedProgram.startDate) {
         const pw=_progWeekForDate(localDate);
         if (pw){
           week=String(pw);
           const slot=_progWeekSessions(pw).find(x=>x.day===dow && x.session);
-          if (slot && isStrengthAct){
-            sessName=slot.session.name; intensity='moderate';
-            link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
+          if (slot){
+            // Link when the activity discipline matches the program slot's type:
+            // runs → endurance sessions; weights/workouts → strength/fitstop sessions.
+            const st=_sessType(slot.session);
+            const enduranceSlot=(st==='endurance'||st==='run');
+            const strengthSlot=(st==='strength'||st==='fitstop'||st==='conditioning'||st==='mixed');
+            if ((enduranceSlot && isRunAct) || (strengthSlot && isStrengthAct)){
+              sessName=slot.session.name; intensity=slot.session.intensity||'moderate';
+              link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
+            }
           }
         }
       }
@@ -5854,7 +5942,7 @@ function setUnitWeight(u) {
 // PROGRAM BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
 let savedProgram = null;
-let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4 };
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '' };
 let programViewWeek = 1;
 
 function loadSavedProgram() {
@@ -5890,8 +5978,8 @@ function renderMyProgramCard() {
     const totalWeeks = (savedProgram.weeklyProgressions || []).length || savedProgram.weeks || 0;
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:14px;font-weight:500;">${savedProgram.name || 'Strength Program'}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.split||'').toUpperCase()}</div>
+        <div style="font-size:14px;font-weight:500;">${savedProgram.name || 'Training Program'}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${totalWeeks} weeks · ${savedProgram.sessionsPerWeek||'?'}×/week · ${(savedProgram.type||'strength').toUpperCase()}</div>
       </div>
       <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
     </div>`;
@@ -5899,7 +5987,7 @@ function renderMyProgramCard() {
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-size:14px;font-weight:500;">Program Builder</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Generate a complete strength mesocycle</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">Build strength, endurance, hybrid or Fitstop</div>
       </div>
       <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
     </div>`;
@@ -5920,10 +6008,35 @@ function renderProgramBuilder() {
 
   const pill = (val, label, cur, fn) =>
     `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:500;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
+  const typePill = (val, label, desc) =>
+    `<button onclick="programBuilderConfig.type='${val}';renderProgramBuilder();" style="flex:1;padding:10px 6px;border:none;cursor:pointer;border-radius:8px;text-align:center;background:${cfg.type===val?'var(--accent)':'var(--bg2)'};color:${cfg.type===val?'#000':'var(--text2)'};">
+      <div style="font-size:12px;font-weight:600;">${label}</div>
+      <div style="font-family:var(--mono);font-size:8px;opacity:.8;margin-top:2px;line-height:1.3;">${desc}</div></button>`;
+
+  const isStrengthy = cfg.type==='strength';
+  const goalPlaceholder = ({
+    strength:'e.g. Build my squat and bench, 4 days/week upper-lower',
+    endurance:'e.g. Sub-45 10K — Zone 2 base, one tempo + one interval/week, long run Sun',
+    hybrid:'e.g. HYROX prep — 2 strength days + 3 runs + 1 erg/conditioning per week',
+    fitstop:'e.g. 2× Fitstop LIFT + 2× Fitstop PERFORM, plus a Zone 2 run',
+  })[cfg.type] || 'Describe your goal and weekly structure…';
 
   body.innerHTML = `<div style="padding-bottom:40px;">
-    <div class="card" style="margin-bottom:20px;">
-      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Selected Settings</div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Program Type</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">What kind of block — one discipline or a mix</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        ${typePill('strength','Strength','Lifting mesocycle')}
+        ${typePill('endurance','Endurance','Run / cardio block')}
+      </div>
+      <div style="display:flex;gap:6px;">
+        ${typePill('hybrid','Hybrid','Strength + endurance')}
+        ${typePill('fitstop','Fitstop','LIFT / PERFORM mix')}
+      </div>
+    </div>
+
+    ${isStrengthy ? `<div class="card" style="margin-bottom:20px;">
+      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Strength Settings</div>
       ${[
         ['Methodology', methodLabels[method]||method, 'var(--accent)'],
         ['Split',       splitLabels[split]||split,    'var(--blue)'],
@@ -5933,6 +6046,12 @@ function renderProgramBuilder() {
         <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:${c};">${v}</span>
       </div>`).join('')}
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
+    </div>` : ''}
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Goal & weekly structure</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Describe your target and how you want the week split across disciplines${cfg.type==='hybrid'||cfg.type==='fitstop'?' (e.g. how many of each per week)':''}</div>
+      <textarea id="prog-goal" placeholder="${goalPlaceholder}" oninput="programBuilderConfig.goal=this.value" style="width:100%;box-sizing:border-box;min-height:80px;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);font-size:13px;font-family:var(--font);line-height:1.5;">${cfg.goal||''}</textarea>
     </div>
 
     <div style="margin-bottom:20px;">
@@ -5942,13 +6061,14 @@ function renderProgramBuilder() {
         ${pill(4,'4 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
         ${pill(5,'5 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
         ${pill(6,'6 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
+        ${pill(8,'8 weeks',cfg.weeks,'programBuilderConfig.weeks=')}
       </div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">${cfg.weeks} working weeks + 1 deload = ${cfg.weeks+1} total weeks</div>
     </div>
 
     <div style="margin-bottom:28px;">
       <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Sessions per Week</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">How many training days per week</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Total training days/week${cfg.type==='hybrid'||cfg.type==='fitstop'?' across all disciplines':''}</div>
       <div style="display:flex;gap:8px;">
         ${pill(3,'3×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
         ${pill(4,'4×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
@@ -5957,9 +6077,9 @@ function renderProgramBuilder() {
       </div>
     </div>
 
-    <button class="btn btn-accent" onclick="generateStrengthProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
+    <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
-      Uses your Claude API key (set in AI Session Builder).<br>
+      Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
       Generation takes 15–30 seconds.
     </div>
   </div>`;
@@ -5985,42 +6105,57 @@ function renderSavedProgram() {
     return `<button onclick="programViewWeek=${w};renderSavedProgram();" style="flex-shrink:0;padding:7px 14px;font-family:var(--mono);font-size:10px;font-weight:500;border:none;cursor:pointer;border-radius:6px;white-space:nowrap;background:${active?'var(--accent)':'var(--bg2)'};color:${active?'#000':wd.deload?'var(--text3)':'var(--text2)'};">${wd.deload?'Deload':'W'+w}</button>`;
   }).join('');
 
-  // Sessions this week
-  const startIdx = (wk-1)*sPerWeek;
-  const weekSessions = Array.from({length:sPerWeek},(_,i) => {
-    const sid = rotation[(startIdx+i) % rotation.length];
-    return sessions.find(s=>s.id===sid) || sessions[i % sessions.length] || null;
-  }).filter(Boolean);
+  // Sessions this week — uses the integrated dayMap (or legacy rotation) so it
+  // renders mixed disciplines (strength / endurance / fitstop) correctly.
+  const _savedWeek = currentProgramWeek;
+  currentProgramWeek = wk; // _progWeekSessions reads the program; week passed explicitly
+  const weekSlots = _progWeekSessions(wk).filter(s=>s.session);
+  currentProgramWeek = _savedWeek;
 
-  const sessionCards = weekSessions.map((sess, dayIdx) => {
-    const exHtml = (sess.exercises||[]).map(ex => {
-      const adjSets = isDeload ? Math.max(1, Math.round(ex.sets*0.5)) : ex.sets + setsAdd;
-      return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
-          <div style="font-size:13px;font-weight:500;line-height:1.3;">${ex.name}</div>
-          <div style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
-        </div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
-      </div>`;
-    }).join('');
+  const sessionCards = weekSlots.map(({day,session:sess}) => {
+    const t=_sessType(sess);
+    let inner='';
+    if(t==='endurance'||t==='run'){
+      const rows=[
+        sess.intervals?['Intervals',sess.intervals]:null,
+        sess.distance?['Distance',sess.distance]:null,
+        sess.duration?['Duration',sess.duration]:null,
+        (sess.pace||sess.zone)?['Target',[sess.pace,sess.zone].filter(Boolean).join(' · ')]:null,
+      ].filter(Boolean).map(([l,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;"><span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${l}</span><span style="font-size:12px;font-weight:500;color:var(--text);text-align:right;">${v}</span></div>`).join('');
+      inner=rows+(sess.cue?`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:4px;">↳ ${sess.cue}</div>`:'');
+    } else if(t==='fitstop'||t==='conditioning'||t==='mixed'){
+      const fmt=sess.format?`<div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:6px;">${sess.format}</div>`:'';
+      inner=fmt+(sess.exercises||sess.stations||[]).map(ex=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border);"><span style="font-size:12px;font-weight:500;">${ex.name||ex.title||''}</span><span style="font-family:var(--mono);font-size:11px;color:var(--text2);">${ex.detail||ex.reps||''}</span></div>`).join('');
+    } else {
+      inner=(sess.exercises||[]).map(ex => {
+        const adjSets = isDeload ? Math.max(1, Math.round((parseInt(ex.sets)||3)*0.5)) : (parseInt(ex.sets)||3) + setsAdd;
+        return `<div style="padding:9px 0;border-bottom:.5px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:3px;">
+            <div style="font-size:13px;font-weight:500;line-height:1.3;">${ex.name}</div>
+            <div style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;">${adjSets}×${ex.reps}</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:2px;">${ex.load||''}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Rest ${ex.rest||'90s'}${ex.cue?' · '+ex.cue:''}</div>
+        </div>`;
+      }).join('');
+    }
     return `<div class="card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div>
-          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Day ${dayIdx+1}</div>
+          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">${day} · ${_sessIcon(sess)} ${t}</div>
           <div style="font-size:17px;font-weight:600;margin-top:2px;">${sess.name}</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:1px;">${sess.focus||''}</div>
         </div>
         ${isDeload?'<div style="font-family:var(--mono);font-size:9px;background:var(--bg3);color:var(--text3);padding:4px 8px;border-radius:4px;flex-shrink:0;">DELOAD</div>':''}
       </div>
-      ${exHtml}
+      ${inner}
     </div>`;
   }).join('');
 
   body.innerHTML = `<div style="padding-bottom:40px;">
     <div style="margin-bottom:16px;">
-      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.split||'').toUpperCase()}</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${prog.name||'Training Program'}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.type||'strength').toUpperCase()}${prog.split&&(prog.type==='strength'||prog.type==='hybrid')?' · '+prog.split.toUpperCase():''}</div>
       ${prog.startDate?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;">Started ${prog.startDate} · currently Week ${_progActualWeek()} of ${totalWks}</div>`:`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:6px;">No start date set — <span onclick="restartProgramToday()" style="text-decoration:underline;cursor:pointer;">anchor to this week</span> to enable date tracking</div>`}
       ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
     </div>
@@ -6047,7 +6182,12 @@ function restartProgramToday(){
   toast('Program anchored to this week');
 }
 
-async function generateStrengthProgram() {
+// Backward-compatible alias.
+function generateStrengthProgram(){ return generateProgram(); }
+
+// Build any program type (strength / endurance / hybrid / fitstop) into the unified
+// composite schema: per-session `type` + an explicit 7-day `dayMap`.
+async function generateProgram() {
   const body = document.getElementById('program-overlay-body');
   if (!body) return;
   if (!hasValidAIKey()) { toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return; }
@@ -6057,73 +6197,76 @@ async function generateStrengthProgram() {
   const split  = p.trainingSplit  || 'ppl';
   const hyApp  = p.hypertrophyApproach || '';
   const cfg    = programBuilderConfig;
-  const strengthCtx = buildStrengthMethodContext();
+  const type   = cfg.type || 'strength';
   const blCtx  = getBaselineContext();
+  const strengthCtx = (type==='strength'||type==='hybrid'||type==='fitstop') ? buildStrengthMethodContext() : '';
+  const spw          = cfg.sessionsPerWeek;
   const workingWeeks = cfg.weeks;
   const totalWeeks   = cfg.weeks + 1; // +1 deload
+  const typeLabel = {strength:'Strength',endurance:'Endurance',hybrid:'Hybrid (strength + endurance)',fitstop:'Fitstop'}[type]||type;
 
   body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px;">
     <div style="font-size:40px;margin-bottom:16px;">⚡</div>
-    <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Building your program…</div>
+    <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Building your ${typeLabel.toLowerCase()} program…</div>
     <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:2;">
-      ${cfg.weeks} working weeks + 1 deload<br>
-      ${cfg.sessionsPerWeek} sessions/week · ${split.toUpperCase()} split<br>
-      ${method !== 'auto' ? method.toUpperCase()+' methodology' : 'Auto methodology'}<br>
+      ${workingWeeks} working weeks + 1 deload<br>
+      ${spw} sessions/week<br>
     </div>
     <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:16px;">This takes 15–30 seconds…</div>
   </div>`;
 
   const splitMap = {'ppl':'Push/Pull/Legs','upper-lower':'Upper/Lower','total-body':'Total Body','body-part':'Body Part Split'};
   const methodMap = {auto:'Auto-selected best approach',westside:'Westside Conjugate',jts:'Juggernaut Training Systems',kabuki:'Kabuki Strength Lab'};
-  const hyMap = {israetel:'Mike Israetel / RP',schoenfeld:'Brad Schoenfeld',peters:'Jordan Peters (HFT)',bennett:'Joe Bennett'};
 
-  const systemPrompt = `You are an elite strength and conditioning coach. Generate a complete structured training program as JSON.
-${strengthCtx ? '\n'+strengthCtx : ''}
-${blCtx ? '\n'+blCtx : ''}
+  // Per-type session-shape guidance and rules.
+  const sessionShapes = `Each session object has an "id" (kebab-case), "name", "focus", and a "type" — one of:
+  • "strength"  → include "exercises":[{ "name","sets":4,"reps":"8-10","load":"% 1RM / @RPE","rest":"2 min","cue":"…" }]
+  • "endurance" → include "runType" (easy|tempo|threshold|intervals|long|recovery), "distance" (e.g. "10 km" or ""),
+                  "duration" (e.g. "50 min"), "pace" (e.g. "4:45/km" or ""), "zone" (e.g. "Z2"), "intervals" (e.g. "6×800m @ 3:30, 90s jog" or ""), "rpe", "cue"
+  • "fitstop"   → a class-style conditioning session: include "format" (e.g. "AMRAP 20 / 4 stations") and
+                  "exercises":[{ "name","detail":"reps or time","cue":"…" }]`;
 
-Return ONLY a \`\`\`json ... \`\`\` block. No preamble or explanation outside the block.
+  const typeRules = ({
+    strength:`This is a STRENGTH program. All sessions type "strength". Split: ${splitMap[split]||split}. ${spw<=4?'5-6':'4-5'} exercises/session (compound + isolation). Loads: give BOTH % 1RM and RPE where possible. Apply methodology: ${method==='westside'?'ME/DE structure, rotated main lift, weak-point accessories':method==='jts'?'RPE-based autoregulation, block identity, technical standards':method==='kabuki'?'wedge/brace cues, position quality, specialty bars':'evidence-based volume + progressive overload'}.`,
+    endurance:`This is an ENDURANCE program. All sessions type "endurance". Build a balanced week: mostly easy/Zone-2 aerobic volume, with 1-2 quality sessions (tempo/threshold/intervals) and (if 5+ days) a long run. Provide pace OR zone targets and concrete interval structures. Respect easy/hard polarisation.`,
+    hybrid:`This is a HYBRID program mixing STRENGTH and ENDURANCE in the same week (concurrent training). Use BOTH "strength" and "endurance" session types. Follow the user's requested split of disciplines across the week. Place hard runs and heavy lifts on separate days where possible; keep easy aerobic work around the lifting. ${splitMap[split]?'Strength split: '+splitMap[split]+'.':''}`,
+    fitstop:`This is a FITSTOP-style program built around class formats. Use "fitstop" sessions for LIFT (strength-biased) and PERFORM (conditioning/HIIT) days, and you MAY add "endurance" sessions (Zone 2 runs/bike) if the user asks. Give each fitstop session a clear "format" and station list.`,
+  })[type] || '';
 
-EXACT JSON schema:
+  const systemPrompt = `You are an elite hybrid strength & endurance coach. Generate a complete, structured ${typeLabel} training program as JSON.
+${strengthCtx ? '\n'+strengthCtx : ''}${blCtx ? '\n'+blCtx : ''}
+
+Return ONLY a \`\`\`json ... \`\`\` block. No prose outside it.
+
+${sessionShapes}
+
+TOP-LEVEL schema:
 {
   "name": "Descriptive program name",
+  "type": "${type}",
   "weeks": ${totalWeeks},
-  "sessionsPerWeek": ${cfg.sessionsPerWeek},
-  "split": "${split}",
-  "progression": "One sentence: how load/volume evolves week to week",
-  "sessions": [
-    {
-      "id": "kebab-id",
-      "name": "Session Name",
-      "focus": "Target muscles",
-      "exercises": [
-        { "name": "Exercise", "sets": 4, "reps": "8-10", "load": "% 1RM + RPE", "rest": "2 min", "cue": "Key technique note" }
-      ]
-    }
-  ],
-  "weekSchedule": ["id1","id2",...],
+  "sessionsPerWeek": ${spw},
+  "progression": "One sentence on how the program evolves week to week",
+  "sessions": [ /* the UNIQUE sessions used in a week (see shapes above) */ ],
+  "dayMap": [ /* EXACTLY 7 entries for Mon,Tue,Wed,Thu,Fri,Sat,Sun — each is a session "id" or null for a rest day */ ],
   "weeklyProgressions": [
-    { "week": 1, "note": "..." },
-    { "week": 2, "setsAdd": 1, "note": "..." },
-    { "week": ${totalWeeks}, "deload": true, "note": "Deload — 50% volume, maintain load" }
+    { "week": 1, "note": "…" },
+    { "week": 2, "setsAdd": 1, "note": "…" },
+    { "week": ${totalWeeks}, "deload": true, "note": "Deload — reduce volume ~50%" }
   ]
 }
 
 RULES:
-• sessions: define ${cfg.sessionsPerWeek <= 3 ? '3' : cfg.sessionsPerWeek <= 4 ? '4-6' : '5-6'} unique sessions appropriate for ${splitMap[split]||split}.
-• exercises per session: ${cfg.sessionsPerWeek <= 4 ? '5-6' : '4-5'} exercises. Include compound + isolation.
-• weekSchedule: length = ${workingWeeks} × ${cfg.sessionsPerWeek} = ${workingWeeks * cfg.sessionsPerWeek} entries. Rotate the sessions in order for each week. Do NOT include deload in the schedule.
-• weeklyProgressions: exactly ${totalWeeks} entries (weeks 1–${workingWeeks} working, week ${totalWeeks} = deload: true).
-• setsAdd cumulates from week 1 (week 1: 0, week 2: +1, week 3: +2, etc.).
-• Loads: provide BOTH % 1RM and RPE where possible (e.g. "70% 1RM / @RPE 7"). Use RPE-only if no baseline.
-• Apply methodology strictly: ${method==='westside'?'ME/DE structure, rotated main exercise, accessory weak-point work':method==='jts'?'RPE-based autoregulation, block identity in notes, technical standards':method==='kabuki'?'wedge/brace cues in every session, position quality notes, specialty bar variants':'volume landmarks for RP, contraction cues for Bennett, eccentric tempo for Peters, evidence-based variety for Schoenfeld'}.`;
+• ${typeRules}
+• dayMap: EXACTLY 7 entries (Mon→Sun). EXACTLY ${spw} of them are non-null session ids; the rest are null. Every non-null id MUST exist in "sessions". Distribute training days sensibly across the week.
+• Define enough unique "sessions" to fill those ${spw} weekly slots (reuse an id on multiple days only if the session truly repeats).
+• weeklyProgressions: EXACTLY ${totalWeeks} entries (weeks 1–${workingWeeks} working, week ${totalWeeks} has "deload": true). "setsAdd" (strength) cumulates from 0.
+• Keep it realistic and specific. Every session needs concrete targets a trainee can execute and log.`;
 
-  const userMessage = `Generate the program.
-Goal: ${p.goal||'build strength and muscle'}
-Methodology: ${methodMap[method]||method}
-Hypertrophy approach: ${hyMap[hyApp]||'not set'}
-Split: ${splitMap[split]||split}
-Sessions/week: ${cfg.sessionsPerWeek}
-Working weeks: ${workingWeeks} + 1 deload week`;
+  const userMessage = `Generate the ${typeLabel} program.
+Primary goal / weekly structure (user's words): ${cfg.goal?.trim() || p.goal || 'general fitness and progression'}
+${type==='strength'||type==='hybrid'?`Strength methodology: ${methodMap[method]||method}\nStrength split: ${splitMap[split]||split}\n`:''}Total sessions/week: ${spw}
+Working weeks: ${workingWeeks} + 1 deload week (total ${totalWeeks})`;
 
   try {
     const result = await aiAPI({
@@ -6137,15 +6280,13 @@ Working weeks: ${workingWeeks} + 1 deload week`;
     const match = text.match(/```json\s*([\s\S]+?)\s*```/);
     if (!match) throw new Error('No JSON block found in response. Try again.');
     const data = JSON.parse(match[1]);
-    // Anchor the program: unique id + start date (Monday of the current week) so
-    // the homepage tracks the real week and Strava can map dates → program weeks.
-    data.id = 'prog-' + Date.now();
-    data.startDate = _mondayISO(new Date());
+    _normalizeProgram(data, cfg);
     saveProgramData(data);
     currentProgramWeek = 1;
     programViewWeek = 1;
     renderSavedProgram();
     renderMyProgramCard();
+    renderAll();
     toast('Program generated!');
   } catch(e) {
     body.innerHTML = `<div style="padding:24px;">
@@ -6153,6 +6294,35 @@ Working weeks: ${workingWeeks} + 1 deload week`;
       <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:20px;">${e.message}</div>
       <button class="btn" onclick="renderProgramBuilder()">← Back to Builder</button>
     </div>`;
+  }
+}
+
+// Normalise/repair an AI-generated program into the integrated schema: anchor it,
+// ensure per-session types, and guarantee a valid 7-day dayMap.
+function _normalizeProgram(data, cfg){
+  data.id = 'prog-' + Date.now();
+  data.startDate = _mondayISO(new Date());
+  data.type = data.type || cfg.type || 'strength';
+  data.weeks = data.weeks || (cfg.weeks+1);
+  data.sessionsPerWeek = data.sessionsPerWeek || cfg.sessionsPerWeek;
+  const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  // Default each session's type from the program type when missing.
+  const defType = data.type==='endurance' ? 'endurance' : data.type==='fitstop' ? 'fitstop' : 'strength';
+  sessions.forEach(s=>{ if(!s.type) s.type = (s.exercises&&s.exercises[0]&&'sets' in s.exercises[0]) ? 'strength' : defType; });
+  // Ensure a valid 7-entry dayMap; build one from default slots if missing/wrong.
+  const ids = sessions.map(s=>s.id).filter(Boolean);
+  let dm = Array.isArray(data.dayMap) ? data.dayMap.slice(0,7) : null;
+  const validDm = dm && dm.length===7 && dm.some(x=>x) && dm.every(x=>x===null||ids.includes(x));
+  if(!validDm){
+    const slotDays=_progDays(data.sessionsPerWeek||ids.length||4); // e.g. ['Mon','Tue','Thu','Fri']
+    const order=_ALL_DOW;
+    dm=order.map(d=>{ const i=slotDays.indexOf(d); return i>=0 ? (ids[i]||ids[i%ids.length]||null) : null; });
+  }
+  data.dayMap = dm;
+  // Ensure weeklyProgressions covers all weeks with a deload last.
+  if(!Array.isArray(data.weeklyProgressions) || !data.weeklyProgressions.length){
+    data.weeklyProgressions = Array.from({length:data.weeks},(_,i)=>({week:i+1, setsAdd:i, note:'',
+      ...(i===data.weeks-1?{deload:true,note:'Deload — reduce volume ~50%'}:{})}));
   }
 }
 
