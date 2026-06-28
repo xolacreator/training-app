@@ -1,0 +1,70 @@
+// Knowledge domain: PHYSIOLOGY — energy systems, adaptation mechanisms, the
+// interference effect, fatigue models. Established exercise physiology.
+
+export const physiology = [
+  {
+    id: 'physiology.energy_systems',
+    domain: 'physiology', version: 1,
+    title: 'Energy Systems',
+    summary: 'Work is fuelled by three overlapping systems — phosphocreatine, glycolytic, and oxidative — whose mix depends on intensity and duration.',
+    principles: [
+      'ATP-PCr: ~0–10 s maximal efforts (sprints, heavy lifts).',
+      'Glycolytic: ~10 s–2 min hard efforts (intervals, station bursts).',
+      'Oxidative: dominant >~2 min and for all easy/long work.',
+      'Train the systems the event actually taxes, in the proportions it taxes them.',
+    ],
+    prescription: { progression: 'Match interval work:rest and durations to the target energy system.' },
+    cautions: ['Mismatching the energy system trains the wrong quality for the event.'],
+    appliesTo: ['running','hyrox','deka','hybrid','fitstop'],
+    tags: ['energy-systems','bioenergetics','intervals'],
+    sources: ['Established science: bioenergetics of exercise (ACSM; exercise-physiology texts).'],
+  },
+  {
+    id: 'physiology.aerobic_adaptations',
+    domain: 'physiology', version: 1,
+    title: 'Aerobic Adaptations',
+    summary: 'Endurance training raises VO2max, lactate threshold and economy via central (cardiac) and peripheral (mitochondrial/capillary) changes.',
+    principles: [
+      'Central adaptations (stroke volume) respond to higher-intensity aerobic work.',
+      'Peripheral adaptations (mitochondria, capillaries) respond to volume of easy work.',
+      'Economy improves with accumulated specific running.',
+    ],
+    prescription: { progression: 'Build peripheral base with volume, then add central stimulus with intensity.' },
+    cautions: ['All-intensity or all-volume training under-develops one side.'],
+    appliesTo: ['running','hybrid','hyrox'],
+    tags: ['vo2max','threshold','economy','adaptation'],
+    sources: ['Established science: endurance-adaptation physiology (Bassett & Howley; Joyner).'],
+  },
+  {
+    id: 'physiology.interference_mechanism',
+    domain: 'physiology', version: 1,
+    title: 'Interference Effect (Mechanism)',
+    summary: 'Endurance and strength adaptation are partly antagonistic at the molecular level (AMPK vs mTOR signalling) and via residual fatigue.',
+    principles: [
+      'Acute endurance signalling can suppress the anabolic response to lifting if too close together.',
+      'Most real-world interference is fatigue-mediated — recovery and sequencing mitigate it.',
+      'Modality and muscle overlap determine severity (same-muscle, high-intensity = worst).',
+    ],
+    prescription: { progression: 'Separate competing stimuli in time; bias volume to the phase priority.' },
+    cautions: ['Ignoring interference caps both qualities in hybrid athletes.'],
+    appliesTo: ['hybrid','hyrox','strength'],
+    tags: ['interference','ampk','mtor','concurrent'],
+    sources: ['Established science: molecular interference (Hawley; Coffey & Hawley).'],
+  },
+  {
+    id: 'physiology.fatigue_model',
+    domain: 'physiology', version: 1,
+    title: 'Acute vs Chronic Load (ACWR) & Fatigue',
+    summary: 'Injury and readiness track the relationship between recent (acute) and habitual (chronic) load, not absolute load alone.',
+    principles: [
+      'Spikes in acute relative to chronic load raise injury risk.',
+      'A robust chronic base lets an athlete tolerate more acute load.',
+      'Ramp load smoothly; build the chronic base before chasing peaks.',
+    ],
+    prescription: { progression: 'Keep acute:chronic load in a moderate band; avoid sharp weekly spikes.' },
+    cautions: ['Big single-week jumps (the "too much too soon") drive overuse injury.'],
+    appliesTo: ['running','hybrid','hyrox','strength','deka'],
+    tags: ['acwr','load','injury','fatigue'],
+    sources: ['Established science: acute:chronic workload literature (Gabbett) — applied with noted caveats.'],
+  },
+];

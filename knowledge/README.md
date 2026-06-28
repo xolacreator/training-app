@@ -4,9 +4,11 @@ The coaching knowledge layer. Structured, versioned, modular coaching science th
 Reasoning + Programming engines draw on — so recommendations are **explainable and
 scientifically defensible**, not improvised inside a prompt.
 
-> Status: **scaffold / proposal**. These modules are inert — not yet loaded by the app.
-> They define the schema and sourcing policy and provide one fully-worked domain
-> (`running`) so the structure can be reviewed before the full corpus is authored.
+> Status: **v1 authored, inert** — not yet wired into the app (zero risk, fully
+> backwards compatible). 10 domains are authored from established, cited science
+> (63 entries total); `fitstop` ships a generic fallback only (`provided:false`) and
+> awaits verified material (`fitstop.TEMPLATE.md`). Wiring into the engines is a later,
+> deliberate step (see *Integration*).
 
 ## Why a repository (not prompt strings)
 

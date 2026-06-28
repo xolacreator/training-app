@@ -9,26 +9,25 @@
 // (fitstop, deka methodology) intentionally hold NO fabricated content — they wait on
 // verified, user-provided material and otherwise fall back to established science.
 
+import { core } from './core.mjs';
 import { running } from './running.mjs';
+import { strength } from './strength.mjs';
+import { periodization } from './periodization.mjs';
+import { recovery } from './recovery.mjs';
+import { physiology } from './physiology.mjs';
+import { hyrox } from './hyrox.mjs';
+import { deka } from './deka.mjs';
+import { nutrition } from './nutrition.mjs';
+import { exercise_library } from './exercise_library.mjs';
+import { fitstop, fitstopMeta } from './fitstop.mjs';
 
-// Placeholder domains — authored next, per the sourcing policy in README.md.
-// `provided` flags whether verified content exists yet (false ⇒ engine falls back).
-const PLACEHOLDER = (domain, note, provided = false) => ({
-  __placeholder: true, domain, provided, note, entries: [],
-});
-
+// Domains authored from established, cited science are arrays of entries.
+// Fitstop is proprietary: its entries are a GENERIC FALLBACK (provided:false) until
+// verified user material is supplied (see fitstop.TEMPLATE.md).
 const DOMAINS = {
-  running,                                   // ✅ worked (established science)
-  core:          PLACEHOLDER('core', 'Cross-cutting coaching principles (progressive overload, specificity, individualisation, recoverability).'),
-  strength:      PLACEHOLDER('strength', 'Force/hypertrophy/concurrent-training science (Helms/Israetel volume landmarks, RIR autoregulation).'),
-  hyrox:         PLACEHOLDER('hyrox', 'Event demands are PUBLIC (8×1km + 8 stations, compromised running) and may be encoded; coaching method follows established science.'),
-  fitstop:       PLACEHOLDER('fitstop', 'PROPRIETARY — encode only from verified user-provided material. No fabrication. Falls back to established conditioning science until provided.'),
-  deka:          PLACEHOLDER('deka', 'Event format is PUBLIC (DEKA Strong/Mile/Fit zones); proprietary coaching method needs verified input.'),
-  nutrition:     PLACEHOLDER('nutrition', 'Fueling/hydration/recovery/race nutrition (ACSM/ISSN consensus).'),
-  recovery:      PLACEHOLDER('recovery', 'HRV/sleep/fatigue/taper/connective-tissue adaptation (taper meta-analyses; HRV-guided training).'),
-  periodization: PLACEHOLDER('periodization', 'Macro/meso/micro structure, phase potentiation, deload (Bompa; block periodisation).'),
-  physiology:    PLACEHOLDER('physiology', 'Energy systems, adaptation timelines, interference effect, fatigue models.'),
-  exercise_library: PLACEHOLDER('exercise_library', 'Movement taxonomy: pattern, equipment, stimulus, regressions/progressions, fatigue cost.'),
+  core, running, strength, periodization, recovery, physiology,
+  hyrox, deka, nutrition, exercise_library,
+  fitstop: { __domain: true, domain: 'fitstop', provided: fitstopMeta.provided, note: fitstopMeta.note, entries: fitstop },
 };
 
 function allEntries() {
@@ -36,7 +35,7 @@ function allEntries() {
 }
 
 export const Knowledge = {
-  repoVersion: 1,
+  repoVersion: 2,
 
   /** Full entry by id, or null. */
   get(id) { return allEntries().find(e => e.id === id) || null; },
