@@ -148,7 +148,13 @@ body{
 /* ── OVERLAYS ── */
 .overlay{
   position:fixed;
-  top:0;left:0;right:0;height:100dvh;
+  /* Pin ALL FOUR edges to the viewport instead of height:100dvh.
+     This makes height = the real fixed-positioning containing block (the visible
+     viewport) with zero dependence on how iOS resolves dvh. On standalone PWAs
+     with a black-translucent status bar, 100dvh could resolve taller than the
+     visible area, pushing the footer (and its Back button) below the fold — that
+     was the "stuck on screen, can't reach Back" bug. inset:0 makes it impossible. */
+  inset:0;
   background:var(--bg);
   z-index:200;
   overflow:hidden;
@@ -1061,17 +1067,29 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="oi">
     <div class="eyebrow">AI-Powered</div>
     <div class="overlay-title" style="margin-bottom:4px;">Plan Builder</div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;">Powered by Claude · extend your plan or build new sessions</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:20px;" id="ai-provider-tagline">Powered by Claude · extend your plan or build new sessions</div>
 
-    <div class="sec-lbl">API Key</div>
+    <div class="sec-lbl">AI Provider</div>
     <div class="card" style="margin-bottom:8px;">
-      <div class="fg" style="margin-bottom:8px;">
+      <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:14px;">
+        <button id="prov-anthropic" onclick="setAIProvider('anthropic')" style="flex:1;border:none;padding:9px 0;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;background:var(--accent);color:#000;">Claude</button>
+        <button id="prov-openai" onclick="setAIProvider('openai')" style="flex:1;border:none;padding:9px 0;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;background:var(--bg2);color:var(--text3);">ChatGPT</button>
+      </div>
+      <div class="fg" id="key-anthropic-wrap" style="margin-bottom:0;">
         <label class="flbl">Claude API Key (stored locally on device)</label>
         <input type="password" id="ai-api-key" placeholder="sk-ant-api03-…" oninput="aiKeySave()">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-top:6px;">
+          Get your key at console.anthropic.com → API Keys<br>
+          Stored only in this browser · never sent elsewhere
+        </div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;">
-        Get your key at console.anthropic.com → API Keys<br>
-        Stored only in this browser · never sent elsewhere
+      <div class="fg" id="key-openai-wrap" style="margin-bottom:0;display:none;">
+        <label class="flbl">OpenAI API Key (stored locally on device)</label>
+        <input type="password" id="ai-openai-key" placeholder="sk-…" oninput="aiKeySave()">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-top:6px;">
+          Get your key at platform.openai.com → API keys<br>
+          Stored only in this browser · never sent elsewhere
+        </div>
       </div>
     </div>
 
@@ -4672,9 +4690,11 @@ function confirmClear(){
 let aiGeneratedSession = null;
 
 function openAI() {
-  const key = localStorage.getItem('ht-ai-key') || '';
   const keyEl = document.getElementById('ai-api-key');
-  if (keyEl) keyEl.value = key;
+  if (keyEl) keyEl.value = localStorage.getItem('ht-ai-key') || '';
+  const oaEl = document.getElementById('ai-openai-key');
+  if (oaEl) oaEl.value = localStorage.getItem('ht-openai-key') || '';
+  syncAIProviderUI();
   renderAIContext();
   renderAIQuickPrompts();
   document.getElementById('ai-output').style.display = 'none';
@@ -4685,6 +4705,31 @@ function openAI() {
 function aiKeySave() {
   const k = document.getElementById('ai-api-key')?.value || '';
   try { localStorage.setItem('ht-ai-key', k); } catch(e) {}
+  const oa = document.getElementById('ai-openai-key')?.value || '';
+  try { localStorage.setItem('ht-openai-key', oa); } catch(e) {}
+}
+
+// Reflect the selected provider in the AI overlay: toggle button styling, which
+// key field is shown, and the tagline.
+function syncAIProviderUI() {
+  const prov = getAIProvider();
+  const isOA = prov === 'openai';
+  const aBtn = document.getElementById('prov-anthropic');
+  const oBtn = document.getElementById('prov-openai');
+  if (aBtn && oBtn) {
+    aBtn.style.background = isOA ? 'var(--bg2)' : 'var(--accent)';
+    aBtn.style.color      = isOA ? 'var(--text3)' : '#000';
+    oBtn.style.background = isOA ? 'var(--accent)' : 'var(--bg2)';
+    oBtn.style.color      = isOA ? '#000' : 'var(--text3)';
+  }
+  const aWrap = document.getElementById('key-anthropic-wrap');
+  const oWrap = document.getElementById('key-openai-wrap');
+  if (aWrap) aWrap.style.display = isOA ? 'none' : '';
+  if (oWrap) oWrap.style.display = isOA ? '' : 'none';
+  const tag = document.getElementById('ai-provider-tagline');
+  if (tag) tag.textContent = isOA
+    ? 'Powered by ChatGPT · extend your plan or build new sessions'
+    : 'Powered by Claude · extend your plan or build new sessions';
 }
 
 function renderAIContext() {
@@ -4746,9 +4791,8 @@ function setAIPrompt(btn) {
 }
 
 async function runAI() {
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) {
-    toast('Enter a valid Claude API key first'); return;
+  if (!hasValidAIKey()) {
+    toast(getAIProvider()==='openai' ? 'Enter a valid OpenAI API key first' : 'Enter a valid Claude API key first'); return;
   }
   const prompt = document.getElementById('ai-prompt')?.value?.trim();
   if (!prompt) { toast('Describe what you need first'); return; }
@@ -4758,7 +4802,7 @@ async function runAI() {
   document.getElementById('ai-output').style.display = 'none';
 
   try {
-    const data = await claudeAPI(key, {
+    const data = await aiAPI({
       model: 'claude-opus-4-8',
       max_tokens: 4096,
       system: buildAISystemPrompt(),
@@ -5879,8 +5923,7 @@ function renderSavedProgram() {
 async function generateStrengthProgram() {
   const body = document.getElementById('program-overlay-body');
   if (!body) return;
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key && !stravaWorker) { toast('Add a Claude API key in AI Session Builder first'); return; }
+  if (!hasValidAIKey()) { toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return; }
 
   const p      = coachProfile || {};
   const method = p.strengthMethod || 'auto';
@@ -5956,7 +5999,7 @@ Sessions/week: ${cfg.sessionsPerWeek}
 Working weeks: ${workingWeeks} + 1 deload week`;
 
   try {
-    const result = await claudeAPI(key, {
+    const result = await aiAPI({
       model: 'claude-opus-4-8',
       system: systemPrompt,
       messages: [{role:'user', content: userMessage}],
@@ -6967,9 +7010,8 @@ function autoGrowCoachInput(el) {
 
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) {
-    toast('Add a Claude API key in AI Session Builder first'); return;
+  if (!hasValidAIKey()) {
+    toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return;
   }
   localStorage.setItem('ht-last-coach-open', Date.now().toString());
   renderCoachHeader();
@@ -7051,10 +7093,72 @@ async function claudeAPI(key, opts) {
   return res.json();
 }
 
+// ── AI PROVIDER ABSTRACTION (Claude or ChatGPT) ──────────────────────────────
+// All app AI calls go through aiAPI(); it picks the provider, resolves the model
+// name, and normalizes responses to Claude's {content:[{text}]} shape so every
+// callsite stays provider-agnostic.
+function getAIProvider() { return localStorage.getItem('ht-ai-provider') || 'anthropic'; }
+function getAIKey() {
+  return getAIProvider() === 'openai'
+    ? (localStorage.getItem('ht-openai-key') || '')
+    : (localStorage.getItem('ht-ai-key') || '');
+}
+// True when the current provider has a plausibly-valid key. Worker-proxied Claude
+// can also run keyless (the worker holds the key), matching prior behaviour.
+function hasValidAIKey() {
+  const key = getAIKey();
+  if (getAIProvider() === 'openai') return key.startsWith('sk-');
+  return key.startsWith('sk-ant') || !!stravaWorker;
+}
+// Map the Claude model ids used throughout the app onto OpenAI equivalents.
+const _OPENAI_MODELS = { large:'gpt-4o', small:'gpt-4o-mini' };
+function resolveModel(m) {
+  if (getAIProvider() !== 'openai') return m;
+  if (typeof m === 'string' && m.startsWith('claude-haiku')) return _OPENAI_MODELS.small;
+  return _OPENAI_MODELS.large; // opus / sonnet → gpt-4o
+}
+async function openaiAPI(key, opts) {
+  const via = stravaWorker;
+  if (via) {
+    // Route through the worker (avoids iOS PWA CORS), same as claudeAPI.
+    const res = await fetch(`${via}/openai`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ key, model: opts.model, system: opts.system,
+        messages: opts.messages, max_tokens: opts.max_tokens }),
+    });
+    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API ${res.status}`); }
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message || 'OpenAI error');
+    return { content: [{ text: d.choices?.[0]?.message?.content || '' }] };
+  }
+  // Direct call (desktop / non-PWA). OpenAI blocks browser CORS on iOS PWAs, so
+  // the worker path above is required there.
+  const msgs = [];
+  if (opts.system) msgs.push({ role:'system', content: opts.system });
+  msgs.push(...(opts.messages || []));
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+    body: JSON.stringify({ model: opts.model, max_tokens: opts.max_tokens, messages: msgs }),
+  });
+  if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API ${res.status}`); }
+  const d = await res.json();
+  return { content: [{ text: d.choices?.[0]?.message?.content || '' }] };
+}
+// Single entry point — resolves provider + model and returns a Claude-shaped result.
+async function aiAPI(opts) {
+  const key = getAIKey();
+  const resolved = { ...opts, model: resolveModel(opts.model) };
+  return getAIProvider() === 'openai' ? openaiAPI(key, resolved) : claudeAPI(key, resolved);
+}
+function setAIProvider(p) {
+  localStorage.setItem('ht-ai-provider', p === 'openai' ? 'openai' : 'anthropic');
+  if (typeof syncAIProviderUI === 'function') syncAIProviderUI();
+}
+
 async function _callCoachAPI() {
-  const key = localStorage.getItem('ht-ai-key') || '';
   try {
-    const data = await claudeAPI(key, {
+    const data = await aiAPI({
       model: 'claude-sonnet-4-6', max_tokens: 900,
       system: buildCoachSystemPrompt(),
       messages: coachMessages.map(m => ({role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text})),
@@ -7189,8 +7293,7 @@ async function sendCoachMessage() {
   const input = document.getElementById('coach-input');
   const text = input?.value?.trim();
   if (!text || coachTyping) return;
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) { toast('Add a Claude API key in AI Session Builder first'); return; }
+  if (!hasValidAIKey()) { toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return; }
   input.value = '';
   input.style.height = '';
   coachMessages.push({role:'user', text});
@@ -7327,8 +7430,7 @@ function saveCoachMemory(mem) {
 async function proposeMemoryUpdate() {
   const exchanges = coachMessages.filter(m => m.role === 'user').length;
   if (exchanges < 2) return;
-  const key = localStorage.getItem('ht-ai-key') || '';
-  if (!key || !key.startsWith('sk-ant')) return;
+  if (!hasValidAIKey()) return;
 
   const mem = loadCoachMemory();
   const transcript = coachMessages
@@ -7341,7 +7443,7 @@ async function proposeMemoryUpdate() {
     : '';
 
   try {
-    const data = await claudeAPI(key, {
+    const data = await aiAPI({
       model: 'claude-haiku-4-5-20251001', max_tokens: 220,
       messages: [{
         role: 'user',
@@ -7563,16 +7665,15 @@ async function showWeeklyDigest(){
 
   // AI coaching note (optional — requires key)
   const noteEl=document.getElementById('digest-note');
-  const key=localStorage.getItem('ht-ai-key')||'';
-  if(!key||!key.startsWith('sk-ant')){
+  if(!hasValidAIKey()){
     noteEl.innerHTML = st.count===0
       ? 'No sessions logged this week. A fresh week is a clean slate — get one quality session and one easy session on the board to build momentum.'
-      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add a Claude API key in More → AI for personalised notes.</span>`;
+      : `Solid week: ${st.count} session${st.count===1?'':'s'} and ${st.hardCount} quality effort${st.hardCount===1?'':'s'}. Keep the easy days easy and stay consistent. <span style="color:var(--text3);font-family:var(--mono);font-size:9px;">Add an AI key in More → AI for personalised notes.</span>`;
     return;
   }
   try{
     const p=coachProfile||{};
-    const data=await claudeAPI(key,{
+    const data=await aiAPI({
       model:'claude-haiku-4-5-20251001', max_tokens:200,
       system:`You are ${p.name||'an elite endurance coach'}, writing a brief weekly review note. 2-3 sentences max. Specific, encouraging, one forward-looking tip for next week. No greeting, no signature.`,
       messages:[{role:'user',content:`This athlete's past 7 days: ${st.count} sessions, ${st.hardCount} quality/hard, ${dist.toFixed(1)}${distUnit()} volume, training load ${st.load} units, avg feel ${st.avgFeel?st.avgFeel.toFixed(1):'n/a'}/5. Plan week ${currentPlanWeek}/12. Write their weekly review note.`}],
