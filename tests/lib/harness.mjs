@@ -117,7 +117,9 @@ export async function runBenchmark(page, bench, fixture) {
     window.__cap = null;
     aiAPI = async (opts) => { window.__cap = { system: opts.system, user: opts.messages?.[0]?.content, model: opts.model }; return { content: [{ text: '```json\n' + JSON.stringify(fx) + '\n```' }] }; };
     await generateProgram();
-    return { prompt: window.__cap, program: savedProgram };
+    // Run the in-app Validation Engine on the generated program (if present).
+    const validation = (typeof validateProgram === 'function') ? validateProgram(savedProgram, {}) : null;
+    return { prompt: window.__cap, program: savedProgram, validation };
   }, fixture);
   return out;
 }

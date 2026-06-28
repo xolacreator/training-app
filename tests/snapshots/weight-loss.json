@@ -200,5 +200,12 @@
       "spwMatchesDayMap": true,
       "weeklyProgCoversWeeks": true
     }
+  },
+  "validation": {
+    "score": 100,
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "infos": []
   }
 }

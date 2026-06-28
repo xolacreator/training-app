@@ -45,12 +45,18 @@ for (const bench of BENCHMARKS) {
   const fixture = synthProgram(bench.config);
   let snap;
   try {
-    const { prompt, program } = await runBenchmark(page, bench, fixture);
+    const { prompt, program, validation } = await runBenchmark(page, bench, fixture);
     if (!program) throw new Error('generation returned no program');
+    // Validation: keep only stable fields (drop free-text messages would lose signal;
+    // keep counts + rules + score for a stable, meaningful regression baseline).
+    const v = validation ? { score: validation.score, ok: validation.ok,
+      errors: validation.errors.map(e=>e.rule), warnings: validation.warnings.map(w=>w.rule),
+      infos: validation.infos.map(i=>i.rule) } : null;
     snap = { key: bench.key, label: bench.label,
       prompt: { system: prompt?.system || '', user: prompt?.user || '' },
       program: stripVolatile(program),
-      metrics: analyzeProgram(program) };
+      metrics: analyzeProgram(program),
+      validation: v };
   } catch (e) {
     console.error(`✗ ${bench.label}: ${e.message}`);
     failures++; continue;
@@ -79,7 +85,9 @@ for (const bench of BENCHMARKS) {
     'Easy%': m.endurance.easyRatio === null ? '—' : Math.round(m.endurance.easyRatio*100)+'%',
     Deload: m.progression.deloadPresent ? 'Y' : 'N',
     Concur: m.concurrencyFlags.length,
-    Valid: (m.structural.dayMapValid && m.structural.allIdsResolve && m.structural.spwMatchesDayMap && m.structural.weeklyProgCoversWeeks) ? 'OK' : 'BAD',
+    Struct: (m.structural.dayMapValid && m.structural.allIdsResolve && m.structural.spwMatchesDayMap && m.structural.weeklyProgCoversWeeks) ? 'OK' : 'BAD',
+    'Valid.': snap.validation ? `${snap.validation.score}` : '—',
+    'Warn': snap.validation ? snap.validation.warnings.length : '—',
   });
 }
 

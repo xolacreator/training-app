@@ -6257,6 +6257,90 @@ function buildFitstopHybrid(keptDays, runGoal){
   toast('Fitstop + endurance block built — running scheduled around your Fitstop days');
 }
 
+// ── VALIDATION ENGINE ───────────────────────────────────────────────────────
+// Scores a program against established coaching rules and returns actionable
+// violations. Pure function over a program (+ optional athlete context). Used to
+// surface a coaching report and to gate/flag generated programs. Mirrors the
+// Knowledge Repository principles (intensity distribution, concurrent interference,
+// recovery, progression, goal alignment).
+const _V_EASY_RT = new Set(['easy','recovery','long']);
+function _vTypeOf(s){ return s?.type || 'strength'; }
+function validateProgram(prog, ctx = {}) {
+  const V = [];
+  const add = (rule, severity, message, suggestion='') => V.push({ rule, severity, message, suggestion });
+  if (!prog || !Array.isArray(prog.sessions)) { add('structure','error','No program or sessions to validate.'); return _vResult(V); }
+  const ALL = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const byId = Object.fromEntries(prog.sessions.map(s => [s.id, s]));
+  const dm = (Array.isArray(prog.dayMap) && prog.dayMap.length === 7) ? prog.dayMap : null;
+  const slots = dm ? dm.map(id => id ? byId[id] : null) : [];
+  const training = slots.filter(Boolean);
+  const isEasyRun = s => _vTypeOf(s)==='endurance' && _V_EASY_RT.has(s.runType);
+  const hardRun = s => _vTypeOf(s)==='endurance' && !_V_EASY_RT.has(s.runType);
+  const heavy   = s => _vTypeOf(s)==='strength' || _vTypeOf(s)==='fitstop';
+  const taxing  = s => s && !isEasyRun(s);
+
+  // 1 — Structure
+  if (!dm) add('structure','error','Missing a valid 7-day weekly plan (dayMap).','Define Mon–Sun, each a session id or rest.');
+  else {
+    if (!dm.every(id => id===null || byId[id])) add('structure','error','Weekly plan references unknown sessions.','');
+    const nn = dm.filter(Boolean).length;
+    if (prog.sessionsPerWeek && nn !== prog.sessionsPerWeek) add('structure','info',`Plan has ${nn} sessions but sessionsPerWeek=${prog.sessionsPerWeek}.`,'');
+  }
+  // 2 — Recovery: rest day + consecutive hard days
+  if (dm) {
+    if (dm.filter(x => !x).length < 1) add('recovery','warn','No rest day in the week.','Include at least one rest day.');
+    let run=0, maxRun=0; for (let k=0;k<14;k++){ if (taxing(slots[k%7])){ run++; maxRun=Math.max(maxRun,run);} else run=0; }
+    if (maxRun >= 4) add('recovery','warn',`${maxRun} hard/taxing days in a row.`,'Break up consecutive hard days with an easy day or rest.');
+  }
+  // 3 — Intensity distribution (running)
+  const runs = training.filter(s => _vTypeOf(s)==='endurance');
+  if (runs.length >= 3) {
+    const easy = runs.filter(isEasyRun).length, ratio = easy/runs.length;
+    if (ratio < 0.6) add('intensity','warn',`Only ${Math.round(ratio*100)}% of runs are easy.`,'Polarise toward ~80% easy / ~20% hard.');
+  }
+  // 4 — Concurrent-training interference
+  if (dm) for (let i=0;i<7;i++){ const a=slots[i], b=slots[(i+1)%7];
+    if (a&&b && ((hardRun(a)&&heavy(b))||(heavy(a)&&hardRun(b)))) add('interference','warn',`Hard run next to a strength/Fitstop day (${ALL[i]}→${ALL[(i+1)%7]}).`,'Separate hard runs from heavy strength by a day where possible.'); }
+  if (Array.isArray(prog.interferenceFlags)) prog.interferenceFlags.forEach(f => add('interference','info', f));
+  // 5 — Progression / deload
+  const wp = prog.weeklyProgressions || [];
+  if (!wp.length) add('progression','warn','No week-to-week progression defined.','Define how load evolves each week.');
+  else if ((prog.weeks||wp.length) >= 5 && !wp.some(w=>w.deload) && prog.type!=='fitstop')
+    add('progression','warn','No deload week in a 5+ week block.','Add a deload roughly every 3–5 weeks.');
+  // 6 — Goal alignment
+  const goal = (ctx.goal || prog.type || '').toString();
+  if (prog.type==='endurance' && runs.length && !runs.some(s=>s.runType==='long')) add('goal','warn','Endurance block has no long run.','Add a weekly long run.');
+  if (prog.type==='strength') { const comp = prog.sessions.some(s=>_vTypeOf(s)==='strength' && (s.exercises||[]).some(e=>/squat|deadlift|bench|press|row|pull|hinge|lunge|clean/i.test(e.name||''))); if (!comp) add('goal','warn','Strength block has no compound lifts.','Anchor sessions with compound lifts.'); }
+  // 7 — Time availability
+  if (ctx.availability && prog.sessionsPerWeek > ctx.availability) add('time','warn',`Needs ${prog.sessionsPerWeek} days/week but athlete has ${ctx.availability}.`,'Reduce sessions/week to fit availability.');
+
+  return _vResult(V);
+}
+function _vResult(V){
+  const errors = V.filter(v=>v.severity==='error'), warnings = V.filter(v=>v.severity==='warn'), infos = V.filter(v=>v.severity==='info');
+  const score = Math.max(0, 100 - errors.length*25 - warnings.length*8);
+  return { ok: errors.length===0, score, errors, warnings, infos, all: V };
+}
+// Compact validation card for the saved-program view.
+function renderValidationCard(prog){
+  const r = validateProgram(prog, { goal: (coachProfile&&coachProfile.goal)||'', availability: coachProfile&&coachProfile.availability });
+  const color = r.errors.length ? 'var(--red)' : r.warnings.length ? 'var(--accent)' : 'var(--green,#34c759)';
+  const label = r.errors.length ? 'Needs attention' : r.warnings.length ? 'Good — minor notes' : 'Looks sound';
+  const rows = [...r.errors, ...r.warnings, ...r.infos].slice(0,6).map(v=>{
+    const c = v.severity==='error'?'var(--red)':v.severity==='warn'?'var(--accent)':'var(--text3)';
+    const icon = v.severity==='error'?'✕':v.severity==='warn'?'!':'i';
+    return `<div style="display:flex;gap:8px;padding:6px 0;border-top:.5px solid var(--border);">
+      <span style="color:${c};font-family:var(--mono);font-size:11px;flex-shrink:0;">${icon}</span>
+      <div><div style="font-size:12px;color:var(--text2);line-height:1.4;">${v.message}</div>
+      ${v.suggestion?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">→ ${v.suggestion}</div>`:''}</div></div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px;border-color:${color}33;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Coaching check</div>
+      <div style="font-size:12px;font-weight:600;color:${color};">${label} · ${r.score}/100</div>
+    </div>${rows||'<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:6px;">No issues found.</div>'}</div>`;
+}
+
 function renderSavedProgram() {
   const body = document.getElementById('program-overlay-body');
   if (!body || !savedProgram) { renderProgramBuilder(); return; }
@@ -6331,6 +6415,7 @@ function renderSavedProgram() {
       ${prog.startDate?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;">Started ${prog.startDate} · currently Week ${_progActualWeek()} of ${totalWks}</div>`:`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:6px;">No start date set — <span onclick="restartProgramToday()" style="text-decoration:underline;cursor:pointer;">anchor to this week</span> to enable date tracking</div>`}
       ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
     </div>
+    ${(()=>{ try { return renderValidationCard(prog); } catch(e) { return ''; } })()}
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${weekTabs}</div>
     ${wkMod.note?`<div style="background:var(--accent-dim);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${wkMod.note}</div>`:''}
     ${sessionCards}

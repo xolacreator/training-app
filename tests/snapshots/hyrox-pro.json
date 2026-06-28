@@ -208,5 +208,16 @@
       "spwMatchesDayMap": true,
       "weeklyProgCoversWeeks": true
     }
+  },
+  "validation": {
+    "score": 76,
+    "ok": true,
+    "errors": [],
+    "warnings": [
+      "intensity",
+      "interference",
+      "interference"
+    ],
+    "infos": []
   }
 }
