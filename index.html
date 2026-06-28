@@ -3149,16 +3149,19 @@ function saveSession(){
   const hr=(document.getElementById('f-hr')?.value||'').trim();
   const dur=(document.getElementById('f-dur')?.value||'').trim();
   const notes=buildNotes();
-  sessions.unshift({week,day,session,intensity,pace,dist,hr,dur,feel,notes,ts:Date.now(),
+  const entry={week,day,session,intensity,pace,dist,hr,dur,feel,notes,ts:Date.now(),
     cat,splits:[...splits],exercises:JSON.parse(JSON.stringify(exercises)),
-    stations:JSON.parse(JSON.stringify(stations)),sUnit});
+    stations:JSON.parse(JSON.stringify(stations)),sUnit};
+  // Link to a program session if this log was started from one (→ completion tracking)
+  if(_pendingProgLink){ entry.progId=_pendingProgLink.progId; entry.progWeek=_pendingProgLink.progWeek; entry.progSid=_pendingProgLink.progSid; }
+  sessions.unshift(entry);
   saveData();clearForm();renderAll();
   toast('Session saved');
   nav('log',document.querySelectorAll('.nb')[1]);
 }
 
 function clearForm(){
-  feel=null;splits=[];exercises=[];stations=[];
+  feel=null;splits=[];exercises=[];stations=[];_pendingProgLink=null;
   document.querySelectorAll('.feel-btn').forEach(b=>b.classList.remove('sel'));
   const fn=document.getElementById('f-notes');if(fn)fn.value='';
   renderMetrics();
@@ -3312,10 +3315,49 @@ function _progWeekSessions(week){
   return days.map((day,i)=>({day,id:ids[i]||null,session:ids[i]?prog.sessions?.find(s=>s.id===ids[i]):null}));
 }
 
+// ── PROGRAM DATE ANCHOR + COMPLETION ─────────────────────────────────────────
+// A program is anchored to a startDate (Monday of the week it was generated).
+// The "actual" week is derived from today's date so the homepage is always right;
+// the calendar can still browse other weeks via currentProgramWeek.
+function _progTotalWeeks(){ const p=savedProgram; return p ? ((p.weeks||4)+1) : 0; }
+function _progStartDate(){
+  const p=savedProgram; if(!p||!p.startDate) return null;
+  const d=new Date(p.startDate+'T00:00:00'); return isNaN(d.getTime())?null:d;
+}
+// ISO date (YYYY-MM-DD) of the Monday on/just before the given date.
+function _mondayISO(dt){
+  const d=new Date(dt); d.setHours(0,0,0,0);
+  const dow=d.getDay(); // 0=Sun..6=Sat
+  const diff=(dow===0?-6:1-dow); // back to Monday
+  d.setDate(d.getDate()+diff);
+  const mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function _progActualWeek(){
+  const start=_progStartDate(); if(!start) return currentProgramWeek||1;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const wk=Math.floor((today-start)/86400000/7)+1;
+  return Math.min(Math.max(wk,1),_progTotalWeeks()||wk);
+}
+function _progWeekForDate(iso){
+  const start=_progStartDate(); if(!start) return null;
+  const d=new Date(iso+'T00:00:00'); if(isNaN(d.getTime())) return null;
+  const days=Math.floor((d-start)/86400000); if(days<0) return null;
+  const wk=Math.floor(days/7)+1;
+  return (wk>=1 && wk<=(_progTotalWeeks()||wk)) ? wk : null;
+}
+// A program slot counts as done when a logged session is linked to it
+// (program id + week + session id), stamped at log time or by Strava sync.
+function _progSessionDone(week,sid){
+  const pid=savedProgram?.id;
+  return sessions.some(s=> s.progSid===sid && String(s.progWeek)===String(week) &&
+    (!pid || !s.progId || s.progId===pid));
+}
+
 function _renderProgramTodayStrip(){
   const prog=savedProgram; if(!prog) return;
   const todayDow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
-  const week=currentProgramWeek;
+  const week=_progActualWeek();
   const weekSess=_progWeekSessions(week);
   const spw=prog.sessionsPerWeek||4;
   const allDays=_progDays(spw);
@@ -3326,10 +3368,14 @@ function _renderProgramTodayStrip(){
     const slot=weekSess.find(s=>s.day===day);
     const hasSession=!!(slot?.session);
     const isToday=day===todayDow;
-    const clickAttr=hasSession?`onclick="openProgramSessionOverlay('${slot.id}',${week})" style="cursor:pointer;"`:'';
-    return `<div class="dchip ${isToday?'today':''} ${!hasSession?'rest':''}" ${clickAttr}>
+    const done=hasSession&&_progSessionDone(week,slot.id);
+    const clickAttr=hasSession?`onclick="openProgramSessionOverlay('${slot.id}',${week},'${day}')" style="cursor:pointer;"`:'';
+    const dot=done
+      ? `<div class="dchip-dot" style="background:var(--green,#34c759);border-color:var(--green,#34c759);">✓</div>`
+      : `<div class="dchip-dot" ${!hasSession?'style="opacity:.25"':''}></div>`;
+    return `<div class="dchip ${isToday?'today':''} ${!hasSession?'rest':''} ${done?'done':''}" ${clickAttr}>
       <div class="dchip-name">${day}</div>
-      <div class="dchip-dot" ${!hasSession?'style="opacity:.25"':''}></div>
+      ${dot}
     </div>`;
   }).join('');
 
@@ -3338,17 +3384,18 @@ function _renderProgramTodayStrip(){
   const todaySess=todaySlot?.session;
   const sesEl=document.getElementById('today-session');
   if(todaySess){
-    sesEl.onclick=()=>openProgramSessionOverlay(todaySlot.id,week);
+    const todayDone=_progSessionDone(week,todaySlot.id);
+    sesEl.onclick=()=>openProgramSessionOverlay(todaySlot.id,week,todayDow);
     sesEl.innerHTML=`
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <div style="width:32px;height:32px;border-radius:8px;background:var(--accent-dim);border:1px solid rgba(212,175,55,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">🏋️</div>
+        <div style="width:32px;height:32px;border-radius:8px;background:${todayDone?'rgba(52,199,89,.15)':'var(--accent-dim)'};border:1px solid ${todayDone?'rgba(52,199,89,.4)':'rgba(212,175,55,.25)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">${todayDone?'✓':'🏋️'}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:14px;font-weight:500;color:var(--text);">${todaySess.name}</div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${prog.name||'Program'} · W${week} · ${todaySess.focus||''} · ${todaySess.exercises?.length||0} exercises</div>
         </div>
         <div style="margin-left:auto;font-size:16px;color:var(--text3);">›</div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Tap to see exercises and start session →</div>`;
+      <div style="font-family:var(--mono);font-size:9px;color:${todayDone?'var(--green,#34c759)':'var(--text3)'};">${todayDone?'Logged ✓ · tap to view or log again':'Tap to see exercises and start session →'}</div>`;
   } else {
     sesEl.onclick=null;
     sesEl.innerHTML=`<div style="display:flex;align-items:center;gap:10px;">
@@ -3401,10 +3448,11 @@ function _renderProgramPlan(w){
       <div class="prow-session"><span style="color:var(--text3);">Rest / Recovery</span></div>
       <div></div></div>`;
     const exCount=session.exercises?.length||0;
-    return `<div class="prow" onclick="openProgramSessionOverlay('${id}',${w})">
+    const done=_progSessionDone(w,id);
+    return `<div class="prow ${done?'done':''}" onclick="openProgramSessionOverlay('${id}',${w},'${day}')">
       <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||''}</div></div>
-      <div class="prow-session"><span>${session.name}</span></div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">${exCount} ex</div>
+      <div class="prow-session"><span>${done?'<span style="color:var(--green,#34c759);">✓ </span>':''}${session.name}</span></div>
+      <div style="font-family:var(--mono);font-size:9px;color:${done?'var(--green,#34c759)':'var(--text3)'};">${done?'done':exCount+' ex'}</div>
     </div>`;
   }).join('');
 
@@ -3421,7 +3469,7 @@ function _renderProgramPlan(w){
   if(archEl) archEl.style.display='';
 }
 
-function openProgramSessionOverlay(id,week){
+function openProgramSessionOverlay(id,week,day){
   const prog=savedProgram; if(!prog) return;
   const sess=prog.sessions?.find(s=>s.id===id);
   if(!sess) return;
@@ -3458,15 +3506,52 @@ function openProgramSessionOverlay(id,week){
     ${deloadBanner}${noteBanner}
     <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
 
-  document.getElementById('po-log-btn').textContent='Log this session';
+  const alreadyDone=_progSessionDone(week,id);
+  document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
   document.getElementById('po-log-btn').onclick=()=>{
     closeOv('plan-overlay');
-    nav('log',document.querySelectorAll('.nb')[1]);
+    logProgramSession(id, week, day, setsAdd, isDeload);
   };
   const editBtn=document.getElementById('po-edit-btn');
   if(editBtn) editBtn.style.display='none';
 
   openOv('plan-overlay');
+}
+
+// Open the log form pre-filled from a program session, and remember the link so
+// the saved log is stamped with progId/progWeek/progSid (→ completion tracking).
+let _pendingProgLink = null;
+const _DAY_FULL = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'};
+function logProgramSession(id, week, day, setsAdd, isDeload){
+  const prog=savedProgram; if(!prog) return;
+  const sess=prog.sessions?.find(s=>s.id===id); if(!sess) return;
+
+  // Build the editable exercise list from the program (week-adjusted set counts).
+  exercises = (sess.exercises||[]).map(ex=>{
+    const baseSets=parseInt(ex.sets)||3;
+    const n=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+(setsAdd||0);
+    return { name: ex.name||'', sets: Array.from({length:Math.max(1,n)},()=>({reps:(ex.reps||'').toString(),weight:''})) };
+  });
+  splits=[]; stations=[]; feel=null;
+
+  // Remember the program link for saveSession() to stamp onto the log.
+  _pendingProgLink = { progId: prog.id||prog.name||'prog', progWeek: week, progSid: id };
+
+  nav('log', document.querySelectorAll('.nb')[1]);
+
+  // cat → strength, then set the program session name as a (selected) option.
+  const stBtn=document.querySelector('.cat-tab.strength');
+  setCat('strength', stBtn||document.createElement('button'));
+  const sel=document.getElementById('f-session');
+  if(sel){
+    const opts=(CAT_SESSIONS.strength||[]).filter(n=>n!==sess.name);
+    sel.innerHTML=[`<option selected>${sess.name}</option>`,...opts.map(n=>`<option>${n}</option>`)].join('');
+  }
+  const wEl=document.getElementById('f-week'); if(wEl) wEl.value=String(week);
+  const dEl=document.getElementById('f-day'); if(dEl && day && _DAY_FULL[day]) dEl.value=_DAY_FULL[day];
+  const iEl=document.getElementById('f-intensity'); if(iEl) iEl.value='moderate';
+  renderMetrics(); // re-render strength metrics now that exercises[] is populated
+  toast('Logging '+sess.name+' — fill in your weights');
 }
 
 function togglePlanArchive(el){
@@ -5373,8 +5458,11 @@ async function syncFromStrava(silent = false) {
   stravaState = 'syncing'; renderStravaCard();
 
   try {
-    // Fetch from start of plan Week 1 only — earlier dates fill the page limit with pre-plan activities
-    const since = Math.floor(new Date(WMAP[0][1]).getTime() / 1000);
+    // Fetch from the earlier of the running-plan start and the active program start,
+    // so both run-plan and strength-program activities are covered.
+    const planSince = new Date(WMAP[0][1]).getTime();
+    const progSince = _progStartDate() ? _progStartDate().getTime() : Infinity;
+    const since = Math.floor(Math.min(planSince, progSince) / 1000);
     const resp = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?after=${since}&per_page=200`,
       { headers: { Authorization: `Bearer ${tok}` } }
@@ -5406,19 +5494,39 @@ async function syncFromStrava(silent = false) {
 
       const localDate = (act.start_date_local || act.start_date || '').slice(0, 10);
       if (!localDate) continue;
-      const week = weekFor(localDate);
-      if (!week) { skippedRange++; continue; }
 
       const d = new Date(localDate + 'T12:00:00');
       const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
 
-      // Match to plan session for this week/day
-      const planSess = PLAN[parseInt(week)]?.sessions.find(s => s.day === dow);
+      // Resolve which week this lands in + which planned session it matches.
+      // Prefer the active AI program (date-anchored); fall back to the built-in plan.
+      let week=null, sessName=null, intensity=null, link=null;
+      const actType=(act.sport_type||act.type||'').toLowerCase();
+      const isStrengthAct = actType.includes('weight')||actType.includes('strength')||actType==='workout';
+      if (savedProgram && savedProgram.startDate) {
+        const pw=_progWeekForDate(localDate);
+        if (pw){
+          week=String(pw);
+          const slot=_progWeekSessions(pw).find(x=>x.day===dow && x.session);
+          if (slot && isStrengthAct){
+            sessName=slot.session.name; intensity='moderate';
+            link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
+          }
+        }
+      }
+      if (week===null) {
+        // Fall back to the built-in running plan calendar
+        const w=weekFor(localDate);
+        if (!w) { skippedRange++; continue; }
+        week=w;
+        const planSess = PLAN[parseInt(w)]?.sessions.find(s => s.day === dow);
+        if (planSess){ sessName=planSess.session; intensity=planSess.intensity; }
+      }
 
       sessions.unshift({
         week, day: dow,
-        session:   planSess?.session || stravaClassify(act),
-        intensity: planSess?.intensity || stravaIntensity(act),
+        session:   sessName   || stravaClassify(act),
+        intensity: intensity  || stravaIntensity(act),
         pace:      mpsToMinKm(act.average_speed),
         dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
         hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
@@ -5426,6 +5534,7 @@ async function syncFromStrava(silent = false) {
         feel: '', notes: `Strava: ${act.name}`,
         ts: new Date(act.start_date).getTime(),
         gid,
+        ...(link || {}),
       });
       newGids.push(gid);
       imported++;
@@ -5750,7 +5859,11 @@ let programViewWeek = 1;
 
 function loadSavedProgram() {
   try { savedProgram = JSON.parse(localStorage.getItem('ht-program') || 'null'); } catch(e) {}
+  if (savedProgram && !savedProgram.id) savedProgram.id = 'prog-legacy'; // backfill pre-anchor programs
   currentProgramWeek = parseInt(localStorage.getItem('ht-program-week') || '1') || 1;
+  // With a date anchor, default the viewed week to the real current week
+  // (the calendar can still browse others; this just fixes "today").
+  if (savedProgram && savedProgram.startDate) currentProgramWeek = _progActualWeek();
 }
 function saveProgramData(data) {
   savedProgram = data;
@@ -5908,16 +6021,30 @@ function renderSavedProgram() {
     <div style="margin-bottom:16px;">
       <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${prog.name||'Strength Program'}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${totalWks} weeks · ${sPerWeek}×/week · ${(prog.split||'').toUpperCase()}</div>
+      ${prog.startDate?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;">Started ${prog.startDate} · currently Week ${_progActualWeek()} of ${totalWks}</div>`:`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:6px;">No start date set — <span onclick="restartProgramToday()" style="text-decoration:underline;cursor:pointer;">anchor to this week</span> to enable date tracking</div>`}
       ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
     </div>
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${weekTabs}</div>
     ${wkMod.note?`<div style="background:var(--accent-dim);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${wkMod.note}</div>`:''}
     ${sessionCards}
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+      <button class="btn" onclick="restartProgramToday()" style="color:var(--accent);border-color:rgba(212,175,55,.25);">↻ Restart from this week</button>
       <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
       <button class="btn" onclick="if(confirm('Delete this program?')){localStorage.removeItem('ht-program');savedProgram=null;renderProgramBuilder();renderMyProgramCard();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
     </div>
   </div>`;
+}
+
+// Re-anchor the program to start on the Monday of the current week. Resets the
+// date→week mapping so "today" lands on Week 1 again (completion history is kept).
+function restartProgramToday(){
+  if(!savedProgram) return;
+  savedProgram.startDate = _mondayISO(new Date());
+  saveProgramData(savedProgram);
+  currentProgramWeek = 1; programViewWeek = 1;
+  try{ localStorage.setItem('ht-program-week','1'); }catch(e){}
+  renderSavedProgram(); renderMyProgramCard(); renderAll();
+  toast('Program anchored to this week');
 }
 
 async function generateStrengthProgram() {
@@ -6010,7 +6137,12 @@ Working weeks: ${workingWeeks} + 1 deload week`;
     const match = text.match(/```json\s*([\s\S]+?)\s*```/);
     if (!match) throw new Error('No JSON block found in response. Try again.');
     const data = JSON.parse(match[1]);
+    // Anchor the program: unique id + start date (Monday of the current week) so
+    // the homepage tracks the real week and Strava can map dates → program weeks.
+    data.id = 'prog-' + Date.now();
+    data.startDate = _mondayISO(new Date());
     saveProgramData(data);
+    currentProgramWeek = 1;
     programViewWeek = 1;
     renderSavedProgram();
     renderMyProgramCard();
