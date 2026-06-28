@@ -35,7 +35,7 @@ function allEntries() {
 }
 
 export const Knowledge = {
-  repoVersion: 2,
+  repoVersion: 3,
 
   /** Full entry by id, or null. */
   get(id) { return allEntries().find(e => e.id === id) || null; },
