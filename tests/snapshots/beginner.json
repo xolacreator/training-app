@@ -1,0 +1,199 @@
+{
+  "key": "beginner",
+  "label": "Beginner",
+  "prompt": {
+    "system": "You are an elite hybrid strength & endurance coach. Generate a complete, structured Hybrid (strength + endurance) training program as JSON.\n\n\nReturn ONLY a ```json ... ``` block. No prose outside it.\n\nEach session object has an \"id\" (kebab-case), \"name\", \"focus\", and a \"type\" — one of:\n  • \"strength\"  → include \"exercises\":[{ \"name\",\"sets\":4,\"reps\":\"8-10\",\"load\":\"% 1RM / @RPE\",\"rest\":\"2 min\",\"cue\":\"…\" }]\n  • \"endurance\" → include \"runType\" (easy|tempo|threshold|intervals|long|recovery), \"distance\" (e.g. \"10 km\" or \"\"),\n                  \"duration\" (e.g. \"50 min\"), \"pace\" (e.g. \"4:45/km\" or \"\"), \"zone\" (e.g. \"Z2\"), \"intervals\" (e.g. \"6×800m @ 3:30, 90s jog\" or \"\"), \"rpe\", \"cue\"\n  • \"fitstop\"   → a class-style conditioning session: include \"format\" (e.g. \"AMRAP 20 / 4 stations\") and\n                  \"exercises\":[{ \"name\",\"detail\":\"reps or time\",\"cue\":\"…\" }]\n\nTOP-LEVEL schema:\n{\n  \"name\": \"Descriptive program name\",\n  \"type\": \"hybrid\",\n  \"weeks\": 5,\n  \"sessionsPerWeek\": 3,\n  \"progression\": \"One sentence on how the program evolves week to week\",\n  \"sessions\": [ /* the UNIQUE sessions used in a week (see shapes above) */ ],\n  \"dayMap\": [ /* EXACTLY 7 entries for Mon,Tue,Wed,Thu,Fri,Sat,Sun — each is a session \"id\" or null for a rest day */ ],\n  \"weeklyProgressions\": [\n    { \"week\": 1, \"note\": \"…\" },\n    { \"week\": 2, \"setsAdd\": 1, \"note\": \"…\" },\n    { \"week\": 5, \"deload\": true, \"note\": \"Deload — reduce volume ~50%\" }\n  ]\n}\n\nRULES:\n• This is a HYBRID program mixing STRENGTH and ENDURANCE in the same week (concurrent training). Use BOTH \"strength\" and \"endurance\" session types. Follow the user's requested split of disciplines across the week. Place hard runs and heavy lifts on separate days where possible; keep easy aerobic work around the lifting. Strength split: Push/Pull/Legs.\n• dayMap: EXACTLY 7 entries (Mon→Sun). EXACTLY 3 of them are non-null session ids; the rest are null. Every non-null id MUST exist in \"sessions\". Distribute training days sensibly across the week.\n• Define enough unique \"sessions\" to fill those 3 weekly slots (reuse an id on multiple days only if the session truly repeats).\n• weeklyProgressions: EXACTLY 5 entries (weeks 1–4 working, week 5 has \"deload\": true). \"setsAdd\" (strength) cumulates from 0.\n• Keep it realistic and specific. Every session needs concrete targets a trainee can execute and log.",
+    "user": "Generate the Hybrid (strength + endurance) program.\nPrimary goal / weekly structure (user's words): New to structured training — build a base of general fitness and confidence, 3 days/week, mix of easy running and full-body strength.\nStrength methodology: Auto-selected best approach\nStrength split: Push/Pull/Legs\nTotal sessions/week: 3\nWorking weeks: 4 + 1 deload week (total 5)"
+  },
+  "program": {
+    "name": "Hybrid Block",
+    "type": "hybrid",
+    "weeks": 5,
+    "sessionsPerWeek": 3,
+    "progression": "Volume rises weekly, deload last week.",
+    "sessions": [
+      {
+        "id": "lift",
+        "type": "strength",
+        "name": "Strength LIFT",
+        "focus": "Full body",
+        "exercises": [
+          {
+            "name": "Back Squat",
+            "sets": 4,
+            "reps": "5",
+            "load": "80% 1RM",
+            "rest": "2 min",
+            "cue": "brace"
+          },
+          {
+            "name": "Bench",
+            "sets": 3,
+            "reps": "6",
+            "load": "RPE8",
+            "rest": "2 min"
+          },
+          {
+            "name": "Row",
+            "sets": 3,
+            "reps": "10",
+            "load": "RPE8",
+            "rest": "2 min"
+          },
+          {
+            "name": "Core",
+            "sets": 3,
+            "reps": "12",
+            "load": "",
+            "rest": "2 min"
+          }
+        ]
+      },
+      {
+        "id": "lift2",
+        "type": "strength",
+        "name": "Strength LIFT B",
+        "focus": "Posterior",
+        "exercises": [
+          {
+            "name": "Deadlift",
+            "sets": 3,
+            "reps": "5",
+            "load": "82%",
+            "rest": "2 min",
+            "cue": "wedge"
+          },
+          {
+            "name": "OHP",
+            "sets": 3,
+            "reps": "8",
+            "load": "RPE8",
+            "rest": "2 min"
+          },
+          {
+            "name": "Pull-up",
+            "sets": 3,
+            "reps": "8",
+            "load": "bw",
+            "rest": "2 min"
+          }
+        ]
+      },
+      {
+        "id": "easy",
+        "type": "endurance",
+        "name": "Zone 2 Run",
+        "focus": "easy",
+        "runType": "easy",
+        "distance": "8 km",
+        "duration": "45 min",
+        "pace": "5:30/km",
+        "zone": "Z2"
+      },
+      {
+        "id": "tempo",
+        "type": "endurance",
+        "name": "Tempo Run",
+        "focus": "tempo",
+        "runType": "tempo",
+        "distance": "8 km",
+        "duration": "40 min",
+        "pace": "4:40/km",
+        "zone": "Z3-4",
+        "intervals": "4×6min, 90s jog"
+      },
+      {
+        "id": "intervals",
+        "type": "endurance",
+        "name": "Intervals",
+        "focus": "intervals",
+        "runType": "intervals",
+        "duration": "40 min",
+        "intervals": "8×400m @ 3:10, 60s",
+        "zone": "Z5"
+      },
+      {
+        "id": "long",
+        "type": "endurance",
+        "name": "Long Run",
+        "focus": "long",
+        "runType": "long",
+        "distance": "16 km",
+        "duration": "85 min",
+        "pace": "5:45/km",
+        "zone": "Z2"
+      }
+    ],
+    "dayMap": [
+      "lift",
+      null,
+      "easy",
+      null,
+      "tempo",
+      null,
+      null
+    ],
+    "weeklyProgressions": [
+      {
+        "week": 1,
+        "setsAdd": 0,
+        "note": "Week 1 progression"
+      },
+      {
+        "week": 2,
+        "setsAdd": 1,
+        "note": "Week 2 progression"
+      },
+      {
+        "week": 3,
+        "setsAdd": 2,
+        "note": "Week 3 progression"
+      },
+      {
+        "week": 4,
+        "setsAdd": 3,
+        "note": "Week 4 progression"
+      },
+      {
+        "week": 5,
+        "deload": true,
+        "note": "Deload — reduce volume ~50%"
+      }
+    ]
+  },
+  "metrics": {
+    "type": "hybrid",
+    "weeks": 5,
+    "sessionsPerWeek": 3,
+    "trainingDays": 3,
+    "restDays": 4,
+    "disciplineMix": {
+      "strength": 1,
+      "endurance": 2,
+      "fitstop": 0
+    },
+    "endurance": {
+      "total": 2,
+      "easy": 1,
+      "quality": 1,
+      "easyRatio": 0.5
+    },
+    "strength": {
+      "sessions": 2,
+      "avgExercises": 3.5,
+      "hasCompound": true
+    },
+    "progression": {
+      "weeks": 5,
+      "deloadPresent": true,
+      "setsAddPattern": "0,1,2,3,D"
+    },
+    "concurrencyFlags": [],
+    "structural": {
+      "dayMapValid": true,
+      "allIdsResolve": true,
+      "spwMatchesDayMap": true,
+      "weeklyProgCoversWeeks": true
+    }
+  }
+}

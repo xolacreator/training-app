@@ -1,0 +1,143 @@
+{
+  "key": "marathon",
+  "label": "Marathon",
+  "prompt": {
+    "system": "You are an elite hybrid strength & endurance coach. Generate a complete, structured Endurance training program as JSON.\n\nTRAINING BASELINES (from Week 1 assessment):\n  Run: threshold=4:15/km · Z2 5:05–4:40/km · VO₂max intervals=3:50/km · VO₂max=58 ml/kg/min (Cooper Test)\n\nReturn ONLY a ```json ... ``` block. No prose outside it.\n\nEach session object has an \"id\" (kebab-case), \"name\", \"focus\", and a \"type\" — one of:\n  • \"strength\"  → include \"exercises\":[{ \"name\",\"sets\":4,\"reps\":\"8-10\",\"load\":\"% 1RM / @RPE\",\"rest\":\"2 min\",\"cue\":\"…\" }]\n  • \"endurance\" → include \"runType\" (easy|tempo|threshold|intervals|long|recovery), \"distance\" (e.g. \"10 km\" or \"\"),\n                  \"duration\" (e.g. \"50 min\"), \"pace\" (e.g. \"4:45/km\" or \"\"), \"zone\" (e.g. \"Z2\"), \"intervals\" (e.g. \"6×800m @ 3:30, 90s jog\" or \"\"), \"rpe\", \"cue\"\n  • \"fitstop\"   → a class-style conditioning session: include \"format\" (e.g. \"AMRAP 20 / 4 stations\") and\n                  \"exercises\":[{ \"name\",\"detail\":\"reps or time\",\"cue\":\"…\" }]\n\nTOP-LEVEL schema:\n{\n  \"name\": \"Descriptive program name\",\n  \"type\": \"endurance\",\n  \"weeks\": 7,\n  \"sessionsPerWeek\": 5,\n  \"progression\": \"One sentence on how the program evolves week to week\",\n  \"sessions\": [ /* the UNIQUE sessions used in a week (see shapes above) */ ],\n  \"dayMap\": [ /* EXACTLY 7 entries for Mon,Tue,Wed,Thu,Fri,Sat,Sun — each is a session \"id\" or null for a rest day */ ],\n  \"weeklyProgressions\": [\n    { \"week\": 1, \"note\": \"…\" },\n    { \"week\": 2, \"setsAdd\": 1, \"note\": \"…\" },\n    { \"week\": 7, \"deload\": true, \"note\": \"Deload — reduce volume ~50%\" }\n  ]\n}\n\nRULES:\n• This is an ENDURANCE program. All sessions type \"endurance\". Build a balanced week: mostly easy/Zone-2 aerobic volume, with 1-2 quality sessions (tempo/threshold/intervals) and (if 5+ days) a long run. Provide pace OR zone targets and concrete interval structures. Respect easy/hard polarisation.\n• dayMap: EXACTLY 7 entries (Mon→Sun). EXACTLY 5 of them are non-null session ids; the rest are null. Every non-null id MUST exist in \"sessions\". Distribute training days sensibly across the week.\n• Define enough unique \"sessions\" to fill those 5 weekly slots (reuse an id on multiple days only if the session truly repeats).\n• weeklyProgressions: EXACTLY 7 entries (weeks 1–6 working, week 7 has \"deload\": true). \"setsAdd\" (strength) cumulates from 0.\n• Keep it realistic and specific. Every session needs concrete targets a trainee can execute and log.",
+    "user": "Generate the Endurance program.\nPrimary goal / weekly structure (user's words): Sub-3:30 marathon — high aerobic volume, weekly long run progressing to 32km, one threshold and one easy quality session, strict polarised easy/hard.\nTotal sessions/week: 5\nWorking weeks: 6 + 1 deload week (total 7)"
+  },
+  "program": {
+    "name": "Endurance Block",
+    "type": "endurance",
+    "weeks": 7,
+    "sessionsPerWeek": 5,
+    "progression": "Volume rises weekly, deload last week.",
+    "sessions": [
+      {
+        "id": "easy",
+        "type": "endurance",
+        "name": "Zone 2 Easy",
+        "focus": "easy",
+        "runType": "easy",
+        "distance": "8 km",
+        "duration": "45 min",
+        "pace": "5:25/km",
+        "zone": "Z2",
+        "cue": "conversational"
+      },
+      {
+        "id": "tempo",
+        "type": "endurance",
+        "name": "Tempo",
+        "focus": "tempo",
+        "runType": "tempo",
+        "distance": "10 km",
+        "duration": "50 min",
+        "pace": "4:30/km",
+        "zone": "Z3-4",
+        "intervals": "3×8min @ threshold, 2min jog"
+      },
+      {
+        "id": "intervals",
+        "type": "endurance",
+        "name": "VO2 Intervals",
+        "focus": "intervals",
+        "runType": "intervals",
+        "duration": "45 min",
+        "intervals": "6×800m @ 3:20, 90s jog",
+        "zone": "Z5"
+      },
+      {
+        "id": "long",
+        "type": "endurance",
+        "name": "Long Run",
+        "focus": "long",
+        "runType": "long",
+        "distance": "18 km",
+        "duration": "95 min",
+        "pace": "5:40/km",
+        "zone": "Z2"
+      }
+    ],
+    "dayMap": [
+      "easy",
+      "tempo",
+      "intervals",
+      null,
+      "long",
+      "easy",
+      null
+    ],
+    "weeklyProgressions": [
+      {
+        "week": 1,
+        "setsAdd": 0,
+        "note": "Week 1 progression"
+      },
+      {
+        "week": 2,
+        "setsAdd": 1,
+        "note": "Week 2 progression"
+      },
+      {
+        "week": 3,
+        "setsAdd": 2,
+        "note": "Week 3 progression"
+      },
+      {
+        "week": 4,
+        "setsAdd": 3,
+        "note": "Week 4 progression"
+      },
+      {
+        "week": 5,
+        "setsAdd": 4,
+        "note": "Week 5 progression"
+      },
+      {
+        "week": 6,
+        "setsAdd": 5,
+        "note": "Week 6 progression"
+      },
+      {
+        "week": 7,
+        "deload": true,
+        "note": "Deload — reduce volume ~50%"
+      }
+    ]
+  },
+  "metrics": {
+    "type": "endurance",
+    "weeks": 7,
+    "sessionsPerWeek": 5,
+    "trainingDays": 5,
+    "restDays": 2,
+    "disciplineMix": {
+      "strength": 0,
+      "endurance": 5,
+      "fitstop": 0
+    },
+    "endurance": {
+      "total": 5,
+      "easy": 3,
+      "quality": 2,
+      "easyRatio": 0.6
+    },
+    "strength": {
+      "sessions": 0,
+      "avgExercises": 0,
+      "hasCompound": false
+    },
+    "progression": {
+      "weeks": 7,
+      "deloadPresent": true,
+      "setsAddPattern": "0,1,2,3,4,5,D"
+    },
+    "concurrencyFlags": [],
+    "structural": {
+      "dayMapValid": true,
+      "allIdsResolve": true,
+      "spwMatchesDayMap": true,
+      "weeklyProgCoversWeeks": true
+    }
+  }
+}
