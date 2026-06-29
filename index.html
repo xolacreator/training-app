@@ -3387,11 +3387,69 @@ function _progWeekSessions(week){
 
 // A program session's discipline. Defaults to 'strength' for legacy programs.
 function _sessType(sess){ return (sess && sess.type) ? sess.type : 'strength'; }
+
+// ── ENDURANCE PROGRESSION ENGINE ─────────────────────────────────────────────
+// Translates the knowledge base into PROGRESSIVE, PERSONALISED running prescriptions.
+// Run sessions are templates; the concrete week-N prescription is computed here from
+// the athlete's baselines (pace targets) + the week within the block (volume/intensity
+// build, cutback weeks, taper, deload). This is what makes the running actually progress.
+function _runPaces(){
+  const r = (typeof baselines==='object' && baselines) ? baselines['run-cooper'] : null;
+  return {
+    easy:      r?.run_zone2_lo_pace && r?.run_zone2_hi_pace ? `${r.run_zone2_hi_pace}–${r.run_zone2_lo_pace}/km` : 'Zone 2 (conversational)',
+    threshold: r?.run_threshold_pace ? `${r.run_threshold_pace}/km` : 'threshold (comfortably hard)',
+    vo2:       r?.run_vo2max_pace ? `${r.run_vo2max_pace}/km` : '~5K effort',
+    hasBaseline: !!r,
+  };
+}
+// Returns the progressed prescription for an endurance session in a given week.
+// { distance, duration, pace, zone, intervals, note }
+function _progressEndurance(sess, week, totalWeeks){
+  const rt = sess.runType || 'easy';
+  const paces = _runPaces();
+  const build = Math.max(1, (totalWeeks||6) - 1);      // last week = deload
+  const isDeload = week >= (totalWeeks||6);
+  const wi = Math.min(week, build) - 1;                // 0-based build index
+  const ramp = build > 1 ? wi / (build - 1) : 0;       // 0 → 1 across the build
+  const cutback = !isDeload && week % 4 === 0;         // every 4th week eases off
+  const vmult = isDeload ? 0.55 : cutback ? 0.78 : 1;  // volume multiplier
+  const grow = (base, peakAdd) => Math.round((base + peakAdd*ramp) * vmult);
+  let out = { zone: sess.zone || '' };
+  if (rt === 'long'){
+    const km = grow(12, 9);                             // 12 → ~21 km peak (~1.8 km/wk, safe ramp)
+    out.distance = `${km} km`; out.duration = `~${Math.round(km*5.6)} min`; out.pace = paces.easy; out.zone='Z2';
+    out.note = isDeload ? 'Cutback long run' : cutback ? 'Cutback week — hold distance' : 'Build endurance — progress distance';
+  } else if (rt === 'tempo' || rt === 'threshold'){
+    const reps = isDeload ? 2 : Math.min(5, 3 + Math.floor(ramp*2));
+    const mins = isDeload ? 6 : Math.min(12, 8 + Math.round(ramp*2));
+    out.intervals = `${reps}×${mins} min @ ${paces.threshold}, 2 min jog`; out.zone='Z3–4';
+    out.duration = `~${reps*mins + reps*2 + 20} min total`;
+    out.note = isDeload ? 'Deload — reduce threshold volume' : 'Build time-at-threshold';
+  } else if (rt === 'intervals'){
+    const reps = isDeload ? 4 : Math.min(10, 5 + Math.round(ramp*5));
+    out.intervals = `${reps}×800 m @ ${paces.vo2}, 90 s jog`; out.zone='Z5';
+    out.duration = `~${reps*4 + 20} min total`;
+    out.note = isDeload ? 'Deload — fewer reps' : 'Build VO₂max volume';
+  } else if (rt === 'recovery'){
+    out.duration = `${grow(25,10)} min`; out.pace = paces.easy; out.zone='Z1–2'; out.note='Easy recovery — very controlled';
+  } else { // easy / default
+    out.duration = `${grow(35,25)} min`; out.distance = sess.distance && !ramp ? sess.distance : ''; out.pace = paces.easy; out.zone='Z2';
+    out.note = isDeload ? 'Easy — recovery week' : 'Aerobic base — progress easy volume';
+  }
+  return out;
+}
 // One-line summary for a session, adapted to its type (shown in calendar rows/cards).
-function _sessSummary(sess){
+function _sessSummary(sess, week){
   if(!sess) return '';
   const t=_sessType(sess);
   if(t==='endurance'||t==='run'){
+    // Week-aware: show the progressed prescription when a week is given.
+    if(week && typeof _progressEndurance==='function'){
+      const totalW = savedProgram?.weeklyProgressions?.length || savedProgram?.weeks || 6;
+      const px = _progressEndurance(sess, week, totalW);
+      return [px.intervals, px.distance, px.pace||px.zone, px.duration].filter(Boolean).join(' · ')
+        || [sess.intervals, sess.distance, sess.pace||sess.zone, sess.duration].filter(Boolean).join(' · ');
+    }
     return [sess.intervals, sess.distance, sess.pace||sess.zone, sess.duration].filter(Boolean).join(' · ')
       || (sess.exercises?.length? sess.exercises.length+' blocks':'');
   }
@@ -3485,7 +3543,7 @@ function _renderProgramTodayStrip(){
   const sesEl=document.getElementById('today-session');
   if(todaySess){
     const todayDone=_progSessionDone(week,todaySlot.id);
-    const summary=[todaySess.focus, _sessSummary(todaySess)].filter(Boolean).join(' · ');
+    const summary=[todaySess.focus, _sessSummary(todaySess, week)].filter(Boolean).join(' · ');
     sesEl.onclick=()=>openProgramSessionOverlay(todaySlot.id,week,todayDow);
     sesEl.innerHTML=`
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -3549,7 +3607,7 @@ function _renderProgramPlan(w){
       <div class="prow-session"><span style="color:var(--text3);">Rest / Recovery</span></div>
       <div></div></div>`;
     const done=_progSessionDone(w,id);
-    const meta=_sessSummary(session);
+    const meta=_sessSummary(session, w);
     return `<div class="prow ${done?'done':''}" onclick="openProgramSessionOverlay('${id}',${w},'${day}')">
       <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||_sessType(session)}</div></div>
       <div class="prow-session"><span>${done?'<span style="color:var(--green,#34c759);">✓ </span>':_sessIcon(session)+' '}${session.name}</span></div>
@@ -3592,13 +3650,20 @@ function openProgramSessionOverlay(id,week,day){
   const type=_sessType(sess);
   let bodyHtml='';
   if(type==='endurance'||type==='run'){
-    // Endurance: target line(s) + optional structure blocks (warmup/main/cooldown or intervals).
+    // Endurance: progress the prescription for THIS week from baselines + block position.
+    const totalW = prog.weeklyProgressions?.length || prog.weeks || 6;
+    const px = _progressEndurance(sess, week, totalW);
+    const distance = px.distance || sess.distance || '';
+    const duration = px.duration || sess.duration || '';
+    const target   = [px.pace||sess.pace, px.zone||sess.zone].filter(Boolean).join(' · ');
+    const intervals= px.intervals || sess.intervals || '';
     const targets=[
-      sess.distance?['Distance',sess.distance]:null,
-      sess.duration?['Duration',sess.duration]:null,
-      (sess.pace||sess.zone)?['Target',[sess.pace,sess.zone].filter(Boolean).join(' · ')]:null,
-      sess.intervals?['Intervals',sess.intervals]:null,
+      distance?['Distance',distance]:null,
+      duration?['Duration',duration]:null,
+      target?['Target',target]:null,
+      intervals?['Intervals',intervals]:null,
       sess.rpe?['RPE',sess.rpe]:null,
+      px.note?['Focus',px.note]:null,
     ].filter(Boolean).map(([l,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:.5px solid var(--border);">
         <span style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${l}</span>
         <span style="font-size:13px;font-weight:500;color:var(--text);text-align:right;">${v}</span></div>`).join('');
