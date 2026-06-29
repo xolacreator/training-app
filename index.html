@@ -723,6 +723,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
     <div class="sec-lbl">Notifications</div>
     <div class="card" id="notif-card" style="min-height:60px;"></div>
+    <div class="sec-lbl">Training Preferences</div>
+    <div class="card" id="training-prefs-card" style="min-height:60px;"></div>
     <div class="sec-lbl">Strength Programming</div>
     <div class="card" id="strength-programming-card" style="min-height:60px;"></div>
     <div class="sec-lbl">Program</div>
@@ -6092,12 +6094,138 @@ function renderProgramBuilder() {
     </div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a custom block with AI —</div>` : ''}
 
+    ${cfg.type==='hybrid' ? `<div class="card" style="margin-bottom:12px;border-color:rgba(212,175,55,.3);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Fitstop + Endurance</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Keep some Fitstop class days (real BLOCK C dates) and fill the rest with running — hard runs are placed away from Fitstop days, long run on Sunday.</div>
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Running goal (optional)</label>
+        <input type="text" id="hybrid-run-goal" placeholder="e.g. sub-45 10K, marathon base" value="${(cfg.goal||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" oninput="programBuilderConfig.goal=this.value">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-accent" onclick="buildFitstopHybrid(['Tue','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;">2 Fitstop (LIFT) + 4 runs</button>
+        <button class="btn" onclick="buildFitstopHybrid(['Mon','Tue','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);">3 Fitstop + 3 runs</button>
+        <button class="btn" onclick="buildFitstopHybrid(['Mon','Tue','Thu','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);">4 Fitstop + 2 runs</button>
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a fully custom hybrid block with AI —</div>` : ''}
+
     <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
       Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
       Generation takes 15–30 seconds.
     </div>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ATHLETE AVAILABILITY (Phase 1 of constraint-based scheduling)
+// The athlete controls availability; Coach EV (Scheduler, later phase) decides what
+// happens on those days. Persistent profile: per (day × category) status.
+// ═══════════════════════════════════════════════════════════════════════════
+// Extensible category list — add entries here without touching the engine.
+const TRAINING_CATEGORIES = [
+  { id:'easy-run',      label:'Easy Run',      group:'run' },
+  { id:'workout-run',   label:'Workout Run',   group:'run' },
+  { id:'long-run',      label:'Long Run',      group:'run' },
+  { id:'track',         label:'Track',         group:'run' },
+  { id:'trail',         label:'Trail',         group:'run' },
+  { id:'treadmill',     label:'Treadmill',     group:'run' },
+  { id:'recovery-run',  label:'Recovery Run',  group:'run' },
+  { id:'fitstop',       label:'Fitstop',       group:'fitstop' },
+  { id:'strength',      label:'Strength',      group:'strength' },
+  { id:'hybrid',        label:'Hybrid',        group:'hybrid' },
+  { id:'hyrox',         label:'HYROX',         group:'hyrox' },
+  { id:'deka',          label:'DEKA',          group:'deka' },
+  { id:'mobility',      label:'Mobility',      group:'recovery' },
+  { id:'recovery',      label:'Recovery',      group:'recovery' },
+  { id:'cross-training',label:'Cross Training',group:'other' },
+  { id:'rest',          label:'Rest',          group:'rest' },
+  { id:'other',         label:'Other',         group:'other' },
+];
+const AVAIL_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// Status cycle for the grid. 'none' = not set.
+const AVAIL_STATUSES = ['none','preferred','available','avoid','locked'];
+const AVAIL_META = {
+  none:      { short:'·', label:'—',          color:'var(--text3)', bg:'transparent' },
+  preferred: { short:'P', label:'Preferred',  color:'#000',          bg:'var(--accent)' },
+  available: { short:'A', label:'Available',  color:'var(--blue)',   bg:'rgba(77,158,255,.15)' },
+  avoid:     { short:'✕', label:'Avoid',      color:'var(--red)',    bg:'rgba(240,101,101,.12)' },
+  locked:    { short:'L', label:'Locked',     color:'var(--green,#34c759)', bg:'rgba(52,199,89,.15)' },
+};
+
+let athleteAvailability = null;
+function loadAvailability(){
+  try { athleteAvailability = JSON.parse(localStorage.getItem('ht-availability') || 'null'); } catch(e) { athleteAvailability = null; }
+  if (!athleteAvailability || !athleteAvailability.days) athleteAvailability = { version:1, days:{} };
+  return athleteAvailability;
+}
+function saveAvailability(){
+  try { localStorage.setItem('ht-availability', JSON.stringify(athleteAvailability)); } catch(e) {}
+}
+function getDayStatus(day, catId){
+  if (!athleteAvailability) loadAvailability();
+  return athleteAvailability.days?.[day]?.[catId] || 'none';
+}
+function setDayStatus(day, catId, status){
+  if (!athleteAvailability) loadAvailability();
+  athleteAvailability.days[day] = athleteAvailability.days[day] || {};
+  if (status === 'none') delete athleteAvailability.days[day][catId];
+  else athleteAvailability.days[day][catId] = status;
+  saveAvailability();
+}
+function cycleDayStatus(day, catId){
+  const cur = getDayStatus(day, catId);
+  const next = AVAIL_STATUSES[(AVAIL_STATUSES.indexOf(cur) + 1) % AVAIL_STATUSES.length];
+  setDayStatus(day, catId, next);
+  return next;
+}
+// Read API for the Scheduler (later phase): grouped statuses for a day.
+function availabilityForDay(day){
+  const d = (athleteAvailability?.days?.[day]) || {};
+  const out = { preferred:[], available:[], avoid:[], locked:[] };
+  for (const [cat, st] of Object.entries(d)) if (out[st]) out[st].push(cat);
+  return out;
+}
+function hasAnyAvailability(){
+  if (!athleteAvailability) loadAvailability();
+  return Object.values(athleteAvailability.days||{}).some(d => Object.keys(d).length);
+}
+
+// ── Training Preferences grid UI ─────────────────────────────────────────────
+function renderTrainingPreferences(){
+  const card = document.getElementById('training-prefs-card');
+  if (!card) return;
+  loadAvailability();
+  const legend = AVAIL_STATUSES.filter(s=>s!=='none').map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;"><span style="display:inline-flex;width:16px;height:16px;border-radius:4px;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;font-weight:700;background:${AVAIL_META[s].bg};color:${AVAIL_META[s].color};border:1px solid var(--border2);">${AVAIL_META[s].short}</span><span style="font-family:var(--mono);font-size:9px;color:var(--text3);">${AVAIL_META[s].label}</span></span>`
+  ).join('');
+  const head = `<div style="display:flex;align-items:center;">
+    <div style="width:84px;flex-shrink:0;"></div>
+    ${AVAIL_DAYS.map(d=>`<div style="flex:1;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);">${d[0]}</div>`).join('')}
+  </div>`;
+  const rows = TRAINING_CATEGORIES.map(cat => {
+    const cells = AVAIL_DAYS.map(day => {
+      const st = getDayStatus(day, cat.id), m = AVAIL_META[st];
+      return `<div style="flex:1;display:flex;justify-content:center;padding:2px;">
+        <button onclick="_prefTap('${day}','${cat.id}',this)" data-day="${day}" data-cat="${cat.id}"
+          style="width:30px;height:26px;border:1px solid var(--border2);border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:700;background:${m.bg};color:${m.color};touch-action:manipulation;">${m.short}</button>
+      </div>`;
+    }).join('');
+    return `<div style="display:flex;align-items:center;margin-top:3px;">
+      <div style="width:84px;flex-shrink:0;font-size:11px;color:var(--text2);line-height:1.1;">${cat.label}</div>${cells}</div>`;
+  }).join('');
+  card.innerHTML = `
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;margin-bottom:10px;">
+      Tap a cell to cycle: — → P → A → ✕ → L. You set when you're available; the coach decides what to program.
+    </div>
+    <div style="margin-bottom:10px;">${legend}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">${head}${rows}</div>
+    <button class="btn btn-sm" onclick="if(confirm('Clear all training preferences?')){athleteAvailability={version:1,days:{}};saveAvailability();renderTrainingPreferences();}" style="margin-top:12px;color:var(--text3);">Clear all</button>`;
+}
+function _prefTap(day, catId, btn){
+  const next = cycleDayStatus(day, catId);
+  const m = AVAIL_META[next];
+  btn.style.background = m.bg; btn.style.color = m.color; btn.textContent = m.short;
 }
 
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
@@ -6161,6 +6289,169 @@ function loadFitstopBlockC(){
   try { renderMyProgramCard(); } catch(e){}
   try { renderAll(); } catch(e){}
   toast('Fitstop BLOCK C 2026 loaded — following the real dates');
+}
+
+// ── Hybrid: Fitstop block + endurance overlay ───────────────────────────────
+// Keep selected Fitstop class days (date-anchored to BLOCK C) and fill the rest of
+// the week with interference-aware endurance: hard runs avoid days adjacent to a kept
+// Fitstop day; easy runs sit next to them; long run on Sunday. Applies the
+// concurrent-training principle (separate hard runs from heavy Fitstop sessions).
+const _FS_DAY_SESSION = { Mon:'perform', Tue:'lift', Wed:'condition', Thu:'perform', Fri:'lift', Sat:'sweat' };
+const _RUN_DEFS = {
+  easy:      { id:'run-easy',  type:'endurance', name:'Zone 2 Run',   focus:'Aerobic base', runType:'easy',      distance:'8 km',  duration:'45 min', zone:'Z2', cue:'Conversational — keep it genuinely easy around Fitstop days.' },
+  tempo:     { id:'run-tempo', type:'endurance', name:'Tempo Run',    focus:'Threshold',    runType:'tempo',     duration:'45 min', intervals:'3×8 min @ threshold, 2 min jog', zone:'Z3–4' },
+  intervals: { id:'run-int',   type:'endurance', name:'VO2 Intervals',focus:'VO2max',       runType:'intervals', duration:'40 min', intervals:'6×800 m @ ~5K pace, 90s jog',   zone:'Z5' },
+  long:      { id:'run-long',  type:'endurance', name:'Long Run',     focus:'Endurance',    runType:'long',      distance:'16 km', duration:'85 min', zone:'Z2' },
+};
+// Compose a hybrid week template (Mon..Sun) of session ids from kept Fitstop days + runs.
+// Interference-aware: quality runs go on the least-conflicting days (LIFT neighbours hurt
+// most), isolated days preferred; at least one quality run when a running goal is set.
+// Returns { map, flags } — flags note any unavoidable interference for the Validation Engine.
+function _composeHybridDayMap(keptDays, runGoal){
+  const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const kept = new Set(keptDays);
+  const map = DOW.map(d => d!=='Sun' && kept.has(d) ? _FS_DAY_SESSION[d] : null);
+  const freeIdx = DOW.map((d,i)=>({d,i})).filter(x => x.d!=='Sun' && !kept.has(x.d)).map(x=>x.i);
+  // Interference score for a free day: LIFT neighbour = 2 (heavy lower-body), other Fitstop = 1.
+  const score = (i) => [DOW[(i+6)%7], DOW[(i+1)%7]].reduce((s,nb)=>
+    s + (kept.has(nb) ? (_FS_DAY_SESSION[nb]==='lift' ? 2 : 1) : 0), 0);
+  const isolated = freeIdx.filter(i => score(i)===0);
+  // Hard-run budget: ≤1 when keeping ≥3 Fitstop days (already high load), else ≤2.
+  // Guarantee ≥1 quality run when a running goal is set and there is somewhere to put it.
+  let hardBudget = kept.size >= 3 ? 1 : 2;
+  hardBudget = Math.min(hardBudget, Math.max(isolated.length, (runGoal && freeIdx.length) ? 1 : 0));
+  const ranked = [...freeIdx].sort((a,b)=> score(a)-score(b)); // least interference first
+  const assign = {}; const flags = [];
+  ranked.forEach((i,n) => {
+    if (n < hardBudget) {
+      assign[i] = (n===0 ? 'tempo' : 'intervals');
+      if (score(i) > 0) flags.push(`${DOW[i]} ${assign[i]} run sits next to a Fitstop day (unavoidable in this split) — keep it controlled.`);
+    } else assign[i] = 'easy';
+  });
+  freeIdx.forEach(i => { map[i] = _RUN_DEFS[assign[i]].id; });
+  map[6] = (freeIdx.length || kept.size < 6) ? _RUN_DEFS.long.id : null; // Sunday long run if any running
+  return { map, flags };
+}
+function buildFitstopHybrid(keptDays, runGoal){
+  const B = FITSTOP_BLOCK_C;
+  const { map, flags } = _composeHybridDayMap(keptDays, runGoal);
+  const fitstopSessions = [
+    { id:'perform',   type:'fitstop',  name:'PERFORM',   focus:'Fitness / intervals' },
+    { id:'lift',      type:'strength', name:'LIFT',      focus:'Strength — main lifts', exercises:[
+        {name:'Back Squat',sets:3,reps:'see phase',load:'phase RM',cue:'brace'},
+        {name:'Deadlift',sets:3,reps:'see phase',load:'phase RM',cue:'wedge'},
+        {name:'Bench Press',sets:3,reps:'see phase',load:'phase RM',cue:'tuck'},
+        {name:'Chin-Up',sets:3,reps:'see phase',load:'phase RM',cue:'full ROM'} ] },
+    { id:'condition', type:'fitstop',  name:'CONDITION', focus:'Sustained conditioning' },
+    { id:'sweat',     type:'fitstop',  name:'SWEAT',     focus:'Mixed conditioning' },
+  ];
+  const usedIds = new Set(map.filter(Boolean));
+  const sessions = [
+    ...fitstopSessions.filter(s => usedIds.has(s.id)),
+    ...Object.values(_RUN_DEFS).filter(r => usedIds.has(r.id)),
+  ];
+  const weeklyProgressions = B.plan.map(([label],i)=>{
+    const ph=_fitstopPhase(i+1);
+    return { week:i+1, note:`${label} · Fitstop: ${ph.strength} · Running: easy base + quality, placed away from Fitstop days${runGoal?` · Goal: ${runGoal}`:''}` };
+  });
+  const data = {
+    id:'fitstop-hybrid-block-c', name:'Fitstop + Endurance (BLOCK C)', type:'hybrid',
+    source:'Fitstop BLOCK C 2026 + endurance overlay',
+    startDate:B.startDate, weeks:B.weeks, sessionsPerWeek: map.filter(Boolean).length,
+    sessions, dayMap: map, weeklyProgressions, fitstopBlock:B,
+    interferenceFlags: flags, // surfaced by the Validation Engine / coaching notes
+  };
+  saveProgramData(data);
+  currentProgramWeek = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
+  programViewWeek = 1;
+  try { renderSavedProgram(); } catch(e){}
+  try { renderMyProgramCard(); } catch(e){}
+  try { renderAll(); } catch(e){}
+  toast('Fitstop + endurance block built — running scheduled around your Fitstop days');
+}
+
+// ── VALIDATION ENGINE ───────────────────────────────────────────────────────
+// Scores a program against established coaching rules and returns actionable
+// violations. Pure function over a program (+ optional athlete context). Used to
+// surface a coaching report and to gate/flag generated programs. Mirrors the
+// Knowledge Repository principles (intensity distribution, concurrent interference,
+// recovery, progression, goal alignment).
+const _V_EASY_RT = new Set(['easy','recovery','long']);
+function _vTypeOf(s){ return s?.type || 'strength'; }
+function validateProgram(prog, ctx = {}) {
+  const V = [];
+  const add = (rule, severity, message, suggestion='') => V.push({ rule, severity, message, suggestion });
+  if (!prog || !Array.isArray(prog.sessions)) { add('structure','error','No program or sessions to validate.'); return _vResult(V); }
+  const ALL = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const byId = Object.fromEntries(prog.sessions.map(s => [s.id, s]));
+  const dm = (Array.isArray(prog.dayMap) && prog.dayMap.length === 7) ? prog.dayMap : null;
+  const slots = dm ? dm.map(id => id ? byId[id] : null) : [];
+  const training = slots.filter(Boolean);
+  const isEasyRun = s => _vTypeOf(s)==='endurance' && _V_EASY_RT.has(s.runType);
+  const hardRun = s => _vTypeOf(s)==='endurance' && !_V_EASY_RT.has(s.runType);
+  const heavy   = s => _vTypeOf(s)==='strength' || _vTypeOf(s)==='fitstop';
+  const taxing  = s => s && !isEasyRun(s);
+
+  // 1 — Structure
+  if (!dm) add('structure','error','Missing a valid 7-day weekly plan (dayMap).','Define Mon–Sun, each a session id or rest.');
+  else {
+    if (!dm.every(id => id===null || byId[id])) add('structure','error','Weekly plan references unknown sessions.','');
+    const nn = dm.filter(Boolean).length;
+    if (prog.sessionsPerWeek && nn !== prog.sessionsPerWeek) add('structure','info',`Plan has ${nn} sessions but sessionsPerWeek=${prog.sessionsPerWeek}.`,'');
+  }
+  // 2 — Recovery: rest day + consecutive hard days
+  if (dm) {
+    if (dm.filter(x => !x).length < 1) add('recovery','warn','No rest day in the week.','Include at least one rest day.');
+    let run=0, maxRun=0; for (let k=0;k<14;k++){ if (taxing(slots[k%7])){ run++; maxRun=Math.max(maxRun,run);} else run=0; }
+    if (maxRun >= 4) add('recovery','warn',`${maxRun} hard/taxing days in a row.`,'Break up consecutive hard days with an easy day or rest.');
+  }
+  // 3 — Intensity distribution (running)
+  const runs = training.filter(s => _vTypeOf(s)==='endurance');
+  if (runs.length >= 3) {
+    const easy = runs.filter(isEasyRun).length, ratio = easy/runs.length;
+    if (ratio < 0.6) add('intensity','warn',`Only ${Math.round(ratio*100)}% of runs are easy.`,'Polarise toward ~80% easy / ~20% hard.');
+  }
+  // 4 — Concurrent-training interference
+  if (dm) for (let i=0;i<7;i++){ const a=slots[i], b=slots[(i+1)%7];
+    if (a&&b && ((hardRun(a)&&heavy(b))||(heavy(a)&&hardRun(b)))) add('interference','warn',`Hard run next to a strength/Fitstop day (${ALL[i]}→${ALL[(i+1)%7]}).`,'Separate hard runs from heavy strength by a day where possible.'); }
+  if (Array.isArray(prog.interferenceFlags)) prog.interferenceFlags.forEach(f => add('interference','info', f));
+  // 5 — Progression / deload
+  const wp = prog.weeklyProgressions || [];
+  if (!wp.length) add('progression','warn','No week-to-week progression defined.','Define how load evolves each week.');
+  else if ((prog.weeks||wp.length) >= 5 && !wp.some(w=>w.deload) && prog.type!=='fitstop')
+    add('progression','warn','No deload week in a 5+ week block.','Add a deload roughly every 3–5 weeks.');
+  // 6 — Goal alignment
+  const goal = (ctx.goal || prog.type || '').toString();
+  if (prog.type==='endurance' && runs.length && !runs.some(s=>s.runType==='long')) add('goal','warn','Endurance block has no long run.','Add a weekly long run.');
+  if (prog.type==='strength') { const comp = prog.sessions.some(s=>_vTypeOf(s)==='strength' && (s.exercises||[]).some(e=>/squat|deadlift|bench|press|row|pull|hinge|lunge|clean/i.test(e.name||''))); if (!comp) add('goal','warn','Strength block has no compound lifts.','Anchor sessions with compound lifts.'); }
+  // 7 — Time availability
+  if (ctx.availability && prog.sessionsPerWeek > ctx.availability) add('time','warn',`Needs ${prog.sessionsPerWeek} days/week but athlete has ${ctx.availability}.`,'Reduce sessions/week to fit availability.');
+
+  return _vResult(V);
+}
+function _vResult(V){
+  const errors = V.filter(v=>v.severity==='error'), warnings = V.filter(v=>v.severity==='warn'), infos = V.filter(v=>v.severity==='info');
+  const score = Math.max(0, 100 - errors.length*25 - warnings.length*8);
+  return { ok: errors.length===0, score, errors, warnings, infos, all: V };
+}
+// Compact validation card for the saved-program view.
+function renderValidationCard(prog){
+  const r = validateProgram(prog, { goal: (coachProfile&&coachProfile.goal)||'', availability: coachProfile&&coachProfile.availability });
+  const color = r.errors.length ? 'var(--red)' : r.warnings.length ? 'var(--accent)' : 'var(--green,#34c759)';
+  const label = r.errors.length ? 'Needs attention' : r.warnings.length ? 'Good — minor notes' : 'Looks sound';
+  const rows = [...r.errors, ...r.warnings, ...r.infos].slice(0,6).map(v=>{
+    const c = v.severity==='error'?'var(--red)':v.severity==='warn'?'var(--accent)':'var(--text3)';
+    const icon = v.severity==='error'?'✕':v.severity==='warn'?'!':'i';
+    return `<div style="display:flex;gap:8px;padding:6px 0;border-top:.5px solid var(--border);">
+      <span style="color:${c};font-family:var(--mono);font-size:11px;flex-shrink:0;">${icon}</span>
+      <div><div style="font-size:12px;color:var(--text2);line-height:1.4;">${v.message}</div>
+      ${v.suggestion?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">→ ${v.suggestion}</div>`:''}</div></div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px;border-color:${color}33;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Coaching check</div>
+      <div style="font-size:12px;font-weight:600;color:${color};">${label} · ${r.score}/100</div>
+    </div>${rows||'<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:6px;">No issues found.</div>'}</div>`;
 }
 
 function renderSavedProgram() {
@@ -6237,6 +6528,7 @@ function renderSavedProgram() {
       ${prog.startDate?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;">Started ${prog.startDate} · currently Week ${_progActualWeek()} of ${totalWks}</div>`:`<div style="font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:6px;">No start date set — <span onclick="restartProgramToday()" style="text-decoration:underline;cursor:pointer;">anchor to this week</span> to enable date tracking</div>`}
       ${prog.progression?`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:6px;line-height:1.6;">${prog.progression}</div>`:''}
     </div>
+    ${(()=>{ try { return renderValidationCard(prog); } catch(e) { return ''; } })()}
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${weekTabs}</div>
     ${wkMod.note?`<div style="background:var(--accent-dim);border:.5px solid rgba(212,175,55,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6;">${wkMod.note}</div>`:''}
     ${sessionCards}
@@ -6420,6 +6712,7 @@ function renderMoreSettings() {
   setBtn('unit-wt-kg',   sUnit   === 'kg');
   setBtn('unit-wt-lbs',  sUnit   === 'lbs');
   renderStrengthProgrammingCard();
+  try { renderTrainingPreferences(); } catch(e) {}
 }
 
 function renderStrengthProgrammingCard() {
