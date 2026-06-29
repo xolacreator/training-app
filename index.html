@@ -723,6 +723,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="card" id="strava-card" style="min-height:60px;margin-top:8px;"></div>
     <div class="sec-lbl">Notifications</div>
     <div class="card" id="notif-card" style="min-height:60px;"></div>
+    <div class="sec-lbl">Training Preferences</div>
+    <div class="card" id="training-prefs-card" style="min-height:60px;"></div>
     <div class="sec-lbl">Strength Programming</div>
     <div class="card" id="strength-programming-card" style="min-height:60px;"></div>
     <div class="sec-lbl">Program</div>
@@ -6115,6 +6117,117 @@ function renderProgramBuilder() {
   </div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ATHLETE AVAILABILITY (Phase 1 of constraint-based scheduling)
+// The athlete controls availability; Coach EV (Scheduler, later phase) decides what
+// happens on those days. Persistent profile: per (day × category) status.
+// ═══════════════════════════════════════════════════════════════════════════
+// Extensible category list — add entries here without touching the engine.
+const TRAINING_CATEGORIES = [
+  { id:'easy-run',      label:'Easy Run',      group:'run' },
+  { id:'workout-run',   label:'Workout Run',   group:'run' },
+  { id:'long-run',      label:'Long Run',      group:'run' },
+  { id:'track',         label:'Track',         group:'run' },
+  { id:'trail',         label:'Trail',         group:'run' },
+  { id:'treadmill',     label:'Treadmill',     group:'run' },
+  { id:'recovery-run',  label:'Recovery Run',  group:'run' },
+  { id:'fitstop',       label:'Fitstop',       group:'fitstop' },
+  { id:'strength',      label:'Strength',      group:'strength' },
+  { id:'hybrid',        label:'Hybrid',        group:'hybrid' },
+  { id:'hyrox',         label:'HYROX',         group:'hyrox' },
+  { id:'deka',          label:'DEKA',          group:'deka' },
+  { id:'mobility',      label:'Mobility',      group:'recovery' },
+  { id:'recovery',      label:'Recovery',      group:'recovery' },
+  { id:'cross-training',label:'Cross Training',group:'other' },
+  { id:'rest',          label:'Rest',          group:'rest' },
+  { id:'other',         label:'Other',         group:'other' },
+];
+const AVAIL_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// Status cycle for the grid. 'none' = not set.
+const AVAIL_STATUSES = ['none','preferred','available','avoid','locked'];
+const AVAIL_META = {
+  none:      { short:'·', label:'—',          color:'var(--text3)', bg:'transparent' },
+  preferred: { short:'P', label:'Preferred',  color:'#000',          bg:'var(--accent)' },
+  available: { short:'A', label:'Available',  color:'var(--blue)',   bg:'rgba(77,158,255,.15)' },
+  avoid:     { short:'✕', label:'Avoid',      color:'var(--red)',    bg:'rgba(240,101,101,.12)' },
+  locked:    { short:'L', label:'Locked',     color:'var(--green,#34c759)', bg:'rgba(52,199,89,.15)' },
+};
+
+let athleteAvailability = null;
+function loadAvailability(){
+  try { athleteAvailability = JSON.parse(localStorage.getItem('ht-availability') || 'null'); } catch(e) { athleteAvailability = null; }
+  if (!athleteAvailability || !athleteAvailability.days) athleteAvailability = { version:1, days:{} };
+  return athleteAvailability;
+}
+function saveAvailability(){
+  try { localStorage.setItem('ht-availability', JSON.stringify(athleteAvailability)); } catch(e) {}
+}
+function getDayStatus(day, catId){
+  if (!athleteAvailability) loadAvailability();
+  return athleteAvailability.days?.[day]?.[catId] || 'none';
+}
+function setDayStatus(day, catId, status){
+  if (!athleteAvailability) loadAvailability();
+  athleteAvailability.days[day] = athleteAvailability.days[day] || {};
+  if (status === 'none') delete athleteAvailability.days[day][catId];
+  else athleteAvailability.days[day][catId] = status;
+  saveAvailability();
+}
+function cycleDayStatus(day, catId){
+  const cur = getDayStatus(day, catId);
+  const next = AVAIL_STATUSES[(AVAIL_STATUSES.indexOf(cur) + 1) % AVAIL_STATUSES.length];
+  setDayStatus(day, catId, next);
+  return next;
+}
+// Read API for the Scheduler (later phase): grouped statuses for a day.
+function availabilityForDay(day){
+  const d = (athleteAvailability?.days?.[day]) || {};
+  const out = { preferred:[], available:[], avoid:[], locked:[] };
+  for (const [cat, st] of Object.entries(d)) if (out[st]) out[st].push(cat);
+  return out;
+}
+function hasAnyAvailability(){
+  if (!athleteAvailability) loadAvailability();
+  return Object.values(athleteAvailability.days||{}).some(d => Object.keys(d).length);
+}
+
+// ── Training Preferences grid UI ─────────────────────────────────────────────
+function renderTrainingPreferences(){
+  const card = document.getElementById('training-prefs-card');
+  if (!card) return;
+  loadAvailability();
+  const legend = AVAIL_STATUSES.filter(s=>s!=='none').map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;"><span style="display:inline-flex;width:16px;height:16px;border-radius:4px;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;font-weight:700;background:${AVAIL_META[s].bg};color:${AVAIL_META[s].color};border:1px solid var(--border2);">${AVAIL_META[s].short}</span><span style="font-family:var(--mono);font-size:9px;color:var(--text3);">${AVAIL_META[s].label}</span></span>`
+  ).join('');
+  const head = `<div style="display:flex;align-items:center;">
+    <div style="width:84px;flex-shrink:0;"></div>
+    ${AVAIL_DAYS.map(d=>`<div style="flex:1;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);">${d[0]}</div>`).join('')}
+  </div>`;
+  const rows = TRAINING_CATEGORIES.map(cat => {
+    const cells = AVAIL_DAYS.map(day => {
+      const st = getDayStatus(day, cat.id), m = AVAIL_META[st];
+      return `<div style="flex:1;display:flex;justify-content:center;padding:2px;">
+        <button onclick="_prefTap('${day}','${cat.id}',this)" data-day="${day}" data-cat="${cat.id}"
+          style="width:30px;height:26px;border:1px solid var(--border2);border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:700;background:${m.bg};color:${m.color};touch-action:manipulation;">${m.short}</button>
+      </div>`;
+    }).join('');
+    return `<div style="display:flex;align-items:center;margin-top:3px;">
+      <div style="width:84px;flex-shrink:0;font-size:11px;color:var(--text2);line-height:1.1;">${cat.label}</div>${cells}</div>`;
+  }).join('');
+  card.innerHTML = `
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;margin-bottom:10px;">
+      Tap a cell to cycle: — → P → A → ✕ → L. You set when you're available; the coach decides what to program.
+    </div>
+    <div style="margin-bottom:10px;">${legend}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">${head}${rows}</div>
+    <button class="btn btn-sm" onclick="if(confirm('Clear all training preferences?')){athleteAvailability={version:1,days:{}};saveAvailability();renderTrainingPreferences();}" style="margin-top:12px;color:var(--text3);">Clear all</button>`;
+}
+function _prefTap(day, catId, btn){
+  const next = cycleDayStatus(day, catId);
+  const m = AVAIL_META[next];
+  btn.style.background = m.bg; btn.style.color = m.color; btn.textContent = m.short;
+}
+
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
 // Compact in-app copy of the dated block so "Fitstop" can follow the real schedule
 // without AI generation. Mirrors knowledge/fitstop_block_c_2026.mjs.
@@ -6599,6 +6712,7 @@ function renderMoreSettings() {
   setBtn('unit-wt-kg',   sUnit   === 'kg');
   setBtn('unit-wt-lbs',  sUnit   === 'lbs');
   renderStrengthProgrammingCard();
+  try { renderTrainingPreferences(); } catch(e) {}
 }
 
 function renderStrengthProgrammingCard() {
