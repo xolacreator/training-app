@@ -6228,6 +6228,75 @@ function _prefTap(day, catId, btn){
   btn.style.background = m.bg; btn.style.color = m.color; btn.textContent = m.short;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FATIGUE MODEL (Phase 2 of constraint-based scheduling)
+// Per-category and per-Fitstop-session fatigue estimates, so the Scheduler can keep a
+// fatigue budget and avoid stacking high-cost sessions. Axes 0–10; recoveryHours est.
+// Established training science; tunable. Inert until the Scheduler consumes it.
+// ═══════════════════════════════════════════════════════════════════════════
+const FATIGUE_AXES = ['mechanical','metabolic','neurological','connective'];
+// category → { mechanical, metabolic, neurological, connective, recoveryHours }
+const CATEGORY_FATIGUE = {
+  'easy-run':      { mechanical:3, metabolic:3, neurological:1, connective:3, recoveryHours:12 },
+  'workout-run':   { mechanical:5, metabolic:7, neurological:3, connective:5, recoveryHours:36 },
+  'long-run':      { mechanical:7, metabolic:6, neurological:2, connective:7, recoveryHours:36 },
+  'track':         { mechanical:6, metabolic:9, neurological:5, connective:6, recoveryHours:48 },
+  'trail':         { mechanical:6, metabolic:5, neurological:3, connective:6, recoveryHours:24 },
+  'treadmill':     { mechanical:3, metabolic:4, neurological:2, connective:3, recoveryHours:18 },
+  'recovery-run':  { mechanical:2, metabolic:2, neurological:1, connective:2, recoveryHours:6 },
+  'fitstop':       { mechanical:5, metabolic:7, neurological:4, connective:4, recoveryHours:36 },
+  'strength':      { mechanical:6, metabolic:4, neurological:7, connective:5, recoveryHours:48 },
+  'hybrid':        { mechanical:6, metabolic:7, neurological:5, connective:6, recoveryHours:48 },
+  'hyrox':         { mechanical:7, metabolic:9, neurological:5, connective:6, recoveryHours:48 },
+  'deka':          { mechanical:6, metabolic:8, neurological:4, connective:5, recoveryHours:36 },
+  'mobility':      { mechanical:1, metabolic:1, neurological:1, connective:1, recoveryHours:2 },
+  'recovery':      { mechanical:0, metabolic:0, neurological:0, connective:0, recoveryHours:0 },
+  'cross-training':{ mechanical:2, metabolic:5, neurological:2, connective:2, recoveryHours:12 },
+  'rest':          { mechanical:0, metabolic:0, neurological:0, connective:0, recoveryHours:0 },
+  'other':         { mechanical:4, metabolic:4, neurological:3, connective:4, recoveryHours:24 },
+};
+// Fitstop sessions as an ADAPTATION INPUT — richer estimate per the brief:
+// mechanical / strengthStimulus / powerStimulus / metabolic / neuro / recoveryHours.
+const FITSTOP_LOAD = {
+  PERFORM:   { mechanical:5, strengthStimulus:2, powerStimulus:4, metabolic:8, neuro:4, recoveryHours:36 },
+  LIFT:      { mechanical:6, strengthStimulus:8, powerStimulus:5, metabolic:3, neuro:7, recoveryHours:48 },
+  CONDITION: { mechanical:5, strengthStimulus:2, powerStimulus:3, metabolic:9, neuro:3, recoveryHours:36 },
+  SWEAT:     { mechanical:5, strengthStimulus:3, powerStimulus:4, metabolic:8, neuro:4, recoveryHours:36 },
+};
+// LIFT intensifies across the Fitstop phases (PEAK = 1RM → max neuro/mechanical/recovery).
+const _FS_PHASE_MULT = { BASE:0.85, BUILD:1.0, PERFORMANCE:1.1, PEAK:1.25 };
+
+const Fatigue = {
+  category(catId){ return CATEGORY_FATIGUE[catId] || CATEGORY_FATIGUE.other; },
+  // Fitstop session adaptation/fatigue estimate, phase-scaled for LIFT.
+  fitstopLoad(sessionName, phaseName){
+    const base = FITSTOP_LOAD[(sessionName||'').toUpperCase()] || FITSTOP_LOAD.PERFORM;
+    if ((sessionName||'').toUpperCase() === 'LIFT' && phaseName){
+      const k = _FS_PHASE_MULT[phaseName.toUpperCase()] || 1;
+      return { ...base, mechanical:Math.round(base.mechanical*k), neuro:Math.round(base.neuro*k), recoveryHours:Math.round(base.recoveryHours*k) };
+    }
+    return { ...base };
+  },
+  // Map a Fitstop estimate → the common 4-axis fatigue vector (for budgeting).
+  fitstopToVector(load){ return { mechanical:load.mechanical, metabolic:load.metabolic, neurological:load.neuro, connective:Math.round(load.mechanical*0.7), recoveryHours:load.recoveryHours }; },
+  // Fatigue vector for a program session object (+ optional Fitstop phase).
+  sessionFatigue(session, phaseName){
+    if (!session) return CATEGORY_FATIGUE.rest;
+    const t = (typeof _sessType==='function') ? _sessType(session) : (session.type||'strength');
+    if (t === 'fitstop') return this.fitstopToVector(this.fitstopLoad(session.name, phaseName));
+    if (t === 'strength') return this.category('strength');
+    if (t === 'endurance' || t === 'run'){
+      const rt = session.runType;
+      const map = { easy:'easy-run', recovery:'recovery-run', long:'long-run', tempo:'workout-run', threshold:'workout-run', intervals:'track' };
+      return this.category(map[rt] || 'easy-run');
+    }
+    return this.category('other');
+  },
+  // Aggregate scalar load of a vector (higher = more taxing).
+  score(v){ if(!v) return 0; return FATIGUE_AXES.reduce((s,a)=>s+(v[a]||0),0); },
+  isHigh(v){ return this.score(v) >= 20; }, // ~high-fatigue session threshold (of 40 max)
+};
+
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
 // Compact in-app copy of the dated block so "Fitstop" can follow the real schedule
 // without AI generation. Mirrors knowledge/fitstop_block_c_2026.mjs.
