@@ -6012,7 +6012,7 @@ function setUnitWeight(u) {
 // PROGRAM BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
 let savedProgram = null;
-let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '' };
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '', trainDays: ['Mon','Wed','Fri','Sat'], longRunDay: 'Sat' };
 let programViewWeek = 1;
 
 function loadSavedProgram() {
@@ -6117,6 +6117,28 @@ function renderProgramBuilder() {
       </div>`).join('')}
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
     </div>` : ''}
+
+    ${(cfg.type==='endurance'||cfg.type==='hybrid') ? (()=>{
+      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const td=cfg.trainDays||[];
+      const chips=days.map(d=>{
+        const on=td.includes(d);
+        return `<button onclick="_toggleTrainDay('${d}')" style="flex:1;padding:9px 0;border:1px solid var(--border2);border-radius:7px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600;background:${on?'var(--accent)':'var(--bg2)'};color:${on?'#000':'var(--text3)'};">${d[0]}</button>`;
+      }).join('');
+      const lrOpts=td.map(d=>`<option value="${d}" ${cfg.longRunDay===d?'selected':''}>${d}</option>`).join('');
+      return `<div class="card" style="margin-bottom:20px;border-color:rgba(77,158,255,.3);">
+        <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Your week</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Pick the days you train and your long-run day — the coach builds the plan around them (placing hard sessions for recovery & avoiding interference).</div>
+        <div class="flbl" style="margin-bottom:5px;">Training days</div>
+        <div style="display:flex;gap:5px;margin-bottom:12px;">${chips}</div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="flbl">Long-run day</label>
+          <select onchange="programBuilderConfig.longRunDay=this.value" ${td.length?'':'disabled'}>${lrOpts||'<option>—</option>'}</select>
+        </div>
+        <button class="btn btn-accent" onclick="buildFromSchedule(programBuilderConfig.trainDays,programBuilderConfig.longRunDay,programBuilderConfig.type)" style="width:100%;">Build my plan around these days →</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or —</div>`;
+    })() : ''}
 
     <div style="margin-bottom:20px;">
       <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Goal & weekly structure</div>
@@ -6444,15 +6466,21 @@ function scheduleWeek(objectiveIds, opts={}){
     let best=null;
     for (const day of DOW){
       if (assigned[day]) continue;                       // taken (locked or already placed)
+      if (opts.allowedDays && !opts.allowedDays.includes(day)) continue; // restrict to chosen training days
       const fit = dayFit(day, adp);
       if (fit.status === 'avoid') continue;              // skip Avoid unless nothing else (handled below)
       let score = fit.rank * 10;
       if (adp.hard) score -= adjHardConflict(day) * 6;   // fatigue spacing: avoid stacking hard days
       if (!best || score > best.score) best = { day, score, fit };
     }
-    // Fallback: allow an Avoid day only if no other free day exists.
+    // Fallback: allow an Avoid day only if no other free day exists — still bounded
+    // by allowedDays so objectives never leak onto days the athlete didn't choose.
     if (!best){
-      for (const day of DOW){ if (assigned[day]) continue; const fit=dayFit(day,adp); best={ day, score:-50, fit, forced:true }; break; }
+      for (const day of DOW){
+        if (assigned[day]) continue;
+        if (opts.allowedDays && !opts.allowedDays.includes(day)) continue;
+        const fit=dayFit(day,adp); best={ day, score:-50, fit, forced:true }; break;
+      }
     }
     if (!best){ unplaced.push(adp.label); continue; }
     const alts = DOW.filter(d=>!assigned[d] && d!==best.day && dayFit(d,adp).status!=='avoid');
@@ -6466,10 +6494,10 @@ function scheduleWeek(objectiveIds, opts={}){
 }
 
 // Build an opt-in adaptive program from the athlete's availability (date-anchored).
-function buildAdaptiveWeek(goalType, weeks=6){
+function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   const type = goalType || (programBuilderConfig?.type) || 'hybrid';
   const objectives = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
-  const { assigned, explanations, unplaced } = scheduleWeek(objectives);
+  const { assigned, explanations, unplaced } = scheduleWeek(objectives, opts);
   // Build sessions + dayMap (Mon..Sun) from the placed week.
   const DOW = AVAIL_DAYS;
   const catToSession = (catId, slot) => {
@@ -6503,6 +6531,25 @@ function buildAdaptiveWeek(goalType, weeks=6){
   try { renderAll(); } catch(e){}
   toast(unplaced.length ? `Adaptive week built — ${unplaced.length} objective(s) didn't fit your availability` : 'Adaptive week built from your availability');
   return data;
+}
+
+// Garmin-style quick build: choose the days you train + your long-run day, and the
+// scheduler builds the week around them (no full grid needed). Non-destructive — it
+// just sets a long-run preference and restricts placement to the chosen days.
+function buildFromSchedule(trainDays, longRunDay, type, weeks){
+  type = type || programBuilderConfig?.type || 'endurance';
+  if (!Array.isArray(trainDays) || !trainDays.length){ toast('Pick at least one training day'); return; }
+  loadAvailability();
+  if (longRunDay && trainDays.includes(longRunDay)) setDayStatus(longRunDay, 'long-run', 'preferred');
+  buildAdaptiveWeek(type, weeks || ((programBuilderConfig?.weeks||5)+1), { allowedDays: trainDays });
+}
+function _toggleTrainDay(day){
+  const cfg = programBuilderConfig;
+  cfg.trainDays = cfg.trainDays || [];
+  const i = cfg.trainDays.indexOf(day);
+  if (i>=0){ cfg.trainDays.splice(i,1); if(cfg.longRunDay===day) cfg.longRunDay=null; }
+  else cfg.trainDays.push(day);
+  renderProgramBuilder();
 }
 
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
