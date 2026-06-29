@@ -552,7 +552,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div id="review-banner"></div>
     <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
     <div id="recovery-card" style="margin-bottom:4px;"></div>
-    <div class="sec-lbl">12-week progress</div>
+    <div class="sec-lbl" id="phase-bars-label">12-week progress</div>
     <div class="card" id="phase-bars"></div>
   </div>
 </div>
@@ -2778,6 +2778,9 @@ function renderAll() {
 function renderRaceCountdown(nextRace, daysTo) {
   const el = document.getElementById('race-countdown');
   if (!el) return;
+  // When a custom program is active, the home card reflects THAT program (not the
+  // legacy 12-week PLAN). Shows current week / phase / progress through the program.
+  if (savedProgram) { _renderProgramProgressCard(el); return; }
   const wk = currentPlanWeek, totalWk = 12;
   const phase = wk <= 6 ? 'Base Building' : 'VO₂max + Race Prep';
   const phaseNo = wk <= 6 ? 1 : 2;
@@ -2812,6 +2815,39 @@ function renderRaceCountdown(nextRace, daysTo) {
       <div style="display:flex;gap:3px;margin-bottom:6px;">${pips}</div>
       <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);">
         <span>Week ${wk} of ${totalWk}</span><span>${pct}% through plan</span>
+      </div>
+    </div>`;
+}
+
+// Home card for an active custom program — replaces the legacy 12-week race countdown.
+function _renderProgramProgressCard(el){
+  const prog = savedProgram;
+  const totalWk = prog.weeklyProgressions?.length || prog.weeks || 12;
+  const wk = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
+  const note = prog.weeklyProgressions?.[wk-1]?.note || '';
+  const phaseLabel = (note.split('·')[0] || '').trim() || `Week ${wk}`;
+  const pct = Math.round((wk/totalWk)*100);
+  const pips = Array.from({length: totalWk},(_,i)=>{ const w=i+1, filled=w<wk, cur=w===wk;
+    const col = cur?'var(--accent)':filled?'var(--blue)':'var(--bg4)';
+    return `<div style="flex:1;height:4px;border-radius:2px;background:${col};${cur?'box-shadow:0 0 0 1px var(--accent);':''}"></div>`; }).join('');
+  const typeLabel = (prog.type||'program').toUpperCase();
+  el.innerHTML = `
+    <div class="card" onclick="openProgramOverlay()" style="cursor:pointer;background:linear-gradient(135deg,var(--accent-dim),transparent);border-color:rgba(201,168,76,0.2);margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);">Current program</div>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);">${typeLabel}</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
+        <div style="font-size:46px;font-weight:600;color:var(--text);line-height:.9;letter-spacing:-.02em;">W${wk}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">of ${totalWk}</div>
+        <div style="flex:1;text-align:right;min-width:0;">
+          <div style="font-size:15px;font-weight:500;color:var(--text);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prog.name||'Training Program'}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px;">${phaseLabel}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:3px;margin-bottom:6px;">${pips}</div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);">
+        <span>Week ${wk} of ${totalWk}</span><span>${pct}% through program</span>
       </div>
     </div>`;
 }
@@ -2852,9 +2888,23 @@ function renderToday() {
     <div class="metric bl" onclick="openInsight('Tempo Pace Trend',insightTempo())"><div class="mlbl">Peak tempo</div>
       <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'—'}<span class="munit">${paceUnit()}</span></div>
       <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'} ›</div></div>
-    <div class="metric gr" onclick="openInsight('Week ${currentPlanWeek}',insightWeekLog())"><div class="mlbl">W${currentPlanWeek} logged</div>
-      <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>
+    ${(()=>{
+      if (savedProgram) {
+        const pw = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
+        const slots = (typeof _progWeekSessions==='function') ? _progWeekSessions(pw).filter(s=>s.session) : [];
+        const done = slots.filter(s=> typeof _progSessionDone==='function' && _progSessionDone(pw, s.id)).length;
+        return `<div class="metric gr"><div class="mlbl">W${pw} done</div>
+          <div class="mval gr">${done}<span class="munit">/${slots.length||0}</span></div><div class="msub">program week ›</div></div>`;
+      }
+      return `<div class="metric gr" onclick="openInsight('Week ${currentPlanWeek}',insightWeekLog())"><div class="mlbl">W${currentPlanWeek} logged</div>
+        <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>`;
+    })()}
   `;
+
+  // Legacy "12-week progress" phase bars are PLAN-specific — hide when a program is active.
+  const pbl = document.getElementById('phase-bars-label'), pb = document.getElementById('phase-bars');
+  if (pbl) pbl.style.display = savedProgram ? 'none' : '';
+  if (pb)  pb.style.display  = savedProgram ? 'none' : '';
 
   // Week strip and today's session — AI program or default PLAN
   if (savedProgram) {
