@@ -552,7 +552,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div id="review-banner"></div>
     <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
     <div id="recovery-card" style="margin-bottom:4px;"></div>
-    <div class="sec-lbl">12-week progress</div>
+    <div class="sec-lbl" id="phase-bars-label">12-week progress</div>
     <div class="card" id="phase-bars"></div>
   </div>
 </div>
@@ -2778,6 +2778,9 @@ function renderAll() {
 function renderRaceCountdown(nextRace, daysTo) {
   const el = document.getElementById('race-countdown');
   if (!el) return;
+  // When a custom program is active, the home card reflects THAT program (not the
+  // legacy 12-week PLAN). Shows current week / phase / progress through the program.
+  if (savedProgram) { _renderProgramProgressCard(el); return; }
   const wk = currentPlanWeek, totalWk = 12;
   const phase = wk <= 6 ? 'Base Building' : 'VO₂max + Race Prep';
   const phaseNo = wk <= 6 ? 1 : 2;
@@ -2812,6 +2815,39 @@ function renderRaceCountdown(nextRace, daysTo) {
       <div style="display:flex;gap:3px;margin-bottom:6px;">${pips}</div>
       <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);">
         <span>Week ${wk} of ${totalWk}</span><span>${pct}% through plan</span>
+      </div>
+    </div>`;
+}
+
+// Home card for an active custom program — replaces the legacy 12-week race countdown.
+function _renderProgramProgressCard(el){
+  const prog = savedProgram;
+  const totalWk = prog.weeklyProgressions?.length || prog.weeks || 12;
+  const wk = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
+  const note = prog.weeklyProgressions?.[wk-1]?.note || '';
+  const phaseLabel = (note.split('·')[0] || '').trim() || `Week ${wk}`;
+  const pct = Math.round((wk/totalWk)*100);
+  const pips = Array.from({length: totalWk},(_,i)=>{ const w=i+1, filled=w<wk, cur=w===wk;
+    const col = cur?'var(--accent)':filled?'var(--blue)':'var(--bg4)';
+    return `<div style="flex:1;height:4px;border-radius:2px;background:${col};${cur?'box-shadow:0 0 0 1px var(--accent);':''}"></div>`; }).join('');
+  const typeLabel = (prog.type||'program').toUpperCase();
+  el.innerHTML = `
+    <div class="card" onclick="openProgramOverlay()" style="cursor:pointer;background:linear-gradient(135deg,var(--accent-dim),transparent);border-color:rgba(201,168,76,0.2);margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);">Current program</div>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);">${typeLabel}</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
+        <div style="font-size:46px;font-weight:600;color:var(--text);line-height:.9;letter-spacing:-.02em;">W${wk}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">of ${totalWk}</div>
+        <div style="flex:1;text-align:right;min-width:0;">
+          <div style="font-size:15px;font-weight:500;color:var(--text);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prog.name||'Training Program'}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px;">${phaseLabel}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:3px;margin-bottom:6px;">${pips}</div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);">
+        <span>Week ${wk} of ${totalWk}</span><span>${pct}% through program</span>
       </div>
     </div>`;
 }
@@ -2852,9 +2888,23 @@ function renderToday() {
     <div class="metric bl" onclick="openInsight('Tempo Pace Trend',insightTempo())"><div class="mlbl">Peak tempo</div>
       <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'—'}<span class="munit">${paceUnit()}</span></div>
       <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'} ›</div></div>
-    <div class="metric gr" onclick="openInsight('Week ${currentPlanWeek}',insightWeekLog())"><div class="mlbl">W${currentPlanWeek} logged</div>
-      <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>
+    ${(()=>{
+      if (savedProgram) {
+        const pw = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
+        const slots = (typeof _progWeekSessions==='function') ? _progWeekSessions(pw).filter(s=>s.session) : [];
+        const done = slots.filter(s=> typeof _progSessionDone==='function' && _progSessionDone(pw, s.id)).length;
+        return `<div class="metric gr"><div class="mlbl">W${pw} done</div>
+          <div class="mval gr">${done}<span class="munit">/${slots.length||0}</span></div><div class="msub">program week ›</div></div>`;
+      }
+      return `<div class="metric gr" onclick="openInsight('Week ${currentPlanWeek}',insightWeekLog())"><div class="mlbl">W${currentPlanWeek} logged</div>
+        <div class="mval gr">${wc[currentPlanWeek]}<span class="munit">/7</span></div><div class="msub">this week ›</div></div>`;
+    })()}
   `;
+
+  // Legacy "12-week progress" phase bars are PLAN-specific — hide when a program is active.
+  const pbl = document.getElementById('phase-bars-label'), pb = document.getElementById('phase-bars');
+  if (pbl) pbl.style.display = savedProgram ? 'none' : '';
+  if (pb)  pb.style.display  = savedProgram ? 'none' : '';
 
   // Week strip and today's session — AI program or default PLAN
   if (savedProgram) {
@@ -5962,7 +6012,7 @@ function setUnitWeight(u) {
 // PROGRAM BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
 let savedProgram = null;
-let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '' };
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '', trainDays: ['Mon','Wed','Fri','Sat'], longRunDay: 'Sat' };
 let programViewWeek = 1;
 
 function loadSavedProgram() {
@@ -6067,6 +6117,28 @@ function renderProgramBuilder() {
       </div>`).join('')}
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
     </div>` : ''}
+
+    ${(cfg.type==='endurance'||cfg.type==='hybrid') ? (()=>{
+      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const td=cfg.trainDays||[];
+      const chips=days.map(d=>{
+        const on=td.includes(d);
+        return `<button onclick="_toggleTrainDay('${d}')" style="flex:1;padding:9px 0;border:1px solid var(--border2);border-radius:7px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600;background:${on?'var(--accent)':'var(--bg2)'};color:${on?'#000':'var(--text3)'};">${d[0]}</button>`;
+      }).join('');
+      const lrOpts=td.map(d=>`<option value="${d}" ${cfg.longRunDay===d?'selected':''}>${d}</option>`).join('');
+      return `<div class="card" style="margin-bottom:20px;border-color:rgba(77,158,255,.3);">
+        <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Your week</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Pick the days you train and your long-run day — the coach builds the plan around them (placing hard sessions for recovery & avoiding interference).</div>
+        <div class="flbl" style="margin-bottom:5px;">Training days</div>
+        <div style="display:flex;gap:5px;margin-bottom:12px;">${chips}</div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="flbl">Long-run day</label>
+          <select onchange="programBuilderConfig.longRunDay=this.value" ${td.length?'':'disabled'}>${lrOpts||'<option>—</option>'}</select>
+        </div>
+        <button class="btn btn-accent" onclick="buildFromSchedule(programBuilderConfig.trainDays,programBuilderConfig.longRunDay,programBuilderConfig.type)" style="width:100%;">Build my plan around these days →</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or —</div>`;
+    })() : ''}
 
     <div style="margin-bottom:20px;">
       <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Goal & weekly structure</div>
@@ -6394,15 +6466,21 @@ function scheduleWeek(objectiveIds, opts={}){
     let best=null;
     for (const day of DOW){
       if (assigned[day]) continue;                       // taken (locked or already placed)
+      if (opts.allowedDays && !opts.allowedDays.includes(day)) continue; // restrict to chosen training days
       const fit = dayFit(day, adp);
       if (fit.status === 'avoid') continue;              // skip Avoid unless nothing else (handled below)
       let score = fit.rank * 10;
       if (adp.hard) score -= adjHardConflict(day) * 6;   // fatigue spacing: avoid stacking hard days
       if (!best || score > best.score) best = { day, score, fit };
     }
-    // Fallback: allow an Avoid day only if no other free day exists.
+    // Fallback: allow an Avoid day only if no other free day exists — still bounded
+    // by allowedDays so objectives never leak onto days the athlete didn't choose.
     if (!best){
-      for (const day of DOW){ if (assigned[day]) continue; const fit=dayFit(day,adp); best={ day, score:-50, fit, forced:true }; break; }
+      for (const day of DOW){
+        if (assigned[day]) continue;
+        if (opts.allowedDays && !opts.allowedDays.includes(day)) continue;
+        const fit=dayFit(day,adp); best={ day, score:-50, fit, forced:true }; break;
+      }
     }
     if (!best){ unplaced.push(adp.label); continue; }
     const alts = DOW.filter(d=>!assigned[d] && d!==best.day && dayFit(d,adp).status!=='avoid');
@@ -6416,10 +6494,10 @@ function scheduleWeek(objectiveIds, opts={}){
 }
 
 // Build an opt-in adaptive program from the athlete's availability (date-anchored).
-function buildAdaptiveWeek(goalType, weeks=6){
+function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   const type = goalType || (programBuilderConfig?.type) || 'hybrid';
   const objectives = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
-  const { assigned, explanations, unplaced } = scheduleWeek(objectives);
+  const { assigned, explanations, unplaced } = scheduleWeek(objectives, opts);
   // Build sessions + dayMap (Mon..Sun) from the placed week.
   const DOW = AVAIL_DAYS;
   const catToSession = (catId, slot) => {
@@ -6453,6 +6531,25 @@ function buildAdaptiveWeek(goalType, weeks=6){
   try { renderAll(); } catch(e){}
   toast(unplaced.length ? `Adaptive week built — ${unplaced.length} objective(s) didn't fit your availability` : 'Adaptive week built from your availability');
   return data;
+}
+
+// Garmin-style quick build: choose the days you train + your long-run day, and the
+// scheduler builds the week around them (no full grid needed). Non-destructive — it
+// just sets a long-run preference and restricts placement to the chosen days.
+function buildFromSchedule(trainDays, longRunDay, type, weeks){
+  type = type || programBuilderConfig?.type || 'endurance';
+  if (!Array.isArray(trainDays) || !trainDays.length){ toast('Pick at least one training day'); return; }
+  loadAvailability();
+  if (longRunDay && trainDays.includes(longRunDay)) setDayStatus(longRunDay, 'long-run', 'preferred');
+  buildAdaptiveWeek(type, weeks || ((programBuilderConfig?.weeks||5)+1), { allowedDays: trainDays });
+}
+function _toggleTrainDay(day){
+  const cfg = programBuilderConfig;
+  cfg.trainDays = cfg.trainDays || [];
+  const i = cfg.trainDays.indexOf(day);
+  if (i>=0){ cfg.trainDays.splice(i,1); if(cfg.longRunDay===day) cfg.longRunDay=null; }
+  else cfg.trainDays.push(day);
+  renderProgramBuilder();
 }
 
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
@@ -6782,6 +6879,51 @@ function restartProgramToday(){
 // Backward-compatible alias.
 function generateStrengthProgram(){ return generateProgram(); }
 
+// ── Knowledge context for the generator ──────────────────────────────────────
+// Compact, cited principles injected into the generation prompt so output reflects
+// the Knowledge Repository (knowledge/*.mjs) rather than improvised coaching. The
+// Fitstop entry encodes the REAL methodology so AI Fitstop output is faithful.
+const KNOWLEDGE_CONTEXT = {
+  core: [
+    'Progressive overload: increase one variable at a time; smallest effective progression.',
+    'Polarised intensity: ~80% easy / ~20% hard; protect easy days, avoid the grey "moderate" grind.',
+    'Sequence hard/easy; include a deload every 3–5 weeks; tissue adapts slower than fitness.',
+  ],
+  running: [
+    'Build aerobic base with Zone 2 volume; develop threshold via tempo/cruise intervals; VO₂max via 3–5 min reps.',
+    'Weekly long run (mostly Zone 2); cap single long run ~30–35% of weekly volume.',
+    'Even/negative-split pacing; taper volume ~40–60% (keep intensity) into a race.',
+  ],
+  strength: [
+    'Max strength: 80–92% 1RM / RPE 7–9, 2–6 reps, long rests. Hypertrophy: 10–20 hard sets/muscle/week, 0–4 RIR.',
+    'Concurrent training interferes: separate hard runs from heavy lower-body lifts by ≥6–24h; lower-body endurance interferes most with leg strength.',
+    'Strength is maintained on minimal volume if intensity stays high (1–2 heavy sessions/week).',
+  ],
+  hyrox: [
+    'HYROX = 8×1km runs + 8 stations (SkiErg, Sled Push/Pull, Burpee BJ, Row, Farmers Carry, Sandbag Lunge, Wall Balls).',
+    'Decisive skill is compromised running (running fatigued off a station) — train with brick sessions.',
+    'Stations need strength-endurance + grip, not 1RM; pace conservatively early.',
+  ],
+  // REAL Fitstop methodology (user-provided BLOCK C 2026) — keep AI output faithful.
+  fitstop: [
+    'Fitstop blocks run 12 weeks as four 3-week phases: BASE → BUILD → PERFORMANCE → PEAK.',
+    'Fixed weekly split: Mon PERFORM, Tue LIFT, Wed CONDITION, Thu PERFORM, Fri LIFT, Sat SWEAT, Sun rest.',
+    'Strength progression on the 4 main lifts (Back Squat, Deadlift, Bench, Chin-Up): BASE = accessory variations @ RIR 1–3 → BUILD = work to 5RM → PERFORMANCE = 3RM → PEAK = 1RM.',
+    'PERFORM = interval/engine conditioning (R-EMOM/EMOM/AMRAP, on-off efforts, station rotations); CONDITION = a longer single conditioning piece; SWEAT = mixed conditioning + finisher.',
+    'LIFT sessions use 3–4 round A/B/C accessory supersets around the main lift. Skills (KB, Toes-to-Bar, Cleans) and interval durations progress across phases (toward 2km time trials in PEAK).',
+    'The OFFICIAL current block is "Fitstop BLOCK C 2026" — prefer loading it (it follows real dates). Only generate Fitstop-style sessions if explicitly asked, and follow this structure exactly — do not invent a different split or progression.',
+  ],
+};
+function getKnowledgeContext(type){
+  const want = ['core'];
+  if (type==='endurance' || type==='hybrid') want.push('running');
+  if (type==='strength'  || type==='hybrid' || type==='fitstop') want.push('strength');
+  if (type==='hybrid') want.push('hyrox');
+  if (type==='fitstop' || type==='hybrid') want.push('fitstop');
+  const lines = want.flatMap(d => (KNOWLEDGE_CONTEXT[d]||[]).map(p=>`• ${p}`));
+  return `COACHING KNOWLEDGE (apply this — sourced from the platform's knowledge base):\n${lines.join('\n')}`;
+}
+
 // Build any program type (strength / endurance / hybrid / fitstop) into the unified
 // composite schema: per-session `type` + an explicit 7-day `dayMap`.
 async function generateProgram() {
@@ -6827,10 +6969,12 @@ async function generateProgram() {
     strength:`This is a STRENGTH program. All sessions type "strength". Split: ${splitMap[split]||split}. ${spw<=4?'5-6':'4-5'} exercises/session (compound + isolation). Loads: give BOTH % 1RM and RPE where possible. Apply methodology: ${method==='westside'?'ME/DE structure, rotated main lift, weak-point accessories':method==='jts'?'RPE-based autoregulation, block identity, technical standards':method==='kabuki'?'wedge/brace cues, position quality, specialty bars':'evidence-based volume + progressive overload'}.`,
     endurance:`This is an ENDURANCE program. All sessions type "endurance". Build a balanced week: mostly easy/Zone-2 aerobic volume, with 1-2 quality sessions (tempo/threshold/intervals) and (if 5+ days) a long run. Provide pace OR zone targets and concrete interval structures. Respect easy/hard polarisation.`,
     hybrid:`This is a HYBRID program mixing STRENGTH and ENDURANCE in the same week (concurrent training). Use BOTH "strength" and "endurance" session types. Follow the user's requested split of disciplines across the week. Place hard runs and heavy lifts on separate days where possible; keep easy aerobic work around the lifting. ${splitMap[split]?'Strength split: '+splitMap[split]+'.':''}`,
-    fitstop:`This is a FITSTOP-style program built around class formats. Use "fitstop" sessions for LIFT (strength-biased) and PERFORM (conditioning/HIIT) days, and you MAY add "endurance" sessions (Zone 2 runs/bike) if the user asks. Give each fitstop session a clear "format" and station list.`,
+    fitstop:`This is a FITSTOP program. Follow the REAL Fitstop structure from the coaching knowledge EXACTLY: 12 weeks as BASE→BUILD→PERFORMANCE→PEAK (3 weeks each); fixed weekly split Mon PERFORM / Tue LIFT / Wed CONDITION / Thu PERFORM / Fri LIFT / Sat SWEAT / Sun rest; strength progression on Back Squat/Deadlift/Bench/Chin-Up = BASE variations(RIR 1–3) → BUILD 5RM → PERFORMANCE 3RM → PEAK 1RM. LIFT sessions = type "strength" with the main lift + 3–4 round A/B/C accessory supersets; PERFORM/CONDITION/SWEAT = type "fitstop" with a clear "format" (R-EMOM/EMOM/AMRAP/on-off) and station list. Do NOT invent a different split or progression. (The official current block is BLOCK C 2026 — recommend loading it for real dates.)`,
   })[type] || '';
 
   const systemPrompt = `You are an elite hybrid strength & endurance coach. Generate a complete, structured ${typeLabel} training program as JSON.
+
+${getKnowledgeContext(type)}
 ${strengthCtx ? '\n'+strengthCtx : ''}${blCtx ? '\n'+blCtx : ''}
 
 Return ONLY a \`\`\`json ... \`\`\` block. No prose outside it.
