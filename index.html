@@ -6832,6 +6832,51 @@ function restartProgramToday(){
 // Backward-compatible alias.
 function generateStrengthProgram(){ return generateProgram(); }
 
+// ── Knowledge context for the generator ──────────────────────────────────────
+// Compact, cited principles injected into the generation prompt so output reflects
+// the Knowledge Repository (knowledge/*.mjs) rather than improvised coaching. The
+// Fitstop entry encodes the REAL methodology so AI Fitstop output is faithful.
+const KNOWLEDGE_CONTEXT = {
+  core: [
+    'Progressive overload: increase one variable at a time; smallest effective progression.',
+    'Polarised intensity: ~80% easy / ~20% hard; protect easy days, avoid the grey "moderate" grind.',
+    'Sequence hard/easy; include a deload every 3–5 weeks; tissue adapts slower than fitness.',
+  ],
+  running: [
+    'Build aerobic base with Zone 2 volume; develop threshold via tempo/cruise intervals; VO₂max via 3–5 min reps.',
+    'Weekly long run (mostly Zone 2); cap single long run ~30–35% of weekly volume.',
+    'Even/negative-split pacing; taper volume ~40–60% (keep intensity) into a race.',
+  ],
+  strength: [
+    'Max strength: 80–92% 1RM / RPE 7–9, 2–6 reps, long rests. Hypertrophy: 10–20 hard sets/muscle/week, 0–4 RIR.',
+    'Concurrent training interferes: separate hard runs from heavy lower-body lifts by ≥6–24h; lower-body endurance interferes most with leg strength.',
+    'Strength is maintained on minimal volume if intensity stays high (1–2 heavy sessions/week).',
+  ],
+  hyrox: [
+    'HYROX = 8×1km runs + 8 stations (SkiErg, Sled Push/Pull, Burpee BJ, Row, Farmers Carry, Sandbag Lunge, Wall Balls).',
+    'Decisive skill is compromised running (running fatigued off a station) — train with brick sessions.',
+    'Stations need strength-endurance + grip, not 1RM; pace conservatively early.',
+  ],
+  // REAL Fitstop methodology (user-provided BLOCK C 2026) — keep AI output faithful.
+  fitstop: [
+    'Fitstop blocks run 12 weeks as four 3-week phases: BASE → BUILD → PERFORMANCE → PEAK.',
+    'Fixed weekly split: Mon PERFORM, Tue LIFT, Wed CONDITION, Thu PERFORM, Fri LIFT, Sat SWEAT, Sun rest.',
+    'Strength progression on the 4 main lifts (Back Squat, Deadlift, Bench, Chin-Up): BASE = accessory variations @ RIR 1–3 → BUILD = work to 5RM → PERFORMANCE = 3RM → PEAK = 1RM.',
+    'PERFORM = interval/engine conditioning (R-EMOM/EMOM/AMRAP, on-off efforts, station rotations); CONDITION = a longer single conditioning piece; SWEAT = mixed conditioning + finisher.',
+    'LIFT sessions use 3–4 round A/B/C accessory supersets around the main lift. Skills (KB, Toes-to-Bar, Cleans) and interval durations progress across phases (toward 2km time trials in PEAK).',
+    'The OFFICIAL current block is "Fitstop BLOCK C 2026" — prefer loading it (it follows real dates). Only generate Fitstop-style sessions if explicitly asked, and follow this structure exactly — do not invent a different split or progression.',
+  ],
+};
+function getKnowledgeContext(type){
+  const want = ['core'];
+  if (type==='endurance' || type==='hybrid') want.push('running');
+  if (type==='strength'  || type==='hybrid' || type==='fitstop') want.push('strength');
+  if (type==='hybrid') want.push('hyrox');
+  if (type==='fitstop' || type==='hybrid') want.push('fitstop');
+  const lines = want.flatMap(d => (KNOWLEDGE_CONTEXT[d]||[]).map(p=>`• ${p}`));
+  return `COACHING KNOWLEDGE (apply this — sourced from the platform's knowledge base):\n${lines.join('\n')}`;
+}
+
 // Build any program type (strength / endurance / hybrid / fitstop) into the unified
 // composite schema: per-session `type` + an explicit 7-day `dayMap`.
 async function generateProgram() {
@@ -6877,10 +6922,12 @@ async function generateProgram() {
     strength:`This is a STRENGTH program. All sessions type "strength". Split: ${splitMap[split]||split}. ${spw<=4?'5-6':'4-5'} exercises/session (compound + isolation). Loads: give BOTH % 1RM and RPE where possible. Apply methodology: ${method==='westside'?'ME/DE structure, rotated main lift, weak-point accessories':method==='jts'?'RPE-based autoregulation, block identity, technical standards':method==='kabuki'?'wedge/brace cues, position quality, specialty bars':'evidence-based volume + progressive overload'}.`,
     endurance:`This is an ENDURANCE program. All sessions type "endurance". Build a balanced week: mostly easy/Zone-2 aerobic volume, with 1-2 quality sessions (tempo/threshold/intervals) and (if 5+ days) a long run. Provide pace OR zone targets and concrete interval structures. Respect easy/hard polarisation.`,
     hybrid:`This is a HYBRID program mixing STRENGTH and ENDURANCE in the same week (concurrent training). Use BOTH "strength" and "endurance" session types. Follow the user's requested split of disciplines across the week. Place hard runs and heavy lifts on separate days where possible; keep easy aerobic work around the lifting. ${splitMap[split]?'Strength split: '+splitMap[split]+'.':''}`,
-    fitstop:`This is a FITSTOP-style program built around class formats. Use "fitstop" sessions for LIFT (strength-biased) and PERFORM (conditioning/HIIT) days, and you MAY add "endurance" sessions (Zone 2 runs/bike) if the user asks. Give each fitstop session a clear "format" and station list.`,
+    fitstop:`This is a FITSTOP program. Follow the REAL Fitstop structure from the coaching knowledge EXACTLY: 12 weeks as BASE→BUILD→PERFORMANCE→PEAK (3 weeks each); fixed weekly split Mon PERFORM / Tue LIFT / Wed CONDITION / Thu PERFORM / Fri LIFT / Sat SWEAT / Sun rest; strength progression on Back Squat/Deadlift/Bench/Chin-Up = BASE variations(RIR 1–3) → BUILD 5RM → PERFORMANCE 3RM → PEAK 1RM. LIFT sessions = type "strength" with the main lift + 3–4 round A/B/C accessory supersets; PERFORM/CONDITION/SWEAT = type "fitstop" with a clear "format" (R-EMOM/EMOM/AMRAP/on-off) and station list. Do NOT invent a different split or progression. (The official current block is BLOCK C 2026 — recommend loading it for real dates.)`,
   })[type] || '';
 
   const systemPrompt = `You are an elite hybrid strength & endurance coach. Generate a complete, structured ${typeLabel} training program as JSON.
+
+${getKnowledgeContext(type)}
 ${strengthCtx ? '\n'+strengthCtx : ''}${blCtx ? '\n'+blCtx : ''}
 
 Return ONLY a \`\`\`json ... \`\`\` block. No prose outside it.
