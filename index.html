@@ -3585,7 +3585,17 @@ function openProgramSessionOverlay(id,week,day){
     if(fmt) fitstopBanner=`<div style="background:var(--accent-dim);border:1px solid rgba(212,175,55,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;"><div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Today's format</div><div style="font-size:15px;font-weight:600;color:var(--accent);margin-top:2px;">${fmt}</div></div>`;
   }
 
-  document.getElementById('po-breakdown').innerHTML=`${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}`;
+  // Explainability: for adaptive (scheduled) programs, show why this session is here.
+  let whyBanner='';
+  if(Array.isArray(prog.schedule) && day){
+    const ex=prog.schedule.find(e=>e.day===day);
+    if(ex) whyBanner=`<div style="background:rgba(77,158,255,.1);border:1px solid rgba(77,158,255,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Why this session</div>
+      <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.5;">${ex.why}</div>
+      ${ex.alternatives?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;">${ex.alternatives}</div>`:''}</div>`;
+  }
+
+  document.getElementById('po-breakdown').innerHTML=`${whyBanner}${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}`;
 
   const alreadyDone=_progSessionDone(week,id);
   document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
@@ -6109,6 +6119,13 @@ function renderProgramBuilder() {
     </div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a fully custom hybrid block with AI —</div>` : ''}
 
+    ${hasAnyAvailability() ? `<div class="card" style="margin-bottom:12px;border-color:rgba(77,158,255,.3);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Adaptive week (from your availability)</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Coach EV picks adaptations and schedules them on your Preferred/Available days — honouring Locked sessions, spacing hard days, and explaining each choice.</div>
+      <button class="btn btn-accent" onclick="buildAdaptiveWeek(programBuilderConfig.type, (programBuilderConfig.weeks||5)+1)" style="width:100%;">Build adaptive week →</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or —</div>` : `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;line-height:1.6;">Tip: set your weekly availability in More → Training Preferences to unlock adaptive scheduling.</div>`}
+
     <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
       Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
@@ -6226,6 +6243,216 @@ function _prefTap(day, catId, btn){
   const next = cycleDayStatus(day, catId);
   const m = AVAIL_META[next];
   btn.style.background = m.bg; btn.style.color = m.color; btn.textContent = m.short;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FATIGUE MODEL (Phase 2 of constraint-based scheduling)
+// Per-category and per-Fitstop-session fatigue estimates, so the Scheduler can keep a
+// fatigue budget and avoid stacking high-cost sessions. Axes 0–10; recoveryHours est.
+// Established training science; tunable. Inert until the Scheduler consumes it.
+// ═══════════════════════════════════════════════════════════════════════════
+const FATIGUE_AXES = ['mechanical','metabolic','neurological','connective'];
+// category → { mechanical, metabolic, neurological, connective, recoveryHours }
+const CATEGORY_FATIGUE = {
+  'easy-run':      { mechanical:3, metabolic:3, neurological:1, connective:3, recoveryHours:12 },
+  'workout-run':   { mechanical:5, metabolic:7, neurological:3, connective:5, recoveryHours:36 },
+  'long-run':      { mechanical:7, metabolic:6, neurological:2, connective:7, recoveryHours:36 },
+  'track':         { mechanical:6, metabolic:9, neurological:5, connective:6, recoveryHours:48 },
+  'trail':         { mechanical:6, metabolic:5, neurological:3, connective:6, recoveryHours:24 },
+  'treadmill':     { mechanical:3, metabolic:4, neurological:2, connective:3, recoveryHours:18 },
+  'recovery-run':  { mechanical:2, metabolic:2, neurological:1, connective:2, recoveryHours:6 },
+  'fitstop':       { mechanical:5, metabolic:7, neurological:4, connective:4, recoveryHours:36 },
+  'strength':      { mechanical:6, metabolic:4, neurological:7, connective:5, recoveryHours:48 },
+  'hybrid':        { mechanical:6, metabolic:7, neurological:5, connective:6, recoveryHours:48 },
+  'hyrox':         { mechanical:7, metabolic:9, neurological:5, connective:6, recoveryHours:48 },
+  'deka':          { mechanical:6, metabolic:8, neurological:4, connective:5, recoveryHours:36 },
+  'mobility':      { mechanical:1, metabolic:1, neurological:1, connective:1, recoveryHours:2 },
+  'recovery':      { mechanical:0, metabolic:0, neurological:0, connective:0, recoveryHours:0 },
+  'cross-training':{ mechanical:2, metabolic:5, neurological:2, connective:2, recoveryHours:12 },
+  'rest':          { mechanical:0, metabolic:0, neurological:0, connective:0, recoveryHours:0 },
+  'other':         { mechanical:4, metabolic:4, neurological:3, connective:4, recoveryHours:24 },
+};
+// Fitstop sessions as an ADAPTATION INPUT — richer estimate per the brief:
+// mechanical / strengthStimulus / powerStimulus / metabolic / neuro / recoveryHours.
+const FITSTOP_LOAD = {
+  PERFORM:   { mechanical:5, strengthStimulus:2, powerStimulus:4, metabolic:8, neuro:4, recoveryHours:36 },
+  LIFT:      { mechanical:6, strengthStimulus:8, powerStimulus:5, metabolic:3, neuro:7, recoveryHours:48 },
+  CONDITION: { mechanical:5, strengthStimulus:2, powerStimulus:3, metabolic:9, neuro:3, recoveryHours:36 },
+  SWEAT:     { mechanical:5, strengthStimulus:3, powerStimulus:4, metabolic:8, neuro:4, recoveryHours:36 },
+};
+// LIFT intensifies across the Fitstop phases (PEAK = 1RM → max neuro/mechanical/recovery).
+const _FS_PHASE_MULT = { BASE:0.85, BUILD:1.0, PERFORMANCE:1.1, PEAK:1.25 };
+
+const Fatigue = {
+  category(catId){ return CATEGORY_FATIGUE[catId] || CATEGORY_FATIGUE.other; },
+  // Fitstop session adaptation/fatigue estimate, phase-scaled for LIFT.
+  fitstopLoad(sessionName, phaseName){
+    const base = FITSTOP_LOAD[(sessionName||'').toUpperCase()] || FITSTOP_LOAD.PERFORM;
+    if ((sessionName||'').toUpperCase() === 'LIFT' && phaseName){
+      const k = _FS_PHASE_MULT[phaseName.toUpperCase()] || 1;
+      return { ...base, mechanical:Math.round(base.mechanical*k), neuro:Math.round(base.neuro*k), recoveryHours:Math.round(base.recoveryHours*k) };
+    }
+    return { ...base };
+  },
+  // Map a Fitstop estimate → the common 4-axis fatigue vector (for budgeting).
+  fitstopToVector(load){ return { mechanical:load.mechanical, metabolic:load.metabolic, neurological:load.neuro, connective:Math.round(load.mechanical*0.7), recoveryHours:load.recoveryHours }; },
+  // Fatigue vector for a program session object (+ optional Fitstop phase).
+  sessionFatigue(session, phaseName){
+    if (!session) return CATEGORY_FATIGUE.rest;
+    const t = (typeof _sessType==='function') ? _sessType(session) : (session.type||'strength');
+    if (t === 'fitstop') return this.fitstopToVector(this.fitstopLoad(session.name, phaseName));
+    if (t === 'strength') return this.category('strength');
+    if (t === 'endurance' || t === 'run'){
+      const rt = session.runType;
+      const map = { easy:'easy-run', recovery:'recovery-run', long:'long-run', tempo:'workout-run', threshold:'workout-run', intervals:'track' };
+      return this.category(map[rt] || 'easy-run');
+    }
+    return this.category('other');
+  },
+  // Aggregate scalar load of a vector (higher = more taxing).
+  score(v){ if(!v) return 0; return FATIGUE_AXES.reduce((s,a)=>s+(v[a]||0),0); },
+  isHigh(v){ return this.score(v) >= 20; }, // ~high-fatigue session threshold (of 40 max)
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADAPTATION LIBRARY + SCHEDULER (Phase 3 of constraint-based scheduling)
+// Adaptation-first: choose WHAT to develop, then let the scheduler pick the best day +
+// category within athlete availability, respecting locked commitments, fatigue spacing
+// and interference. Every placement records WHY (explainability). Inert path — produces
+// an opt-in adaptive program that flows through the existing calendar.
+// ═══════════════════════════════════════════════════════════════════════════
+const ADAPTATIONS = [
+  { id:'long-endurance', label:'Long endurance', categories:['long-run','trail'],                 hard:true,  prescription:'Long run — progress duration, mostly Zone 2' },
+  { id:'threshold',      label:'Threshold',      categories:['workout-run','track','treadmill'],  hard:true,  prescription:'Tempo / cruise intervals at threshold' },
+  { id:'vo2max',         label:'VO₂max',         categories:['track','workout-run'],              hard:true,  prescription:'5×3 min @ vVO₂max or 6×800 m, full recoveries' },
+  { id:'max-strength',   label:'Max strength',   categories:['strength','fitstop','hybrid'],      hard:true,  prescription:'Heavy compounds 3–5 reps, long rests' },
+  { id:'hypertrophy',    label:'Hypertrophy',    categories:['strength','fitstop'],               hard:true,  prescription:'8–12 reps near failure, weekly volume' },
+  { id:'conditioning',   label:'Conditioning',   categories:['fitstop','hyrox','deka','cross-training'], hard:true, prescription:'Mixed-modal intervals / station work' },
+  { id:'aerobic-base',   label:'Aerobic base',   categories:['easy-run','treadmill','trail'],     hard:false, prescription:'Zone 2 easy run, 40–60 min' },
+  { id:'recovery',       label:'Recovery',       categories:['recovery-run','recovery','mobility'], hard:false, prescription:'Easy movement / mobility' },
+];
+const _ADAPT_BY_ID = Object.fromEntries(ADAPTATIONS.map(a=>[a.id,a]));
+function _adaptationForCategory(catId){ return ADAPTATIONS.find(a=>a.categories.includes(catId)) || null; }
+// The adaptation a category serves ONLY IF it serves exactly one (unambiguous mapping).
+// e.g. long-run → long-endurance (sole); fitstop → many (null, ambiguous).
+function _soleAdaptationForCategory(catId){
+  const m = ADAPTATIONS.filter(a=>a.categories.includes(catId));
+  return m.length === 1 ? m[0] : null;
+}
+// Default weekly objectives per goal/program type (priority order). Readiness-driven
+// objective selection comes in Phase 4; these are sensible defaults.
+const DEFAULT_OBJECTIVES = {
+  endurance: ['long-endurance','threshold','vo2max','aerobic-base','aerobic-base','recovery'],
+  strength:  ['max-strength','max-strength','hypertrophy','aerobic-base','recovery'],
+  hybrid:    ['max-strength','threshold','long-endurance','aerobic-base','conditioning','recovery'],
+  fitstop:   ['conditioning','max-strength','conditioning','aerobic-base','recovery'],
+};
+
+// Core scheduler — assign objectives to days within availability. Returns the placed
+// week + per-day explanation + the objectives that couldn't be placed.
+function scheduleWeek(objectiveIds, opts={}){
+  const DOW = AVAIL_DAYS; // Mon..Sun
+  if (!athleteAvailability) loadAvailability();
+  const assigned = {}; const explanations = []; const unplaced = [];
+  const idx = d => DOW.indexOf(d);
+  const statusRank = { preferred:3, available:2, none:1, avoid:0, locked:-1 };
+
+  // Adaptations already covered by Locked commitments shouldn't be scheduled again —
+  // but only when the locked category maps to exactly one adaptation (unambiguous).
+  const satisfied = new Set();
+  // 1) Honour Locked commitments first (fixed — cannot move).
+  for (const day of DOW){
+    const a = availabilityForDay(day);
+    if (a.locked.length){
+      const cat = a.locked[0];
+      const sole = _soleAdaptationForCategory(cat);
+      assigned[day] = { day, category:cat, adaptationId:sole?.id||null, locked:true, hard:sole?sole.hard:true };
+      if (sole) satisfied.add(sole.id);
+      explanations.push({ day, adaptation:sole?.label||cat, category:cat,
+        why:`Locked commitment — ${cat} is fixed on ${day}.`, alternatives:'(locked, not movable)' });
+    }
+  }
+  const isHardAssigned = s => s && s.hard;
+  const adjHardConflict = (day) => {
+    const p = assigned[DOW[(idx(day)+6)%7]], n = assigned[DOW[(idx(day)+1)%7]];
+    return (isHardAssigned(p)?1:0) + (isHardAssigned(n)?1:0);
+  };
+  // best category + status for an adaptation on a day
+  const dayFit = (day, adp) => {
+    let bestRank=-99, bestCat=null, bestStatus='none';
+    for (const cat of adp.categories){
+      const st = getDayStatus(day, cat); const r = statusRank[st] ?? 1;
+      if (r > bestRank){ bestRank=r; bestCat=cat; bestStatus=st; }
+    }
+    return { rank:bestRank, cat:bestCat||adp.categories[0], status:bestStatus };
+  };
+
+  // 2) Place each objective (priority order) on its best free day.
+  for (const objId of objectiveIds){
+    if (satisfied.has(objId)) continue; // already covered by a locked/placed day
+    const adp = _ADAPT_BY_ID[objId]; if (!adp) continue;
+    let best=null;
+    for (const day of DOW){
+      if (assigned[day]) continue;                       // taken (locked or already placed)
+      const fit = dayFit(day, adp);
+      if (fit.status === 'avoid') continue;              // skip Avoid unless nothing else (handled below)
+      let score = fit.rank * 10;
+      if (adp.hard) score -= adjHardConflict(day) * 6;   // fatigue spacing: avoid stacking hard days
+      if (!best || score > best.score) best = { day, score, fit };
+    }
+    // Fallback: allow an Avoid day only if no other free day exists.
+    if (!best){
+      for (const day of DOW){ if (assigned[day]) continue; const fit=dayFit(day,adp); best={ day, score:-50, fit, forced:true }; break; }
+    }
+    if (!best){ unplaced.push(adp.label); continue; }
+    const alts = DOW.filter(d=>!assigned[d] && d!==best.day && dayFit(d,adp).status!=='avoid');
+    assigned[best.day] = { day:best.day, category:best.fit.cat, adaptationId:adp.id, hard:adp.hard, prescription:adp.prescription, status:best.fit.status };
+    satisfied.add(adp.id);
+    explanations.push({ day:best.day, adaptation:adp.label, category:best.fit.cat,
+      why: `${adp.label} → ${best.day} (${best.fit.status==='preferred'?'preferred day':best.fit.status==='available'?'available day':best.fit.status==='avoid'?'only day left — flagged':'open day'}; ${adp.hard?'spaced from other hard days':'low fatigue, fits anywhere'}).`,
+      alternatives: alts.length ? `Considered: ${alts.join(', ')}.` : 'No other free day fit.' });
+  }
+  return { assigned, explanations, unplaced };
+}
+
+// Build an opt-in adaptive program from the athlete's availability (date-anchored).
+function buildAdaptiveWeek(goalType, weeks=6){
+  const type = goalType || (programBuilderConfig?.type) || 'hybrid';
+  const objectives = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
+  const { assigned, explanations, unplaced } = scheduleWeek(objectives);
+  // Build sessions + dayMap (Mon..Sun) from the placed week.
+  const DOW = AVAIL_DAYS;
+  const catToSession = (catId, slot) => {
+    const runMap = { 'easy-run':['easy','Zone 2 Run'], 'recovery-run':['recovery','Recovery Run'], 'long-run':['long','Long Run'],
+      'workout-run':['tempo','Tempo Run'], 'track':['intervals','Track Intervals'], 'trail':['easy','Trail Run'], 'treadmill':['tempo','Treadmill Run'] };
+    if (runMap[catId]) return { id:`run-${catId}`, type:'endurance', name:runMap[catId][1], focus:slot.adaptationId||'', runType:runMap[catId][0], duration:'45 min', cue:slot.prescription||'' };
+    if (catId==='strength' || catId==='hybrid') return { id:'strength', type:'strength', name:'Strength', focus:slot.adaptationId||'', exercises:[{name:'Back Squat',sets:4,reps:'5',load:'heavy',cue:'brace'},{name:'Bench Press',sets:3,reps:'6'},{name:'Row',sets:3,reps:'8'}] };
+    if (catId==='fitstop') return { id:'fitstop', type:'fitstop', name:'Fitstop', focus:slot.adaptationId||'', format:'Class session' };
+    if (catId==='hyrox') return { id:'hyrox', type:'fitstop', name:'HYROX Conditioning', focus:slot.adaptationId||'', format:'Station work' };
+    if (['recovery','mobility'].includes(catId)) return { id:catId, type:'endurance', name:catId==='mobility'?'Mobility':'Recovery', focus:'recovery', runType:'recovery', duration:'30 min' };
+    return { id:'cross', type:'fitstop', name:'Cross Training', focus:slot.adaptationId||'', format:'Cross-training' };
+  };
+  const sessionsById = {}; const dayMap = DOW.map(day => {
+    const slot = assigned[day]; if (!slot) return null;
+    const s = catToSession(slot.category, slot);
+    sessionsById[s.id] = s; return s.id;
+  });
+  const sessions = Object.values(sessionsById);
+  const weeklyProgressions = Array.from({length:weeks},(_,i)=> i===weeks-1 ? {week:i+1,deload:true,note:'Deload'} : {week:i+1, setsAdd:i, note:`Week ${i+1} — progress within your availability`});
+  // Anchor to the Monday of the current week.
+  const data = {
+    id:'adaptive-'+Date.now(), name:'Adaptive Week (from your availability)', type,
+    source:'Constraint-based scheduler', startDate:_mondayISO(new Date()), weeks,
+    sessionsPerWeek: dayMap.filter(Boolean).length, sessions, dayMap, weeklyProgressions,
+    schedule: explanations, unplaced,
+  };
+  saveProgramData(data);
+  currentProgramWeek = 1; programViewWeek = 1;
+  try { renderSavedProgram(); } catch(e){}
+  try { renderMyProgramCard(); } catch(e){}
+  try { renderAll(); } catch(e){}
+  toast(unplaced.length ? `Adaptive week built — ${unplaced.length} objective(s) didn't fit your availability` : 'Adaptive week built from your availability');
+  return data;
 }
 
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
