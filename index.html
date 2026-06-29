@@ -544,6 +544,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button onclick="toggleTheme()" style="width:36px;height:36px;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;" id="theme-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     </div>
     <div id="race-countdown"></div>
+    <div id="reschedule-banner"></div>
     <div class="mg" id="today-metrics"></div>
     <div class="sec-lbl">This week</div>
     <div class="wstrip" id="week-strip"></div>
@@ -2906,6 +2907,9 @@ function renderToday() {
   if (pbl) pbl.style.display = savedProgram ? 'none' : '';
   if (pb)  pb.style.display  = savedProgram ? 'none' : '';
 
+  // Phase 4: dynamic-reschedule suggestion when today's readiness is low.
+  try { _renderRescheduleBanner(); } catch(e) {}
+
   // Week strip and today's session — AI program or default PLAN
   if (savedProgram) {
     _renderProgramTodayStrip();
@@ -3360,8 +3364,12 @@ function _progWeekSessions(week){
   // lets one program place mixed session types (e.g. Fitstop + endurance) on
   // specific weekdays. Returns all 7 days so the calendar can show rest days too.
   if(Array.isArray(prog.dayMap) && prog.dayMap.length===7){
+    // Phase 4: a per-week override (from dynamic rescheduling) takes precedence for
+    // that specific week; otherwise the base template repeats.
+    const ov = prog.overrides && prog.overrides[week];
+    const dm = (Array.isArray(ov) && ov.length===7) ? ov : prog.dayMap;
     return _ALL_DOW.map((day,i)=>{
-      const id=prog.dayMap[i]||null;
+      const id=dm[i]||null;
       return {day,id,session:id?prog.sessions?.find(s=>s.id===id):null};
     });
   }
@@ -6550,6 +6558,90 @@ function _toggleTrainDay(day){
   if (i>=0){ cfg.trainDays.splice(i,1); if(cfg.longRunDay===day) cfg.longRunDay=null; }
   else cfg.trainDays.push(day);
   renderProgramBuilder();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DYNAMIC RESCHEDULING (Phase 4)
+// The adaptation objective stays; the day may change. When today's readiness is poor
+// and today is a hard session, propose moving it to a better day this week (swapping
+// in an easy/rest day), keeping fatigue spacing. Per-week override; explainable.
+// ═══════════════════════════════════════════════════════════════════════════
+function _readinessToday(){
+  try {
+    const e = (typeof getTodayEntry==='function') ? getTodayEntry() : null;
+    if (!e) return null;
+    const computed = (typeof computeRecoveryScore==='function') ? computeRecoveryScore(e) : null;
+    return e.sleepScore || e.recoveryScore || computed;
+  } catch(e){ return null; }
+}
+function _slotHard(slot){
+  if (!slot || !slot.session) return false;
+  return Fatigue.isHigh(Fatigue.sessionFatigue(slot.session, _progPhaseName(slot)));
+}
+function _progPhaseName(slot){
+  // Fitstop block phase name for fatigue scaling, if applicable.
+  const p = savedProgram; if (p?.fitstopBlock && slot?.week) { const ph=_fitstopPhase(slot.week); return ph?.name; }
+  return null;
+}
+// Propose a reschedule for the active program's current week, given (low) readiness.
+// Returns { weekN, fromDay, toDay, sessionName, reason } or null.
+function suggestReschedule(opts={}){
+  const prog = savedProgram; if (!prog || !Array.isArray(prog.dayMap)) return null;
+  const weekN = opts.week || (typeof _progActualWeek==='function' ? _progActualWeek() : currentProgramWeek||1);
+  const readiness = opts.readiness != null ? opts.readiness : _readinessToday();
+  if (readiness == null || readiness >= 55) return null;          // only act on genuinely low readiness
+  const todayDow = opts.day || _ALL_DOW[(new Date().getDay()+6)%7]; // Mon-based
+  const slots = _progWeekSessions(weekN);
+  const byDay = Object.fromEntries(slots.map(s=>[s.day,s]));
+  const todaySlot = byDay[todayDow];
+  if (!todaySlot || !todaySlot.session || !_slotHard(todaySlot)) return null; // nothing hard to move today
+  // Candidate target: a rest day or easy session later this week, not adjacent to a hard day.
+  const order = _ALL_DOW;
+  const ti = order.indexOf(todayDow);
+  const adjHard = (i)=>{ const p=byDay[order[(i+6)%7]], n=byDay[order[(i+1)%7]]; return _slotHard(p)||_slotHard(n); };
+  let target=null;
+  for (let k=1;k<7;k++){                                          // look forward through the week first
+    const i=(ti+k)%7, day=order[i], s=byDay[day];
+    const isEasyOrRest = !s.session || !_slotHard(s);
+    if (isEasyOrRest && !adjHard(i)){ target=day; break; }
+  }
+  if (!target){ for (let k=1;k<7;k++){ const i=(ti+k)%7, day=order[i], s=byDay[day]; if(!s.session||!_slotHard(s)){ target=day; break; } } }
+  if (!target) return null;
+  return { weekN, fromDay:todayDow, toDay:target, sessionName:todaySlot.session.name,
+    reason:`Readiness is low today (${readiness}/100). Move ${todaySlot.session.name} to ${target} and keep today easy — the adaptation stays, the day shifts.` };
+}
+// Apply a reschedule: swap the two days for that week via a per-week override.
+function applyReschedule(weekN, fromDay, toDay){
+  const prog = savedProgram; if (!prog || !Array.isArray(prog.dayMap)) return;
+  const base = (prog.overrides && prog.overrides[weekN]) ? prog.overrides[weekN].slice() : prog.dayMap.slice();
+  const fi=_ALL_DOW.indexOf(fromDay), tigt=_ALL_DOW.indexOf(toDay);
+  if (fi<0||tigt<0) return;
+  const tmp=base[fi]; base[fi]=base[tigt]; base[tigt]=tmp;          // swap the two days
+  prog.overrides = prog.overrides || {};
+  prog.overrides[weekN] = base;
+  // Record on the schedule explanation log if present.
+  if (Array.isArray(prog.schedule)) prog.schedule.push({ day:toDay, adaptation:'(rescheduled)', why:`Moved from ${fromDay} → ${toDay} (low readiness).`, alternatives:'' });
+  saveProgramData(prog);
+  try { renderAll(); } catch(e){}
+  toast(`Moved ${fromDay}'s session to ${toDay}`);
+}
+function dismissReschedule(){ sessionStorage.setItem('ht-resched-dismissed', todayISO()); try{ renderToday(); }catch(e){} }
+function _renderRescheduleBanner(){
+  const el = document.getElementById('reschedule-banner'); if (!el) return;
+  el.innerHTML = '';
+  if (!savedProgram) return;
+  if (sessionStorage.getItem('ht-resched-dismissed') === todayISO()) return;
+  const s = suggestReschedule(); if (!s) return;
+  el.innerHTML = `<div class="card" style="margin-bottom:16px;border-color:rgba(240,101,101,.3);background:rgba(240,101,101,.06);">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--red);">Coach EV · reschedule?</span>
+    </div>
+    <div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:10px;">${s.reason}</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-accent" style="flex:1;" onclick="applyReschedule(${s.weekN},'${s.fromDay}','${s.toDay}')">Move to ${s.toDay}</button>
+      <button class="btn" style="flex:1;" onclick="dismissReschedule()">Keep as planned</button>
+    </div>
+  </div>`;
 }
 
 // ── Official Fitstop BLOCK C 2026 (user-provided, dated) ─────────────────────
