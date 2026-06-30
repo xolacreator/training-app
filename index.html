@@ -7041,8 +7041,12 @@ function _composeHybridDayMap(keptDays, runGoal, keptSessionFn){
       if (score(i) > 0) flags.push(`${DOW[i]} ${assign[i]} run sits next to a strength/Fitstop day (unavoidable in this split) — keep it controlled.`);
     } else assign[i] = 'easy';
   });
-  freeIdx.forEach(i => { map[i] = _RUN_DEFS[assign[i]].id; });
-  map[6] = (freeIdx.length || kept.size < 6) ? _RUN_DEFS.long.id : null; // Sunday long run if any running
+  // Reserve a rest day: with enough easy volume, the most-crowded easy day becomes rest
+  // (recovery beats junk volume — and avoids a 7-day no-rest week).
+  const easyDays = freeIdx.filter(i=>assign[i]==='easy');
+  if (easyDays.length >= 2){ const restDay = easyDays.sort((a,b)=>score(b)-score(a))[0]; delete assign[restDay]; }
+  freeIdx.forEach(i => { map[i] = assign[i] ? _RUN_DEFS[assign[i]].id : null; });
+  map[6] = (Object.keys(assign).length || kept.size < 6) ? _RUN_DEFS.long.id : null; // Sunday long run if any running
   return { map, flags };
 }
 function buildFitstopHybrid(keptDays, runGoal){
@@ -7065,7 +7069,8 @@ function buildFitstopHybrid(keptDays, runGoal){
   ];
   const weeklyProgressions = B.plan.map(([label],i)=>{
     const ph=_fitstopPhase(i+1);
-    return { week:i+1, note:`${label} · Fitstop: ${ph.strength} · Running: easy base + quality, placed away from Fitstop days${runGoal?` · Goal: ${runGoal}`:''}` };
+    const last = i===B.plan.length-1;
+    return { week:i+1, ...(last?{deload:true}:{}), note:`${label} · Fitstop: ${ph.strength} · Running: ${last?'TAPER — cut running volume, hold intensity':'easy base + quality, placed away from Fitstop days'}${runGoal?` · Goal: ${runGoal}`:''}` };
   });
   const data = {
     id:'fitstop-hybrid-block-c', name:'Fitstop + Endurance (BLOCK C)', type:'hybrid',

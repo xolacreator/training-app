@@ -25,7 +25,8 @@ const wk = await page.evaluate(()=>_progWeekSessions(1).map(s=>({day:s.day,id:s.
 console.log('Concurrent week:', JSON.stringify(wk.map(w=>`${w.day}:${w.id||'rest'}`)));
 const byDay=Object.fromEntries(wk.map(w=>[w.day,w]));
 check('Tue & Fri are strength', byDay.Tue.id==='strength'&&byDay.Tue.type==='strength'&&byDay.Fri.id==='strength', JSON.stringify([byDay.Tue.id,byDay.Fri.id]));
-check('Other days are endurance runs', ['Mon','Wed','Thu','Sat'].every(d=>byDay[d].type==='endurance'), JSON.stringify(['Mon','Wed','Thu','Sat'].map(d=>byDay[d].id)));
+{ const free=['Mon','Wed','Thu','Sat']; const runs=free.filter(d=>byDay[d].type==='endurance').length; const rests=free.filter(d=>!byDay[d].id).length;
+  check('Free days are runs with one reserved rest day', runs>=3 && rests===1, JSON.stringify(free.map(d=>byDay[d].id))); }
 check('Sunday long run', byDay.Sun.rt==='long', JSON.stringify(byDay.Sun));
 check('Concurrent program is hybrid + date-anchored', await page.evaluate(()=>savedProgram.type==='hybrid' && /^\d{4}-\d{2}-\d{2}$/.test(savedProgram.startDate)));
 
