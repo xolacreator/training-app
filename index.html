@@ -545,6 +545,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <div id="race-countdown"></div>
     <div id="reschedule-banner"></div>
+    <div id="adaptation-priority"></div>
     <div class="mg" id="today-metrics"></div>
     <div class="sec-lbl">This week</div>
     <div class="wstrip" id="week-strip"></div>
@@ -2909,6 +2910,8 @@ function renderToday() {
 
   // Phase 4: dynamic-reschedule suggestion when today's readiness is low.
   try { _renderRescheduleBanner(); } catch(e) {}
+  // Adaptation-first: show today's highest-value adaptation (the "why" behind the plan).
+  try { _renderAdaptationPriority(); } catch(e) {}
 
   // Week strip and today's session — AI program or default PLAN
   if (savedProgram) {
@@ -6487,12 +6490,168 @@ const Fatigue = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ADAPTATION LIBRARY + SCHEDULER (Phase 3 of constraint-based scheduling)
-// Adaptation-first: choose WHAT to develop, then let the scheduler pick the best day +
-// category within athlete availability, respecting locked commitments, fatigue spacing
-// and interference. Every placement records WHY (explainability). Inert path — produces
-// an opt-in adaptive program that flows through the existing calendar.
+// ADAPTATION PLANNING ENGINE
+// The fundamental object is an ADAPTATION, not a workout. Workouts are prescriptions
+// used to create adaptations. Each adaptation is a first-class object with the fatigue
+// it costs, the recovery it needs, what it interferes with, and how long it's retained
+// (decay). The engine decides WHICH adaptation is highest-value today (adaptation per
+// unit of fatigue, gated by decay-urgency, readiness and interference) — THEN a workout
+// is selected to create it. Adaptations/fatigue/progression are tracked as first-class.
 // ═══════════════════════════════════════════════════════════════════════════
+const ADAPTATION_MODEL = [
+  { id:'aerobic_durability',  name:'Aerobic Durability', system:'endurance', priority:5, retentionDays:14, weeklyDoses:3, recoveryHours:12,
+    fatigue:{mechanical:5,metabolic:4,neurological:1,connective:5}, interferenceWith:[], knowledgeDomain:'aerobic_development',
+    schedulerObjective:'aerobic-base', sessionTypes:['easy','long','recovery','trail'] },
+  { id:'lactate_threshold',   name:'Lactate Threshold', system:'endurance', priority:5, retentionDays:10, weeklyDoses:1, recoveryHours:36,
+    fatigue:{mechanical:5,metabolic:7,neurological:3,connective:5}, interferenceWith:['force_production'], knowledgeDomain:'lactate_threshold',
+    schedulerObjective:'threshold', sessionTypes:['tempo','threshold'] },
+  { id:'vo2max',              name:'VO₂ Max', system:'endurance', priority:4, retentionDays:8, weeklyDoses:1, recoveryHours:48,
+    fatigue:{mechanical:6,metabolic:9,neurological:5,connective:6}, interferenceWith:['force_production','power'], knowledgeDomain:'vo2max',
+    schedulerObjective:'vo2max', sessionTypes:['intervals'] },
+  { id:'running_economy',     name:'Running Economy', system:'endurance', priority:3, retentionDays:21, weeklyDoses:1, recoveryHours:12,
+    fatigue:{mechanical:3,metabolic:2,neurological:4,connective:3}, interferenceWith:[], knowledgeDomain:'running_economy',
+    schedulerObjective:'aerobic-base', sessionTypes:['strides'] },
+  { id:'force_production',    name:'Force Production', system:'strength', priority:4, retentionDays:14, weeklyDoses:2, recoveryHours:48,
+    fatigue:{mechanical:6,metabolic:4,neurological:7,connective:5}, interferenceWith:['vo2max','lactate_threshold'], knowledgeDomain:'maximal_strength',
+    schedulerObjective:'max-strength', sessionTypes:['strength'] },
+  { id:'strength_maintenance',name:'Strength Maintenance', system:'strength', priority:2, retentionDays:21, weeklyDoses:1, recoveryHours:36,
+    fatigue:{mechanical:5,metabolic:3,neurological:6,connective:4}, interferenceWith:['vo2max'], knowledgeDomain:'maximal_strength',
+    schedulerObjective:'max-strength', sessionTypes:['strength'] },
+  { id:'power',               name:'Power', system:'strength', priority:3, retentionDays:10, weeklyDoses:1, recoveryHours:36,
+    fatigue:{mechanical:5,metabolic:3,neurological:8,connective:5}, interferenceWith:['vo2max'], knowledgeDomain:'power_explosiveness',
+    schedulerObjective:'max-strength', sessionTypes:['strength'] },
+  { id:'work_capacity',       name:'Work Capacity', system:'mixed', priority:3, retentionDays:10, weeklyDoses:2, recoveryHours:36,
+    fatigue:{mechanical:5,metabolic:8,neurological:4,connective:4}, interferenceWith:[], knowledgeDomain:'strength_endurance',
+    schedulerObjective:'conditioning', sessionTypes:['fitstop','conditioning'] },
+  { id:'race_specificity',    name:'Race Specificity', system:'mixed', priority:5, retentionDays:7, weeklyDoses:1, recoveryHours:36,
+    fatigue:{mechanical:6,metabolic:7,neurological:4,connective:6}, interferenceWith:[], knowledgeDomain:'race_specific',
+    schedulerObjective:'long-endurance', sessionTypes:['long','tempo'] },
+  { id:'recovery',            name:'Recovery', system:'all', priority:2, retentionDays:3, weeklyDoses:1, recoveryHours:0,
+    fatigue:{mechanical:1,metabolic:1,neurological:0,connective:1}, interferenceWith:[], knowledgeDomain:'recovery_science',
+    schedulerObjective:'recovery', sessionTypes:['recovery','mobility'] },
+];
+const _ADAPT_M = Object.fromEntries(ADAPTATION_MODEL.map(a=>[a.id,a]));
+function adaptation(id){ return _ADAPT_M[id] || null; }
+const _adaptFatScore = a => a ? FATIGUE_AXES.reduce((s,k)=>s+(a.fatigue[k]||0),0) : 0;
+
+// Required adaptations for a goal/program type (the "what must be developed").
+function requiredAdaptationsFor(type, goal){
+  const sets = {
+    endurance: ['aerobic_durability','lactate_threshold','vo2max','running_economy','race_specificity','recovery'],
+    strength:  ['force_production','power','strength_maintenance','recovery'],
+    hybrid:    ['aerobic_durability','lactate_threshold','force_production','strength_maintenance','work_capacity','race_specificity','recovery'],
+    fitstop:   ['force_production','work_capacity','race_specificity','recovery'],
+  };
+  return (sets[type] || sets.hybrid).slice();
+}
+
+// Translate ANY session into its adaptation footprint: adaptations created + fatigue
+// generated + recovery required + interference potential. Workouts → adaptations.
+function translateSession(sess, ctx={}){
+  if (!sess) return { adaptations:[], fatigue:CATEGORY_FATIGUE.rest, recoveryHours:0, interference:[] };
+  const t = _sessType(sess);
+  const created = [];
+  if (t==='endurance' || t==='run'){
+    const rt = sess.runType==='threshold' ? 'tempo' : (sess.runType||'easy');
+    ADAPTATION_MODEL.forEach(a => { if (a.sessionTypes.includes(rt)) created.push(a.id); });
+    if (rt==='long' && (ctx.goal||'').toLowerCase().includes('marathon')) created.push('race_specificity');
+  } else if (t==='strength'){
+    created.push('force_production','strength_maintenance');
+  } else if (t==='fitstop' || t==='conditioning' || t==='mixed'){
+    const nm=(sess.name||'').toUpperCase();
+    if (nm.includes('LIFT')) created.push('force_production'); else created.push('work_capacity');
+  }
+  const primary = adaptation(created[0]);
+  const fatigue = (typeof Fatigue!=='undefined') ? Fatigue.sessionFatigue(sess, ctx.phase) : (primary?primary.fatigue:CATEGORY_FATIGUE.other);
+  const interference = primary ? primary.interferenceWith.slice() : [];
+  const recoveryHours = Math.max(...created.map(id=>adaptation(id)?.recoveryHours||0), 0);
+  return { adaptations: created, fatigue, recoveryHours, interference };
+}
+
+// Adaptation STATE from logged history: when each was last stimulated + freshness/decay.
+function _adaptLastStimulated(adaptId){
+  let best = null;
+  for (const s of (sessions||[])){
+    const created = translateSession({ type:s.cat, runType:_logRunType(s), name:s.session }).adaptations;
+    if (created.includes(adaptId)){
+      const d = s.date || (s.ts ? new Date(s.ts).toISOString().slice(0,10) : null);
+      if (d && (!best || d>best)) best = d;
+    }
+  }
+  return best;
+}
+function _logRunType(s){
+  const n=(s.session||'').toLowerCase();
+  if(/interval|vo2|track|400|800/.test(n)) return 'intervals';
+  if(/tempo|threshold/.test(n)) return 'tempo';
+  if(/long/.test(n)) return 'long';
+  if(/recovery/.test(n)) return 'recovery';
+  return s.cat==='run' ? 'easy' : null;
+}
+function adaptationStatus(requiredIds, asOf){
+  const today = asOf || todayISO();
+  const daysBetween = (a,b)=> Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
+  return requiredIds.map(id=>{
+    const a = adaptation(id); if (!a) return null;
+    const last = _adaptLastStimulated(id);
+    const since = last ? daysBetween(last, today) : Infinity;
+    let status, urgency;
+    if (since===Infinity){ status='absent'; urgency=1.0; }
+    else if (since <= a.retentionDays*0.5){ status='fresh'; urgency=0.1; }
+    else if (since <= a.retentionDays){ status='maintained'; urgency=0.4; }
+    else if (since <= a.retentionDays*1.5){ status='decaying'; urgency=0.75; }
+    else { status='lapsed'; urgency=1.0; }
+    return { id, name:a.name, status, since:(since===Infinity?null:since), urgency };
+  }).filter(Boolean);
+}
+
+// Value = adaptation per unit fatigue × decay-urgency × priority, gated by readiness +
+// interference with recently-trained adaptations. Returns ranked + the priority today.
+function rankAdaptationsByValue(requiredIds, opts={}){
+  const readiness = opts.readiness != null ? opts.readiness : (typeof _readinessToday==='function'?_readinessToday():null);
+  const states = adaptationStatus(requiredIds, opts.asOf);
+  const recent = opts.recentAdaptations || []; // adaptations trained in the last day (interference)
+  const ranked = states.map(st=>{
+    const a = adaptation(st.id);
+    const fat = Math.max(1, _adaptFatScore(a));
+    let value;
+    if (a.id === 'recovery'){
+      // Recovery isn't "developed" on the cheap — it's the priority only when readiness
+      // is low (or fatigue is high), otherwise it sits near the bottom.
+      value = (readiness != null && readiness < 55) ? 9 : 0.5;
+    } else {
+      value = (a.priority * st.urgency) / fat * 10;             // adaptation per unit fatigue
+      if (readiness != null && readiness < 55 && fat >= 18) value *= 0.4;  // readiness gate
+      // Interference: discount if it conflicts with something trained very recently.
+      if (a.interferenceWith.some(x=>recent.includes(x)) || recent.some(r=>adaptation(r)?.interferenceWith.includes(a.id))) value *= 0.5;
+    }
+    return { ...st, value:+value.toFixed(2), fatigue:fat, priority:a.priority };
+  }).sort((x,y)=> y.value - x.value);
+  return { ranked, priority: ranked[0]||null, readiness };
+}
+
+// Plan today's highest-value adaptation + a prescription (workout) that creates it.
+function planTodayAdaptation(opts={}){
+  const type = opts.type || savedProgram?.type || programBuilderConfig?.type || 'hybrid';
+  const req = requiredAdaptationsFor(type, opts.goal);
+  const { ranked, priority, readiness } = rankAdaptationsByValue(req, opts);
+  if (!priority) return null;
+  const a = adaptation(priority.id);
+  return { adaptation:a, status:priority.status, value:priority.value, readiness,
+    prescription: a.schedulerObjective,
+    reason:`Highest value today: ${a.name} (${priority.status}${priority.since!=null?`, ${priority.since}d since last`:''}) — best adaptation per unit of fatigue right now.`,
+    ranked };
+}
+
+// Order scheduler objectives by adaptation value (adaptation-first planning).
+function objectivesByAdaptationValue(type, goal, opts={}){
+  const req = requiredAdaptationsFor(type, goal);
+  const { ranked } = rankAdaptationsByValue(req, opts);
+  const seen = new Set(); const objs = [];
+  for (const r of ranked){ const o = adaptation(r.id)?.schedulerObjective; if (o && !seen.has(o)){ seen.add(o); objs.push(o); } }
+  return objs;
+}
+
 const ADAPTATIONS = [
   { id:'long-endurance', label:'Long endurance', categories:['long-run','trail'],                 hard:true,  prescription:'Long run — progress duration, mostly Zone 2' },
   { id:'threshold',      label:'Threshold',      categories:['workout-run','track','treadmill'],  hard:true,  prescription:'Tempo / cruise intervals at threshold' },
@@ -6596,7 +6755,10 @@ function scheduleWeek(objectiveIds, opts={}){
 // Build an opt-in adaptive program from the athlete's availability (date-anchored).
 function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   const type = goalType || (programBuilderConfig?.type) || 'hybrid';
-  const objectives = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
+  // Adaptation-first: order objectives by adaptation value (per unit fatigue × decay-urgency,
+  // readiness/interference-gated). Falls back to the static default if the engine yields none.
+  let objectives = (typeof objectivesByAdaptationValue==='function') ? objectivesByAdaptationValue(type, opts.goal) : [];
+  if (!objectives.length) objectives = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
   const { assigned, explanations, unplaced } = scheduleWeek(objectives, opts);
   // Build sessions + dayMap (Mon..Sun) from the placed week.
   const DOW = AVAIL_DAYS;
@@ -6718,6 +6880,21 @@ function applyReschedule(weekN, fromDay, toDay){
   toast(`Moved ${fromDay}'s session to ${toDay}`);
 }
 function dismissReschedule(){ sessionStorage.setItem('ht-resched-dismissed', todayISO()); try{ renderToday(); }catch(e){} }
+// Surface the highest-value adaptation today (adaptation-first planning made visible).
+function _renderAdaptationPriority(){
+  const el = document.getElementById('adaptation-priority'); if (!el) return;
+  el.innerHTML = '';
+  if (!savedProgram) return;
+  const plan = (typeof planTodayAdaptation==='function') ? planTodayAdaptation({ type: savedProgram.type, goal:(coachProfile&&coachProfile.goal)||'' }) : null;
+  if (!plan || !plan.adaptation) return;
+  const top3 = (plan.ranked||[]).slice(0,3).map(r=>`${r.name} ${r.value}`).join(' · ');
+  el.innerHTML = `<div class="card" style="margin-bottom:16px;border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.06);">
+    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:4px;">Today's priority adaptation</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);">${plan.adaptation.name} <span style="font-size:11px;font-weight:400;color:var(--text3);">· ${plan.status}</span></div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:4px;">${plan.reason}</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">value/fatigue ranking: ${top3}</div>
+  </div>`;
+}
 function _renderRescheduleBanner(){
   const el = document.getElementById('reschedule-banner'); if (!el) return;
   el.innerHTML = '';
