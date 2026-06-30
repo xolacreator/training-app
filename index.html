@@ -276,9 +276,13 @@ body{
 .dchip-name{font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);}
 .dchip.today .dchip-name{color:var(--accent);}
 .dchip.done .dchip-name{color:var(--green);}
-.dchip-dot{width:5px;height:5px;border-radius:50%;background:var(--text3);}
-.dchip.today .dchip-dot{background:var(--accent);}
-.dchip.done .dchip-dot{background:var(--green);}
+.dchip-dot{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;line-height:1;font-weight:700;color:#fff;background:transparent;
+  border:1.5px solid var(--text3);box-sizing:border-box;}
+.dchip.today .dchip-dot{border-color:var(--accent);background:var(--accent);}
+.dchip.done .dchip-dot{border-color:var(--green);background:var(--green);color:#fff;}
+.dchip.rest{opacity:.55;}
+.dchip.rest .dchip-dot{border-style:dashed;}
 
 /* ── SESSION ROWS ── */
 .srow{display:flex;align-items:flex-start;gap:10px;padding:13px 0;border-bottom:.5px solid var(--border);}
@@ -2866,9 +2870,15 @@ function renderToday() {
 
   const wc={}; for(let w=1;w<=12;w++) wc[w]=0;
   sessions.forEach(s=>{ if(s.week) wc[parseInt(s.week)]=(wc[parseInt(s.week)]||0)+1; });
-  const total=Object.values(wc).reduce((a,b)=>a+b,0);
+  // "Sessions logged" should be an honest all-time count, not just PLAN weeks 1-12.
+  const total=sessions.length;
   const tempo=sessions.filter(s=>s.session&&s.session.toLowerCase().includes('tempo')&&s.pace)
     .sort((a,b)=>{ const p=x=>{ const q=x.split(':');return q.length===2?parseInt(q[0])*60+parseFloat(q[1]):999; }; return p(a.pace)-p(b.pace); })[0];
+  // When the tempo session carries a real date, show it instead of a PLAN week label.
+  const tempoSub = tempo
+    ? (tempo.date ? new Date(tempo.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
+                  : ('W'+tempo.week+' · '+tempo.day))
+    : 'no tempo yet';
 
   const vo2val = baselines.vo2max_composite?.value || baselines['run-cooper']?.vo2max_predicted;
   const vo2Tile = vo2val
@@ -2879,10 +2889,10 @@ function renderToday() {
   document.getElementById('today-metrics').innerHTML = `
     ${vo2Tile}
     <div class="metric" onclick="openInsight('Sessions Logged',insightSessions())"><div class="mlbl">Sessions logged</div>
-      <div class="mval">${total}</div><div class="msub">all 12 weeks ›</div></div>
+      <div class="mval">${total}</div><div class="msub">all time ›</div></div>
     <div class="metric bl" onclick="openInsight('Tempo Pace Trend',insightTempo())"><div class="mlbl">Peak tempo</div>
       <div class="mval bl" style="font-size:22px;">${tempo?convertPaceStr(tempo.pace):'—'}<span class="munit">${paceUnit()}</span></div>
-      <div class="msub">${tempo?'W'+tempo.week+' · '+tempo.day:'no tempo yet'} ›</div></div>
+      <div class="msub">${tempoSub} ›</div></div>
     ${(()=>{
       if (savedProgram) {
         const pw = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
@@ -2917,7 +2927,7 @@ function renderToday() {
       const done = wkLogged.some(d=>d===p.day);
       return `<div class="dchip ${done?'done':isToday?'today':''}">
         <div class="dchip-name">${p.day}</div>
-        <div class="dchip-dot"></div>
+        <div class="dchip-dot">${done?'✓':''}</div>
       </div>`;
     }).join('');
     const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
@@ -3562,8 +3572,8 @@ function _renderProgramTodayStrip(){
     const done=hasSession&&_progSessionDone(week,slot.id);
     const clickAttr=hasSession?`onclick="openProgramSessionOverlay('${slot.id}',${week},'${day}')" style="cursor:pointer;"`:'';
     const dot=done
-      ? `<div class="dchip-dot" style="background:var(--green,#34c759);border-color:var(--green,#34c759);">✓</div>`
-      : `<div class="dchip-dot" ${!hasSession?'style="opacity:.25"':''}></div>`;
+      ? `<div class="dchip-dot">✓</div>`
+      : `<div class="dchip-dot"></div>`;
     return `<div class="dchip ${isToday?'today':''} ${!hasSession?'rest':''} ${done?'done':''}" ${clickAttr}>
       <div class="dchip-name">${day}</div>
       ${dot}
