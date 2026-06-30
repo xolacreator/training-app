@@ -571,15 +571,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <div class="card">
       <div class="g2" style="margin-bottom:10px;">
-        <div class="fg" style="margin-bottom:0;"><label class="flbl">Week</label>
-          <select id="f-week">
-            <option value="1">W1 · Mar 30</option><option value="2">W2 · Apr 6</option>
-            <option value="3">W3 · Apr 13</option><option value="4">W4 · Apr 20</option>
-            <option value="5" selected>W5 · Apr 27</option><option value="6">W6 · May 4</option>
-            <option value="7">W7 · May 11</option><option value="8">W8 · May 18</option>
-            <option value="9">W9 · May 25</option><option value="10">W10 · Jun 1</option>
-            <option value="11">W11 · Jun 8</option><option value="12">W12 · Jun 15</option>
-          </select>
+        <div class="fg" style="margin-bottom:0;"><label class="flbl">Date</label>
+          <input type="date" id="f-date" onchange="_syncLogDay()">
         </div>
         <div class="fg" style="margin-bottom:0;"><label class="flbl">Day</label>
           <select id="f-day">
@@ -3198,9 +3191,35 @@ function buildNotes(){
   return lines.join('\n');
 }
 
+// ── Free-form log date: a session can attach to ANY calendar date ───────────
+const _DOW_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function _syncLogDay(){
+  const di=document.getElementById('f-date'), dd=document.getElementById('f-day');
+  if(!di||!dd||!di.value) return;
+  const d=new Date(di.value+'T12:00:00'); if(isNaN(d.getTime())) return;
+  dd.value=_DOW_FULL[d.getDay()];
+}
+function _setLogDate(iso){ const di=document.getElementById('f-date'); if(di){ di.value=iso||todayISO(); _syncLogDay(); } }
+// ISO date for a given program/plan week + day name (Monday-based weeks).
+function _dateForWeekDay(week, dayName){
+  const dow=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf((dayName||'').slice(0,3));
+  let start=null, prog=(savedProgram && typeof _progStartDate==='function') ? _progStartDate() : null;
+  if(prog) start=prog;
+  else if(typeof WMAP!=='undefined'){ const row=WMAP.find(w=>String(w[0])===String(week)); if(row) start=new Date(row[1]+'T12:00:00'); }
+  if(!start || dow<0) return todayISO();
+  const d=new Date(start);
+  d.setDate(d.getDate() + (prog?(week-1)*7:0) + dow);     // program weeks span from start; PLAN row is that week's Monday
+  return d.toISOString().slice(0,10);
+}
+
 function saveSession(){
-  const week=document.getElementById('f-week').value;
-  const day=document.getElementById('f-day').value;
+  const dateISO=(document.getElementById('f-date')?.value)||todayISO();
+  const dObj=new Date(dateISO+'T12:00:00');
+  const day=document.getElementById('f-day')?.value || _DOW_FULL[dObj.getDay()];
+  // Derive the week from the chosen date: program week if a program is active, else plan week.
+  let week='';
+  if(savedProgram && savedProgram.startDate && typeof _progWeekForDate==='function') week=String(_progWeekForDate(dateISO)||'');
+  else if(typeof weekFor==='function') week=String(weekFor(dateISO)||'');
   const session=document.getElementById('f-session').value;
   const intensity=document.getElementById('f-intensity').value;
   const pace=(document.getElementById('f-pace')?.value||'').trim();
@@ -3208,7 +3227,7 @@ function saveSession(){
   const hr=(document.getElementById('f-hr')?.value||'').trim();
   const dur=(document.getElementById('f-dur')?.value||'').trim();
   const notes=buildNotes();
-  const entry={week,day,session,intensity,pace,dist,hr,dur,feel,notes,ts:Date.now(),
+  const entry={week,day,date:dateISO,session,intensity,pace,dist,hr,dur,feel,notes,ts:(isNaN(dObj.getTime())?Date.now():dObj.getTime()),
     cat,splits:[...splits],exercises:JSON.parse(JSON.stringify(exercises)),
     stations:JSON.parse(JSON.stringify(stations)),sUnit};
   // Link to a program session if this log was started from one (→ completion tracking)
@@ -3223,6 +3242,7 @@ function clearForm(){
   feel=null;splits=[];exercises=[];stations=[];_pendingProgLink=null;
   document.querySelectorAll('.feel-btn').forEach(b=>b.classList.remove('sel'));
   const fn=document.getElementById('f-notes');if(fn)fn.value='';
+  _setLogDate(todayISO());   // default the log date to today
   renderMetrics();
 }
 
@@ -3345,7 +3365,7 @@ function renderPlan(w){
 }
 
 function logThisWeek(){
-  document.getElementById('f-week').value=String(savedProgram?currentProgramWeek:currentPlanWeek);
+  _setLogDate(todayISO());
   nav('log',document.querySelectorAll('.nb')[1]);
 }
 
@@ -3787,8 +3807,7 @@ function logProgramSession(id, week, day, setsAdd, isDeload){
     const base=(CAT_SESSIONS[logCat]||[]).filter(n=>n!==sess.name);
     sel.innerHTML=[`<option selected>${sess.name}</option>`,...base.map(n=>`<option>${n}</option>`)].join('');
   }
-  const wEl=document.getElementById('f-week'); if(wEl) wEl.value=String(week);
-  const dEl=document.getElementById('f-day'); if(dEl && day && _DAY_FULL[day]) dEl.value=_DAY_FULL[day];
+  _setLogDate(_dateForWeekDay(week, day));   // attach to the program session's real date
   const iEl=document.getElementById('f-intensity'); if(iEl) iEl.value=sess.intensity|| (logCat==='run'?'moderate':'moderate');
   renderMetrics(); // re-render metrics now that the buffers are populated
   toast('Logging '+sess.name+(logCat==='strength'?' — fill in your weights':logCat==='run'?' — add your run details':' — log your results'));
@@ -3840,9 +3859,7 @@ function openPlanOverlay(week,day,sessionType,sessionName,sub){
   document.getElementById('po-breakdown').innerHTML=getBreakdown(week,day,sessionType);
   document.getElementById('po-log-btn').textContent='Log this session';
   document.getElementById('po-log-btn').onclick=()=>{
-    document.getElementById('f-week').value=String(week);
-    const dayFull=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].find(d=>d.startsWith(day))||day;
-    document.getElementById('f-day').value=dayFull;
+    _setLogDate(_dateForWeekDay(week, day));
     closeOv('plan-overlay');nav('log',document.querySelectorAll('.nb')[1]);
   };
   const editBtn=document.getElementById('po-edit-btn');
@@ -3987,7 +4004,7 @@ function buildAssessmentResultHtml(id, saved) {
 function assLogSession(id) {
   const a = ASSESSMENT_SESSIONS.find(x=>x.id===id); if (!a) return;
   closeOv('assessment-overlay');
-  document.getElementById('f-week').value = '1';
+  _setLogDate(todayISO());
   document.getElementById('f-intensity').value = a.intensity;
   const sEl = document.getElementById('f-session');
   if (sEl) {
@@ -4508,8 +4525,7 @@ function bldSaveBoth(){bldSavePlan();bldSaveTemplate();toast('Saved to plan + te
 function bldUseToLog(){
   const week=document.getElementById('bld-week').value;
   const day=document.getElementById('bld-day').value;
-  document.getElementById('f-week').value=week;
-  document.getElementById('f-day').value=day;
+  _setLogDate(_dateForWeekDay(week, day));
   closeOv('builder-overlay');nav('log',document.querySelectorAll('.nb')[1]);toast('Session loaded into log');
 }
 
@@ -9915,6 +9931,7 @@ try { initStrava(); } catch(e) { console.error('initStrava() failed:', e); }
 // CSS variables --sat/--sab are kept for any remaining inline-style references.
 try { loadCoach(); } catch(e) {}
 try { setCat('run', document.querySelector('.cat-tab.run')); } catch(e) {}
+try { _setLogDate(todayISO()); } catch(e) {}
 try { renderPlanTabs(); } catch(e) {}
 // Resume onboarding if coach setup was opened mid-flow
 if (localStorage.getItem('ht-onboarded') === 'pending') {
