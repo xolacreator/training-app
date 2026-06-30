@@ -3443,6 +3443,61 @@ function _rxForRunType(rt){
   const d = _RKB().domains.find(x=>x.rx && x.rx.runType===rt);
   return d ? d.rx : null;
 }
+// The full KB domain (not just rx) for a run type — used for coaching detail.
+function _domainForRunType(rt){
+  if (rt==='threshold') rt='tempo';
+  return _RKB().domains.find(x=>x.rx && x.rx.runType===rt) || null;
+}
+// Comprehensive coaching detail for an endurance session: PURPOSE (the target
+// adaptation, pulled from the KB) + how to EXECUTE it + warm-up / cool-down.
+// Warm-up/cool-down protocols are standard, intensity-scaled practice; the purpose
+// and execution cue are KB-driven so they stay in sync with the knowledge base.
+function _enduranceCoaching(rt){
+  rt = (rt==='threshold') ? 'tempo' : (rt||'easy');
+  const dom = _domainForRunType(rt);
+  const purpose = dom ? (dom.summary || (dom.adaptations&&dom.adaptations[0]) || '') : '';
+  const adaptation = dom && dom.title ? dom.title : '';
+  const cueMap = {
+    easy:     'Conversational effort — you should be able to speak full sentences. If in doubt, slow down; easy days drive the aerobic base.',
+    recovery: 'Deliberately light. This run is for recovery, not fitness — keep the effort genuinely easy and stop if you feel flat.',
+    long:     'Start easy and hold a steady aerobic effort. Take on fuel from ~45 min onward. The final portion can lift slightly if you feel strong.',
+    tempo:    'Comfortably hard — a pace you could race for ~1 hour. Settle into rhythm rather than starting fast; hold the target through each rep.',
+    intervals:'Run reps at ~5K–3K effort and hit the target on every rep. Jog the recoveries fully. End a rep early rather than letting form fall apart.',
+  };
+  const wuMap = {
+    easy:     '5 min walk/easy jog to settle in (no formal warm-up needed for easy running).',
+    recovery: 'None required — start easy and let the body loosen up over the first few minutes.',
+    long:     '10 min very easy to ease in, gradually settling into long-run effort.',
+    tempo:    '15 min easy jog + 3–4 dynamic drills + 4×20 s strides before the first rep.',
+    intervals:'15–20 min easy jog + leg swings/drills + 4–6×100 m strides to prime turnover.',
+  };
+  const cdMap = {
+    easy:     '3–5 min walk + light stretching if desired.',
+    recovery: 'Walk a few minutes; optional light mobility.',
+    long:     '10 min easy walk; refuel (carbs + protein) within ~30 min and rehydrate.',
+    tempo:    '10 min easy jog to flush the legs, then walk and stretch.',
+    intervals:'10–15 min easy jog to clear lactate; gentle stretching after.',
+  };
+  return { adaptation, purpose, cue: cueMap[rt]||cueMap.easy, warmup: wuMap[rt]||wuMap.easy, cooldown: cdMap[rt]||cdMap.easy };
+}
+// Coaching detail for a generated strength session: pick the matching KB domain
+// from the session's focus/goal, surface its purpose, and add standard warm-up /
+// cool-down guidance. Keeps strength sessions as informative as endurance ones.
+function _strengthCoaching(sess){
+  const txt=((sess&&(sess.focus||sess.goal||sess.name))||'').toLowerCase();
+  const pick =
+    /hypertroph|muscle|size|build/.test(txt) ? 'hypertrophy' :
+    /power|explos|speed|olympic/.test(txt)   ? 'power_explosiveness' :
+    /endur|conditioning|circuit/.test(txt)   ? 'strength_endurance' :
+    'maximal_strength';
+  const dom=_SKB().domains.find(d=>d.id===pick) || _SKB().domains.find(d=>d.id==='maximal_strength') || null;
+  return {
+    adaptation: dom?.title || 'Strength',
+    purpose: dom?.summary || '',
+    warmup: 'General: 5 min easy cardio + dynamic mobility. Specific: 2–3 ramp-up sets on the first main lift (build to the working load).',
+    cooldown: 'Re-rack and reset between heavy sets. After the session: easy walk + light stretching for the trained patterns.',
+  };
+}
 // Build the week-N prescription FROM the KB rx (KB-driven, not hardcoded) + baselines.
 function _progressEndurance(sess, week, totalWeeks){
   const rt = (sess.runType==='threshold') ? 'tempo' : (sess.runType || 'easy');
@@ -3717,7 +3772,29 @@ function openProgramSessionOverlay(id,week,day){
     const blocks=(sess.blocks||sess.exercises||[]).map((b,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
         <div style="font-size:13px;font-weight:500;color:var(--text);">${b.name||b.title||'Block'}${b.detail||b.reps?` <span style="font-family:var(--mono);font-size:11px;color:var(--text2);font-weight:400;">${b.detail||b.reps}</span>`:''}</div>
         ${b.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${b.cue}</div>`:''}</div>`).join('');
-    bodyHtml=`${targets?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:${blocks?'10px':'16px'};">${targets}</div>`:''}
+    // Comprehensive coaching detail: purpose + warm-up / main / cool-down + execution cue.
+    const rt=(sess.runType==='threshold')?'tempo':(sess.runType||'easy');
+    const coach=_enduranceCoaching(rt);
+    const mainLine = intervals || [distance,duration].filter(Boolean).join(' · ') || (target||'Run as prescribed');
+    const purposeBox = coach.purpose ? `<div style="background:rgba(77,158,255,.08);border:1px solid rgba(77,158,255,.25);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;">Purpose${coach.adaptation?` · ${coach.adaptation}`:''}</div>
+        <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.5;">${coach.purpose}</div></div>` : '';
+    const phase=(label,cls,txt)=>`<div style="padding:11px 0;border-bottom:.5px solid var(--border);">
+        <div class="bk-header ${cls}" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">${label}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${txt}</div></div>`;
+    const structure=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">
+        ${phase('Warm-up','warmup',coach.warmup)}
+        <div style="padding:11px 0;${'border-bottom:.5px solid var(--border)'}">
+          <div class="bk-header main" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Main set</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.5;">${mainLine}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${coach.cue}</div></div>
+        <div style="padding:11px 0;">
+          <div class="bk-header cooldown" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Cool-down</div>
+          <div style="font-size:13px;color:var(--text);line-height:1.5;">${coach.cooldown}</div></div>
+      </div>`;
+    bodyHtml=`${purposeBox}
+      ${targets?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">${targets}</div>`:''}
+      ${structure}
       ${blocks?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${blocks}</div>`:''}`;
   } else if(type==='fitstop'||type==='conditioning'||type==='mixed'){
     // Conditioning/Fitstop: format line + stations/exercises.
@@ -3744,7 +3821,19 @@ function openProgramSessionOverlay(id,week,day){
         ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
       </div>`;
     }).join('');
-    bodyHtml=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${exRows}</div>`;
+    const sc=_strengthCoaching(sess);
+    const scPurpose = sc.purpose ? `<div style="background:rgba(77,158,255,.08);border:1px solid rgba(77,158,255,.25);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;">Purpose${sc.adaptation?` · ${sc.adaptation}`:''}</div>
+        <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.5;">${sc.purpose}</div></div>` : '';
+    const scWarm=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:11px 14px;margin-bottom:12px;">
+        <div class="bk-header warmup" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Warm-up</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${sc.warmup}</div></div>`;
+    const scCool=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:11px 14px;margin-bottom:16px;">
+        <div class="bk-header cooldown" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Cool-down</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${sc.cooldown}</div></div>`;
+    bodyHtml=`${scPurpose}${scWarm}
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">${exRows}</div>
+      ${scCool}`;
   }
 
   // For a loaded Fitstop block, surface the published format for this exact day/week.
