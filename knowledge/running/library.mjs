@@ -53,6 +53,8 @@ export const RUNNING_DOMAINS = [
     recovery: ['Low fatigue cost — high frequency is sustainable when intensity stays controlled.'],
     contraindications: ['Running base too fast (drift into moderate) — the classic intermediate error.'],
     relatedTo: ['lactate_threshold','long_runs','recovery_science'],
+    // Machine-consumable prescription the Programming Engine builds sessions from.
+    rx: { runType:'easy', paceKey:'easy', zone:'Z2', startMin:35, growMin:25 },
   },
   {
     id: 'lactate_threshold', title: 'Lactate Threshold', sourceTier: 'methodology',
@@ -64,6 +66,7 @@ export const RUNNING_DOMAINS = [
     recovery: ['Moderate cost; avoid stacking with VO₂max or hard lifting on adjacent days.'],
     contraindications: ['Overuse → chronic "grey-zone" grind with little adaptation.'],
     relatedTo: ['vo2max','energy_systems','race_specific'],
+    rx: { runType:'tempo', paceKey:'threshold', zone:'Z3–4', repsStart:3, repsMax:5, minStart:8, minMax:10, recovery:'2 min jog', deloadReps:2, deloadMin:6 },
   },
   {
     id: 'vo2max', title: 'VO₂max', sourceTier: 'methodology',
@@ -75,6 +78,7 @@ export const RUNNING_DOMAINS = [
     recovery: ['High cost — most injury-prone; requires an aerobic base first; never adjacent to heavy lower-body lifting.'],
     contraindications: ['No aerobic base, or stacking with other hard sessions.'],
     relatedTo: ['energy_systems','speed_development','aerobic_development'],
+    rx: { runType:'intervals', paceKey:'vo2', zone:'Z5', repsStart:5, repsMax:10, dist:'800 m', recovery:'90 s jog', deloadReps:4 },
   },
   {
     id: 'running_economy', title: 'Running Economy', sourceTier: 'established',
@@ -108,6 +112,7 @@ export const RUNNING_DOMAINS = [
     recovery: ['High mechanical/connective load — schedule easy/rest after.'],
     contraindications: ['Jumping long-run distance too fast — common injury cause.'],
     relatedTo: ['aerobic_development','race_specific','recovery_science'],
+    rx: { runType:'long', paceKey:'easy', zone:'Z2', startKm:12, growKm:9, capKm:32, minPerKm:5.6 },
   },
   {
     id: 'race_specific', title: 'Race-Specific Programming', sourceTier: 'methodology',
@@ -141,6 +146,7 @@ export const RUNNING_DOMAINS = [
     recovery: ['Active recovery, post-session protein+carb, hydration; gadgets are marginal vs sleep/food/time.'],
     contraindications: ['Hard sessions on chronic sleep debt or suppressed HRV.'],
     relatedTo: ['exercise_physiology','injury_prevention','concurrent_training'],
+    rx: { runType:'recovery', paceKey:'easy', zone:'Z1–2', startMin:25, growMin:10 },
   },
   {
     id: 'biomechanics', title: 'Biomechanics', sourceTier: 'accepted',
@@ -233,4 +239,4 @@ export const COACH_EV_PHILOSOPHY = {
   ],
 };
 
-export const RUNNING_KB_VERSION = 1;
+export const RUNNING_KB_VERSION = 2;

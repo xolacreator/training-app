@@ -21,6 +21,15 @@ export const STRENGTH_DOMAINS = [
     recovery: ['High CNS cost — full recovery between heavy sessions; avoid grinding to failure on compounds.'],
     contraindications: ['Maxing on chronic fatigue or poor technique; stacking next to hard running (interference).'],
     relatedTo: ['power_explosiveness','volume_landmarks','periodization_strength','concurrent_training'],
+    // Machine-consumable session template the Programming Engine builds strength sessions from.
+    rx: { sets:4, repStart:5, repPeak:3, load:'80–92% 1RM / RPE 8', rest:'2–4 min',
+      mains:[ {name:'Back Squat',pattern:'squat',cue:'brace, knees track toes'},
+              {name:'Bench Press',pattern:'push',cue:'tuck elbows ~45°'},
+              {name:'Deadlift',pattern:'hinge',cue:'wedge, neutral spine'},
+              {name:'Pull-Up / Row',pattern:'pull',cue:'full ROM'} ],
+      accessories:[ {name:'Romanian Deadlift',sets:3,reps:'8–10'},
+                    {name:'Overhead Press',sets:3,reps:'8'},
+                    {name:'Core / Carry',sets:3,reps:'10–12'} ] },
   },
   {
     id: 'hypertrophy', title: 'Hypertrophy', sourceTier: 'methodology',
@@ -199,4 +208,4 @@ export const STRENGTH_COACH_EV = {
   ],
 };
 
-export const STRENGTH_KB_VERSION = 1;
+export const STRENGTH_KB_VERSION = 2;
