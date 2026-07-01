@@ -5898,11 +5898,23 @@ async function syncFromStrava(silent = false) {
       if (!silent) toast('Strava session expired — reconnect');
       return;
     }
+    if (resp.status === 429) {
+      // Rate limited by Strava (100 reads/15 min, 1000/day). Not a real failure —
+      // surface a clear message and back off rather than showing a cryptic error.
+      const usage = resp.headers.get('X-RateLimit-Usage') || '';
+      stravaState = 'error'; renderStravaCard();
+      if (!silent) toast('Strava rate limit reached — wait ~15 min, then sync again' + (usage ? ` (usage ${usage})` : ''));
+      return;
+    }
     const body = await resp.json();
 
     // Validate response is an array
     if (!Array.isArray(body)) {
-      throw new Error(body?.message || body?.errors?.[0]?.field || 'unexpected API response');
+      // Strava returns { message, errors:[{field, code}] } on API errors.
+      const detail = body?.message
+        ? `${body.message}${body.errors?.[0]?.field ? ` (${body.errors[0].field}: ${body.errors[0].code||''})` : ''}`
+        : 'unexpected API response';
+      throw new Error(detail);
     }
 
     const activities = body;
@@ -5999,7 +6011,11 @@ async function syncFromStrava(silent = false) {
     }
   } catch(e) {
     stravaState = 'error'; renderStravaCard();
-    if (!silent) toast(`Strava sync error: ${e.message}`);
+    // "Failed to fetch" = network/CORS/offline, not a Strava API rejection.
+    const msg = /failed to fetch|networkerror|load failed/i.test(e.message||'')
+      ? 'Strava sync failed — check your connection and try again'
+      : `Strava sync error: ${e.message}`;
+    if (!silent) toast(msg);
   }
 }
 
@@ -8322,15 +8338,20 @@ function extractBestPace(splits) {
 
 async function fetchStravaDetail(gids, tok) {
   let changed = false;
-  // Process in batches of 10 (2 API calls per activity: detail + laps)
-  for (let i = 0; i < gids.length; i += 10) {
-    await Promise.all(gids.slice(i, i + 10).map(async gid => {
+  let rateLimited = false;
+  // Process in smaller batches (2 API calls per activity: detail + laps). Splits/laps
+  // are non-critical enrichment — if Strava rate-limits us, stop rather than hammering
+  // the API (which would also break the next full sync).
+  for (let i = 0; i < gids.length && !rateLimited; i += 6) {
+    await Promise.all(gids.slice(i, i + 6).map(async gid => {
+      if (rateLimited) return;
       try {
         const actId = gid.replace('strava-', '');
         const [detailResp, lapsResp] = await Promise.all([
           fetch(`https://www.strava.com/api/v3/activities/${actId}`,        { headers: { Authorization: `Bearer ${tok}` } }),
           fetch(`https://www.strava.com/api/v3/activities/${actId}/laps`,   { headers: { Authorization: `Bearer ${tok}` } }),
         ]);
+        if (detailResp.status === 429 || lapsResp.status === 429) { rateLimited = true; return; }
         const sess = sessions.find(s => s.gid === gid);
         if (!sess) return;
 
