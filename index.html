@@ -3452,33 +3452,93 @@ function _domainForRunType(rt){
 // adaptation, pulled from the KB) + how to EXECUTE it + warm-up / cool-down.
 // Warm-up/cool-down protocols are standard, intensity-scaled practice; the purpose
 // and execution cue are KB-driven so they stay in sync with the knowledge base.
-function _enduranceCoaching(rt){
+function _enduranceCoaching(rt, px){
   rt = (rt==='threshold') ? 'tempo' : (rt||'easy');
+  px = px || {};
   const dom = _domainForRunType(rt);
   const purpose = dom ? (dom.summary || (dom.adaptations&&dom.adaptations[0]) || '') : '';
   const adaptation = dom && dom.title ? dom.title : '';
-  const cueMap = {
-    easy:     'Conversational effort — you should be able to speak full sentences. If in doubt, slow down; easy days drive the aerobic base.',
-    recovery: 'Deliberately light. This run is for recovery, not fitness — keep the effort genuinely easy and stop if you feel flat.',
-    long:     'Start easy and hold a steady aerobic effort. Take on fuel from ~45 min onward. The final portion can lift slightly if you feel strong.',
-    tempo:    'Comfortably hard — a pace you could race for ~1 hour. Settle into rhythm rather than starting fast; hold the target through each rep.',
-    intervals:'Run reps at ~5K–3K effort and hit the target on every rep. Jog the recoveries fully. End a rep early rather than letting form fall apart.',
+  const dur = px.duration || '';
+  const pace = px.pace || '';
+  // Warm-up line items per run type.
+  const warmupMap = {
+    easy: [
+      {name:'Easy walk / gentle jog', detail:'3–5 min', cue:'Let the body ease in — no need for a formal warm-up.'},
+    ],
+    recovery: [
+      {name:'Easy walk', detail:'2–3 min', cue:'Loosen up; the run itself stays very light.'},
+    ],
+    long: [
+      {name:'Very easy start', detail:'10 min', cue:'Ease into long-run effort — resist starting too quick.'},
+      {name:'Mobility check', detail:'ongoing', cue:'Relax shoulders, tall posture, light quick cadence.'},
+    ],
+    tempo: [
+      {name:'Easy jog', detail:'15 min', cue:'Build gradually from very easy to steady.'},
+      {name:'Dynamic drills', detail:'3–4 min', cue:'Leg swings, A-skips, high knees.'},
+      {name:'Strides', detail:'4 × 20 s', cue:'Build toward tempo pace; walk back to full recovery.'},
+    ],
+    intervals: [
+      {name:'Easy jog', detail:'15–20 min', cue:'Thorough warm-up — the reps are hard.'},
+      {name:'Dynamic drills', detail:'3–4 min', cue:'A-skips, high knees, butt kicks.'},
+      {name:'Strides', detail:'4–6 × 100 m', cue:'Prime turnover near rep pace; full recovery between.'},
+    ],
   };
-  const wuMap = {
-    easy:     '5 min walk/easy jog to settle in (no formal warm-up needed for easy running).',
-    recovery: 'None required — start easy and let the body loosen up over the first few minutes.',
-    long:     '10 min very easy to ease in, gradually settling into long-run effort.',
-    tempo:    '15 min easy jog + 3–4 dynamic drills + 4×20 s strides before the first rep.',
-    intervals:'15–20 min easy jog + leg swings/drills + 4–6×100 m strides to prime turnover.',
+  // Main-set line items — built from the progressed prescription (px).
+  const mainMap = {
+    easy: [
+      {name:'Easy aerobic run', detail:dur||'as planned', cue:`Zone 2, conversational${pace?` · ${pace}`:''}. Full sentences — if not, slow down.`},
+      {name:'Form focus', detail:'throughout', cue:'Relaxed, tall, light quick steps. Nose-breathing is a good easy-effort check.'},
+    ],
+    recovery: [
+      {name:'Recovery run', detail:dur||'as planned', cue:`Deliberately light${pace?` · ${pace}`:''}. This aids recovery, not fitness — keep it genuinely easy.`},
+      {name:'Cut it short if flat', detail:'as needed', cue:'If legs feel heavy or HR is high, walk or end early.'},
+    ],
+    long: [
+      {name:'Steady long run', detail:px.distance||dur||'as planned', cue:`Aerobic Zone 2${pace?` · ${pace}`:''}. Hold effort steady as fatigue builds.`},
+      {name:'Fuel', detail:'from ~45 min', cue:'~30–60 g carbs/hr; sip fluids regularly — practise race nutrition.'},
+      {name:'Optional strong finish', detail:'last 10–15 min', cue:'Lift to steady/moderate if feeling good (skip on cutback/deload weeks).'},
+    ],
+    tempo: px.reps ? [
+      {name:`${px.reps} × ${px.repSize} at threshold`, detail:px.repPace||pace||'threshold', cue:'Comfortably hard — a pace you could race ~1 hr. Even effort, no fade.'},
+      {name:'Recovery jog between reps', detail:px.recovery||'2 min jog', cue:'Very easy — just enough to reset for the next rep.'},
+    ] : [
+      {name:'Continuous tempo', detail:dur||'20–30 min', cue:`Comfortably hard${pace?` · ${pace}`:''}. Lock into rhythm; hold to the end.`},
+    ],
+    intervals: [
+      {name:`${px.reps||'reps'} × ${px.repSize||'work'} at VO₂ pace`, detail:px.repPace||pace||'~5K effort', cue:'Hard but repeatable — ~5K–3K effort. Hit the target on every rep.'},
+      {name:'Recovery jog between reps', detail:px.recovery||'90 s jog', cue:'Jog fully to hold quality; better a clean rep than a rushed one.'},
+      {name:'Stop a rep short if form breaks', detail:'as needed', cue:'End the set rather than grinding out ragged reps.'},
+    ],
   };
-  const cdMap = {
-    easy:     '3–5 min walk + light stretching if desired.',
-    recovery: 'Walk a few minutes; optional light mobility.',
-    long:     '10 min easy walk; refuel (carbs + protein) within ~30 min and rehydrate.',
-    tempo:    '10 min easy jog to flush the legs, then walk and stretch.',
-    intervals:'10–15 min easy jog to clear lactate; gentle stretching after.',
+  const cooldownMap = {
+    easy: [
+      {name:'Easy walk', detail:'3–5 min', cue:'Let HR settle.'},
+      {name:'Light stretch', detail:'optional', cue:'Calves, quads, hips if anything feels tight.'},
+    ],
+    recovery: [
+      {name:'Easy walk', detail:'2–3 min'},
+      {name:'Gentle mobility', detail:'optional'},
+    ],
+    long: [
+      {name:'Easy walk', detail:'10 min', cue:'Bring HR down gradually.'},
+      {name:'Refuel', detail:'within ~30 min', cue:'Carbs + protein; rehydrate with electrolytes.'},
+      {name:'Mobility / stretch', detail:'5 min', cue:'Hips, hamstrings, calves — hold 30 s each.'},
+    ],
+    tempo: [
+      {name:'Easy jog', detail:'10 min', cue:'Flush the legs at a very easy effort.'},
+      {name:'Stretch', detail:'5 min', cue:'Calves, hip flexors, hamstrings.'},
+    ],
+    intervals: [
+      {name:'Easy jog', detail:'10–15 min', cue:'Clear lactate — keep it genuinely easy.'},
+      {name:'Stretch / mobility', detail:'5 min', cue:'Focus on calves and hips.'},
+    ],
   };
-  return { adaptation, purpose, cue: cueMap[rt]||cueMap.easy, warmup: wuMap[rt]||wuMap.easy, cooldown: cdMap[rt]||cdMap.easy };
+  return {
+    adaptation, purpose,
+    warmup: warmupMap[rt]||warmupMap.easy,
+    main: mainMap[rt]||mainMap.easy,
+    cooldown: cooldownMap[rt]||cooldownMap.easy,
+  };
 }
 // Coaching detail for a generated strength session: pick the matching KB domain
 // from the session's focus/goal, surface its purpose, and add standard warm-up /
@@ -3491,11 +3551,27 @@ function _strengthCoaching(sess){
     /endur|conditioning|circuit/.test(txt)   ? 'strength_endurance' :
     'maximal_strength';
   const dom=_SKB().domains.find(d=>d.id===pick) || _SKB().domains.find(d=>d.id==='maximal_strength') || null;
+  const firstLift=(sess&&sess.exercises&&sess.exercises[0]&&sess.exercises[0].name)||'the first main lift';
+  const heavy = pick==='maximal_strength' || pick==='power_explosiveness';
   return {
     adaptation: dom?.title || 'Strength',
     purpose: dom?.summary || '',
-    warmup: 'General: 5 min easy cardio + dynamic mobility. Specific: 2–3 ramp-up sets on the first main lift (build to the working load).',
-    cooldown: 'Re-rack and reset between heavy sets. After the session: easy walk + light stretching for the trained patterns.',
+    warmup: [
+      {name:'General warm-up', detail:'5 min', cue:'Easy bike / row / jog to raise core temperature.'},
+      {name:'Dynamic mobility', detail:'5 min', cue:'Hips, ankles, T-spine, shoulders — through full range.'},
+      {name:'Ramp-up sets', detail:'2–3 sets', cue:`Build to the working load on ${firstLift} — light → heavy, low reps.`},
+      ...(heavy ? [{name:'Activation', detail:'1–2 sets', cue:'Glute bridge / band pull-apart to prime the main patterns.'}] : []),
+    ],
+    execution: [
+      {name:'Load & effort', detail: heavy?'RPE 7–9':'0–3 RIR', cue: heavy?'Keep 1–3 reps in reserve on compounds — quality over grinding.':'Take working sets close to failure with clean form.'},
+      {name:'Rest between sets', detail: heavy?'2–4 min':'60–120 s', cue:'Rest fully so each set is high quality.'},
+      {name:'Tempo & control', detail:'every rep', cue:'Controlled lowering (~2–3 s), full range, braced trunk.'},
+    ],
+    cooldown: [
+      {name:'Easy walk', detail:'3–5 min', cue:'Bring HR and breathing down.'},
+      {name:'Stretch trained patterns', detail:'5 min', cue:'Hold 30 s each; focus on the muscles you worked.'},
+      {name:'Log your loads', detail:'now', cue:'Record weights/reps so next session can progress.'},
+    ],
   };
 }
 // Build the week-N prescription FROM the KB rx (KB-driven, not hardcoded) + baselines.
@@ -3523,12 +3599,14 @@ function _progressEndurance(sess, week, totalWeeks){
     out.intervals = `${reps}×${rx.dist} @ ${pace}, ${rx.recovery||'90 s jog'}`;
     out.duration = `~${reps*4 + 20} min total`;
     out.note = isDeload ? 'Deload — fewer reps' : 'Build VO₂max volume';
+    out.reps = reps; out.repSize = rx.dist; out.repPace = pace; out.recovery = rx.recovery||'90 s jog';
   } else if (rx.minStart != null){                      // tempo / threshold (time-at-threshold)
     const reps = isDeload ? (rx.deloadReps||2) : rampInt(rx.repsStart, rx.repsMax);
     const mins = isDeload ? (rx.deloadMin||6) : rampInt(rx.minStart, rx.minMax);
     out.intervals = `${reps}×${mins} min @ ${pace}, ${rx.recovery||'2 min jog'}`;
     out.duration = `~${reps*mins + reps*2 + 20} min total`;
     out.note = isDeload ? 'Deload — reduce threshold volume' : 'Build time-at-threshold';
+    out.reps = reps; out.repSize = `${mins} min`; out.repPace = pace; out.recovery = rx.recovery||'2 min jog';
   } else {                                              // duration-based easy / recovery
     const dur = grow(rx.startMin!=null?rx.startMin:35)(rx.growMin!=null?rx.growMin:25);
     out.duration = `${dur} min`; out.pace = pace;
@@ -3772,26 +3850,17 @@ function openProgramSessionOverlay(id,week,day){
     const blocks=(sess.blocks||sess.exercises||[]).map((b,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
         <div style="font-size:13px;font-weight:500;color:var(--text);">${b.name||b.title||'Block'}${b.detail||b.reps?` <span style="font-family:var(--mono);font-size:11px;color:var(--text2);font-weight:400;">${b.detail||b.reps}</span>`:''}</div>
         ${b.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${b.cue}</div>`:''}</div>`).join('');
-    // Comprehensive coaching detail: purpose + warm-up / main / cool-down + execution cue.
+    // Comprehensive coaching detail: purpose + itemised warm-up / main / cool-down.
     const rt=(sess.runType==='threshold')?'tempo':(sess.runType||'easy');
-    const coach=_enduranceCoaching(rt);
-    const mainLine = intervals || [distance,duration].filter(Boolean).join(' · ') || (target||'Run as prescribed');
+    const coach=_enduranceCoaching(rt, px);
     const purposeBox = coach.purpose ? `<div style="background:rgba(77,158,255,.08);border:1px solid rgba(77,158,255,.25);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">
         <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;">Purpose${coach.adaptation?` · ${coach.adaptation}`:''}</div>
         <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.5;">${coach.purpose}</div></div>` : '';
-    const phase=(label,cls,txt)=>`<div style="padding:11px 0;border-bottom:.5px solid var(--border);">
-        <div class="bk-header ${cls}" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">${label}</div>
-        <div style="font-size:13px;color:var(--text);line-height:1.5;">${txt}</div></div>`;
-    const structure=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">
-        ${phase('Warm-up','warmup',coach.warmup)}
-        <div style="padding:11px 0;${'border-bottom:.5px solid var(--border)'}">
-          <div class="bk-header main" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Main set</div>
-          <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.5;">${mainLine}</div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${coach.cue}</div></div>
-        <div style="padding:11px 0;">
-          <div class="bk-header cooldown" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Cool-down</div>
-          <div style="font-size:13px;color:var(--text);line-height:1.5;">${coach.cooldown}</div></div>
-      </div>`;
+    const structure=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:14px 14px 2px;margin-bottom:12px;">${renderBlocks({blocks:[
+        {type:'warmup',title:'Warm-Up',items:coach.warmup},
+        {type:'main',title:'Main Set',items:coach.main},
+        {type:'cooldown',title:'Cool-Down',items:coach.cooldown},
+      ]})}</div>`;
     bodyHtml=`${purposeBox}
       ${targets?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">${targets}</div>`:''}
       ${structure}
@@ -3825,15 +3894,12 @@ function openProgramSessionOverlay(id,week,day){
     const scPurpose = sc.purpose ? `<div style="background:rgba(77,158,255,.08);border:1px solid rgba(77,158,255,.25);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">
         <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;">Purpose${sc.adaptation?` · ${sc.adaptation}`:''}</div>
         <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.5;">${sc.purpose}</div></div>` : '';
-    const scWarm=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:11px 14px;margin-bottom:12px;">
-        <div class="bk-header warmup" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Warm-up</div>
-        <div style="font-size:13px;color:var(--text);line-height:1.5;">${sc.warmup}</div></div>`;
-    const scCool=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:11px 14px;margin-bottom:16px;">
-        <div class="bk-header cooldown" style="font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Cool-down</div>
-        <div style="font-size:13px;color:var(--text);line-height:1.5;">${sc.cooldown}</div></div>`;
-    bodyHtml=`${scPurpose}${scWarm}
-      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">${exRows}</div>
-      ${scCool}`;
+    const scWarm=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:14px 14px 2px;margin-bottom:12px;">${renderBlocks({blocks:[{type:'warmup',title:'Warm-Up',items:sc.warmup}]})}</div>`;
+    const mainLifts=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:12px 14px 0;margin-bottom:12px;">
+        <div class="bk-header main" style="margin-bottom:6px;">Main Lifts</div>${exRows}</div>`;
+    const scExec=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:14px 14px 2px;margin-bottom:12px;">${renderBlocks({blocks:[{type:'main',title:'How to execute',items:sc.execution}]})}</div>`;
+    const scCool=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:14px 14px 2px;margin-bottom:16px;">${renderBlocks({blocks:[{type:'cooldown',title:'Cool-Down',items:sc.cooldown}]})}</div>`;
+    bodyHtml=`${scPurpose}${scWarm}${mainLifts}${scExec}${scCool}`;
   }
 
   // For a loaded Fitstop block, surface the published format for this exact day/week.
