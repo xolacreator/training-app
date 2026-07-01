@@ -12,10 +12,11 @@ Defaults: index.html  bruces6  training-app  main
 """
 import json, os, sys, urllib.request, subprocess
 
-FILE   = sys.argv[1] if len(sys.argv) > 1 else 'index.html'
-OWNER  = sys.argv[2] if len(sys.argv) > 2 else 'bruces6'
-REPO   = sys.argv[3] if len(sys.argv) > 3 else 'training-app'
-BRANCH = sys.argv[4] if len(sys.argv) > 4 else 'main'
+FILE         = sys.argv[1] if len(sys.argv) > 1 else 'index.html'
+OWNER        = sys.argv[2] if len(sys.argv) > 2 else 'bruces6'
+REPO         = sys.argv[3] if len(sys.argv) > 3 else 'training-app'
+BRANCH       = sys.argv[4] if len(sys.argv) > 4 else 'main'
+SHA_OVERRIDE = sys.argv[5] if len(sys.argv) > 5 else None
 
 def main():
     tok_file   = os.environ.get('CLAUDE_SESSION_INGRESS_TOKEN_FILE',
@@ -45,13 +46,17 @@ def main():
         return json.loads(lines[0][6:])
 
     # 1. Get current SHA on remote (new files have no SHA)
-    r = mcp({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-        "name":"get_file_contents",
-        "arguments":{"owner":OWNER,"repo":REPO,"path":FILE,"branch":BRANCH}
-    }})
-    txt = r['result']['content'][0]['text']
-    sha = txt.split('SHA: ')[1].split(')')[0] if 'SHA: ' in txt else None
-    print(f'Remote SHA: {sha}' if sha else 'New file (no remote SHA)')
+    if SHA_OVERRIDE:
+        sha = SHA_OVERRIDE
+        print(f'Using override SHA: {sha}')
+    else:
+        r = mcp({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+            "name":"get_file_contents",
+            "arguments":{"owner":OWNER,"repo":REPO,"path":FILE,"branch":BRANCH}
+        }})
+        txt = r['result']['content'][0]['text']
+        sha = txt.split('SHA: ')[1].split(')')[0] if 'SHA: ' in txt else None
+        print(f'Remote SHA: {sha}' if sha else 'New file (no remote SHA)')
 
     # 2. Commit message from latest local commit
     try:

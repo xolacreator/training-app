@@ -2,6 +2,7 @@ const STRAVA_AUTH_URL  = 'https://www.strava.com/oauth/authorize';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -160,6 +161,37 @@ export default {
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({ model, system, messages, max_tokens }),
+        });
+        const data = await resp.json();
+        return new Response(JSON.stringify(data),
+          { status: resp.status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: { message: 'proxy_failed' } }),
+          { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // Proxy OpenAI (ChatGPT) calls — same CORS/iOS-PWA reasons as /claude.
+    // Accepts the same Claude-shaped payload {key, model, system, messages, max_tokens}
+    // and translates to OpenAI's chat-completions format. Returns OpenAI's raw JSON;
+    // the client normalizes it to the {content:[{text}]} shape.
+    if (path === '/openai' && request.method === 'POST') {
+      try {
+        const { key, model, system, messages, max_tokens } = await request.json();
+        if (!key || !key.startsWith('sk-')) {
+          return new Response(JSON.stringify({ error: { message: 'missing or invalid API key' } }),
+            { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
+        const oaMessages = [];
+        if (system) oaMessages.push({ role: 'system', content: system });
+        for (const m of (messages || [])) oaMessages.push({ role: m.role, content: m.content });
+        const resp = await fetch(OPENAI_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({ model, messages: oaMessages, max_tokens }),
         });
         const data = await resp.json();
         return new Response(JSON.stringify(data),
