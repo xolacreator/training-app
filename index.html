@@ -5464,6 +5464,7 @@ let stravaExpiry  = 0;
 let stravaAthlete = '';
 let stravaWorker  = '';
 let stravaState   = 'idle'; // 'idle' | 'syncing' | 'error'
+let stravaLastError = null; // { kind:'expired'|'forbidden'|'ratelimit'|'network'|'api', status, msg }
 let pendingReview = []; // gids of Strava imports awaiting feel rating
 
 
@@ -5894,6 +5895,7 @@ async function syncFromStrava(silent = false) {
       const retryTok = await stravaGetToken();
       if (retryTok) { return syncFromStrava(silent); }
       try { localStorage.removeItem('ht-strava-tok'); } catch(e) {}
+      stravaLastError = { kind:'expired', status:401, msg:'Access token rejected' };
       stravaState = 'error'; renderStravaCard();
       if (!silent) toast('Strava session expired — reconnect');
       return;
@@ -5902,6 +5904,7 @@ async function syncFromStrava(silent = false) {
       // Rate limited by Strava (100 reads/15 min, 1000/day). Not a real failure —
       // surface a clear message and back off rather than showing a cryptic error.
       const usage = resp.headers.get('X-RateLimit-Usage') || '';
+      stravaLastError = { kind:'ratelimit', status:429, msg:'Rate limit reached' + (usage ? ` (usage ${usage})` : '') };
       stravaState = 'error'; renderStravaCard();
       if (!silent) toast('Strava rate limit reached — wait ~15 min, then sync again' + (usage ? ` (usage ${usage})` : ''));
       return;
@@ -5910,8 +5913,10 @@ async function syncFromStrava(silent = false) {
       // 403 "Forbidden / status inactive" = the token lacks the activity scope, or the
       // Strava API application itself is marked inactive. Neither is fixable by retrying —
       // guide the user to reconnect (fresh consent) or check their Strava API app status.
+      let detail = ''; try { detail = (await resp.clone().text()).slice(0,200); } catch(e) {}
+      stravaLastError = { kind:'forbidden', status:403, msg: detail || 'Forbidden' };
       stravaState = 'error'; renderStravaCard();
-      if (!silent) toast('Strava access forbidden — disconnect & reconnect to re-grant activity access. If it persists, check your Strava API app status.');
+      if (!silent) toast('Strava access forbidden — see the diagnostics on the Strava card (this is usually an inactive API app, not a token problem).');
       return;
     }
     const body = await resp.json();
@@ -6004,7 +6009,7 @@ async function syncFromStrava(silent = false) {
       });
       if (detailGids.length) fetchStravaDetail(detailGids, tok).then(changed => { if (changed) saveData(); });
     }
-    stravaState = 'idle';
+    stravaState = 'idle'; stravaLastError = null;
     try { localStorage.setItem('ht-strava-sync', new Date().toISOString()); } catch(e) {}
     renderStravaCard();
 
@@ -6018,12 +6023,42 @@ async function syncFromStrava(silent = false) {
       }
     }
   } catch(e) {
-    stravaState = 'error'; renderStravaCard();
     // "Failed to fetch" = network/CORS/offline, not a Strava API rejection.
-    const msg = /failed to fetch|networkerror|load failed/i.test(e.message||'')
+    const isNet = /failed to fetch|networkerror|load failed/i.test(e.message||'');
+    stravaLastError = { kind: isNet?'network':'api', status:0, msg: e.message||'unknown' };
+    stravaState = 'error'; renderStravaCard();
+    const msg = isNet
       ? 'Strava sync failed — check your connection and try again'
       : `Strava sync error: ${e.message}`;
     if (!silent) toast(msg);
+  }
+}
+
+// On-demand diagnostics: reproduce the smallest activities call and surface the raw
+// HTTP status + Strava error body + rate-limit headers, so the exact cause (inactive
+// app vs missing scope vs rate limit) is visible instead of guessed at.
+async function stravaDiagnose() {
+  const out = document.getElementById('strava-diag-out');
+  if (out) out.textContent = 'Running…';
+  const tok = await stravaGetToken();
+  if (!tok) { if (out) out.textContent = 'No valid token — connect Strava first.'; return; }
+  try {
+    const r = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=1',
+      { headers: { Authorization: `Bearer ${tok}` } });
+    const body = await r.text();
+    const usage = r.headers.get('X-RateLimit-Usage');
+    const limit = r.headers.get('X-RateLimit-Limit');
+    let verdict = '';
+    if (r.status === 200) verdict = '✓ API access OK — activities are reachable. If sync still fails, it was transient; try Sync now.';
+    else if (r.status === 403 && /inactive/i.test(body)) verdict = '→ Your Strava API APPLICATION is marked INACTIVE. Fix at strava.com/settings/api (see steps below) — reconnecting will NOT help.';
+    else if (r.status === 403) verdict = '→ Forbidden. Token is missing the activity scope, OR the API app is restricted. Reconnect with all boxes checked; if it persists, check the API app.';
+    else if (r.status === 401) verdict = '→ Token rejected/expired. Reconnect Strava.';
+    else if (r.status === 429) verdict = '→ Rate limited. Wait ~15 min, then retry.';
+    const report = `HTTP ${r.status}\n${usage?`Rate usage: ${usage} / ${limit}\n`:''}Body: ${body.slice(0,300)}\n\n${verdict}`;
+    if (out) out.textContent = report;
+    console.log('[Strava diagnostics]', report);
+  } catch(e) {
+    if (out) out.textContent = `Network/CORS error: ${e.message}\n(This is a connection issue, not a Strava rejection.)`;
   }
 }
 
@@ -6113,6 +6148,23 @@ function reconnectStrava() {
   window.location.href = `${stravaWorker}/auth?app_url=${appUrl}`;
 }
 
+// Headline + help text for the error card, tailored to the actual failure kind.
+function _stravaErrHeadline() {
+  const k = stravaLastError?.kind;
+  if (k === 'forbidden') return 'Forbidden — API app inactive or missing scope';
+  if (k === 'ratelimit') return 'Rate limited — wait ~15 min';
+  if (k === 'network')   return 'Connection error — check network';
+  if (k === 'api')       return 'Strava API error — run diagnostics';
+  return 'Access token expired — reconnect to resume';
+}
+function _stravaErrHelp() {
+  const k = stravaLastError?.kind;
+  if (k === 'forbidden') return 'A 403 "inactive/forbidden" means Strava is rejecting the <b>API application</b>, not your login — so reconnecting won\'t fix it. Open <b>strava.com/settings/api</b> and check the app is active and its rate limit isn\'t exhausted. Tap <b>Run diagnostics</b> to see the exact response.';
+  if (k === 'ratelimit') return 'Strava limits reads to ~100 / 15 min and 1000 / day. Wait for the window to reset, then Sync now. Tap <b>Run diagnostics</b> to see your current usage.';
+  if (k === 'network')   return 'The request never reached Strava (offline, VPN, or a blocked network). Check your connection and try again.';
+  if (k === 'api')       return 'Strava returned an unexpected response. Tap <b>Run diagnostics</b> to see the raw status and body.';
+  return 'Strava access tokens expire every 6 hours. Tap Reconnect — it re-runs the same OAuth flow and refreshes your token automatically.';
+}
 function renderStravaCard() {
   const card = document.getElementById('strava-card');
   if (!card) return;
@@ -6242,15 +6294,17 @@ function renderStravaCard() {
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:500;">Strava${stravaAthlete ? ' · ' + stravaAthlete : ''}</div>
           <div style="font-family:var(--mono);font-size:9px;color:${errored?'var(--red)':syncing?'var(--blue)':'var(--text3)'};">
-            ${errored ? '⚠ Access token expired — reconnect to resume' : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
+            ${errored ? '⚠ ' + _stravaErrHeadline() : syncing ? 'Syncing…' : 'Last sync: ' + lastStr}
           </div>
         </div>
       </div>
       ${errored ? `
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:rgba(240,101,101,.08);border:.5px solid rgba(240,101,101,.2);border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.8;">
-          Strava access tokens expire every 6 hours. Tap Reconnect — it re-runs the same OAuth flow and refreshes your token automatically.
+          ${_stravaErrHelp()}
         </div>
-        <button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava →</button>
+        ${(stravaLastError && stravaLastError.kind==='forbidden') ? '' : `<button class="btn btn-accent" onclick="reconnectStrava()" style="width:100%;margin-bottom:8px;">Reconnect Strava →</button>`}
+        <button class="btn" style="width:100%;margin-bottom:8px;color:var(--blue);border-color:rgba(77,158,255,.25);" onclick="stravaDiagnose()">Run diagnostics</button>
+        <pre id="strava-diag-out" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:9px;color:var(--text2);background:var(--bg3);border-radius:6px;padding:8px 10px;margin:0 0 8px;line-height:1.6;${stravaLastError&&stravaLastError.msg?'':'display:none;'}">${stravaLastError&&stravaLastError.msg?('Last error: HTTP '+(stravaLastError.status||'—')+' · '+String(stravaLastError.msg).replace(/[<>]/g,'')):''}</pre>
         <button class="btn" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);" onclick="disconnectStrava()">Disconnect</button>
       ` : `
         <div class="btn-row">
