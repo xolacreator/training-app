@@ -5874,6 +5874,224 @@ function mpsToMinKm(mps) {
   return `${m}:${String(s).padStart(2,'0')}`;
 }
 
+// ── SHARED ACTIVITY → SESSION MAPPING ────────────────────────────────────────
+// Normalised activity shape (from Strava API OR a parsed GPX/TCX file):
+//   { id|gid, name, sport_type|type, start_date, start_date_local, distance(m),
+//     average_speed(m/s), average_heartrate, elapsed_time(s), source,
+//     strava_splits?, strava_laps? }
+// Returns { session, gid } or { skip:'dup'|'range'|'nodate', gid? }.
+function _activityToSession(act, opts = {}) {
+  const gid = act.gid || `strava-${act.id}`;
+  if (sessions.find(s => s.gid === gid)) return { skip:'dup', gid };
+
+  const localDate = (act.start_date_local || act.start_date || '').slice(0, 10);
+  if (!localDate) return { skip:'nodate' };
+
+  const d = new Date(localDate + 'T12:00:00');
+  const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+
+  // Resolve which week this lands in + which planned session it matches.
+  // Prefer the active AI program (date-anchored); fall back to the built-in plan.
+  let week=null, sessName=null, intensity=null, link=null;
+  const actType=(act.sport_type||act.type||'').toLowerCase();
+  const isStrengthAct = actType.includes('weight')||actType.includes('strength')||actType==='workout';
+  const isRunAct = actType.includes('run');
+  if (savedProgram && savedProgram.startDate) {
+    const pw=_progWeekForDate(localDate);
+    if (pw){
+      week=String(pw);
+      const slot=_progWeekSessions(pw).find(x=>x.day===dow && x.session);
+      if (slot){
+        const st=_sessType(slot.session);
+        const enduranceSlot=(st==='endurance'||st==='run');
+        const strengthSlot=(st==='strength'||st==='fitstop'||st==='conditioning'||st==='mixed');
+        if ((enduranceSlot && isRunAct) || (strengthSlot && isStrengthAct)){
+          sessName=slot.session.name; intensity=slot.session.intensity||'moderate';
+          link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
+        }
+      }
+    }
+  }
+  if (week===null) {
+    const w=weekFor(localDate);
+    if (!w) {
+      if (!opts.allowOutOfRange) return { skip:'range' };
+      week=''; // explicit file import: keep it even if outside plan dates
+    } else {
+      week=w;
+      const planSess = PLAN[parseInt(w)]?.sessions.find(s => s.day === dow);
+      if (planSess){ sessName=planSess.session; intensity=planSess.intensity; }
+    }
+  }
+
+  const session = {
+    week, day: dow,
+    session:   sessName   || stravaClassify(act),
+    intensity: intensity  || stravaIntensity(act),
+    pace:      mpsToMinKm(act.average_speed),
+    dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
+    hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
+    dur:       act.elapsed_time      ? String(Math.round(act.elapsed_time / 60)) : '',
+    feel: '', notes: `${act.source || 'Strava'}: ${act.name || 'Activity'}`,
+    ts: new Date(act.start_date || (localDate + 'T12:00:00')).getTime(),
+    gid,
+    ...(Array.isArray(act.strava_splits) && act.strava_splits.length ? { strava_splits: act.strava_splits } : {}),
+    ...(Array.isArray(act.strava_laps)   && act.strava_laps.length   ? { strava_laps: act.strava_laps } : {}),
+    ...(link || {}),
+  };
+  return { session, gid };
+}
+
+// ── FILE IMPORT (GPX / TCX) — API-free, works for Garmin/Strava/COROS exports ──
+function _haversine(lat1, lon1, lat2, lon2) {
+  const R=6371000, toR=x=>x*Math.PI/180;
+  const dLat=toR(lat2-lat1), dLon=toR(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toR(lat1))*Math.cos(toR(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.min(1, Math.sqrt(a)));
+}
+// Hash the start time + rounded distance into a stable dedup id.
+function _fileActId(startMs, distM) {
+  let h=0; const str=`${startMs}|${Math.round(distM)}`;
+  for (let i=0;i<str.length;i++){ h=((h<<5)-h+str.charCodeAt(i))|0; }
+  return 'file-'+Math.abs(h).toString(36);
+}
+// Build per-km splits (Strava shape) from cumulative {t(ms), dist(m), hr?} samples.
+function _splitsFromSamples(samples) {
+  const splits=[]; if (samples.length<2) return splits;
+  let kmIdx=1, segStartT=samples[0].t, hrSum=0, hrN=0, lastDist=0;
+  for (const s of samples) {
+    if (s.hr){ hrSum+=s.hr; hrN++; }
+    while (s.dist >= kmIdx*1000) {
+      const segT=(s.t - segStartT)/1000; // seconds for ~this km
+      if (segT>0) splits.push({
+        distance:1000, elapsed_time:Math.round(segT), moving_time:Math.round(segT),
+        average_speed: 1000/segT,
+        average_heartrate: hrN ? Math.round(hrSum/hrN) : undefined,
+      });
+      segStartT=s.t; hrSum=0; hrN=0; kmIdx++;
+    }
+    lastDist=s.dist;
+  }
+  return splits;
+}
+function _normalizeSportType(raw) {
+  const t=(raw||'').toLowerCase();
+  if (t.includes('run')) return 'Run';
+  if (t.includes('bik')||t.includes('cycl')||t.includes('ride')) return 'Ride';
+  if (t.includes('weight')||t.includes('strength')) return 'WeightTraining';
+  if (t.includes('swim')) return 'Swim';
+  return raw || 'Workout';
+}
+function _parseGPX(text, fname) {
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) return null;
+  const pts=[...doc.getElementsByTagName('trkpt')];
+  const nameEl=doc.querySelector('trk > name') || doc.querySelector('name');
+  const typeEl=doc.querySelector('trk > type') || doc.querySelector('type');
+  const samples=[]; let dist=0, prev=null;
+  for (const pt of pts) {
+    const lat=parseFloat(pt.getAttribute('lat')), lon=parseFloat(pt.getAttribute('lon'));
+    const tEl=pt.getElementsByTagName('time')[0];
+    const t=tEl?Date.parse(tEl.textContent):NaN;
+    const hrEl=[...pt.getElementsByTagName('*')].find(e=>/(^|:)hr$/i.test(e.tagName));
+    const hr=hrEl?parseFloat(hrEl.textContent):null;
+    if (!isNaN(lat)&&!isNaN(lon)&&prev) dist+=_haversine(prev.lat,prev.lon,lat,lon);
+    if (!isNaN(t)) samples.push({ t, dist, hr: hr||null });
+    if (!isNaN(lat)&&!isNaN(lon)) prev={lat,lon};
+  }
+  if (samples.length<2 && dist===0) return null;
+  const startMs=samples.length?samples[0].t:Date.now();
+  const endMs=samples.length?samples[samples.length-1].t:startMs;
+  const elapsed=Math.max(1,(endMs-startMs)/1000);
+  const hrs=samples.filter(s=>s.hr).map(s=>s.hr);
+  const splits=_splitsFromSamples(samples);
+  return {
+    gid:_fileActId(startMs,dist), name:(nameEl?.textContent||fname||'Imported run').trim(),
+    sport_type:_normalizeSportType(typeEl?.textContent), source:'File',
+    start_date:new Date(startMs).toISOString(), start_date_local:new Date(startMs).toISOString(),
+    distance:dist, elapsed_time:elapsed, average_speed: dist>0?dist/elapsed:0,
+    average_heartrate: hrs.length?hrs.reduce((a,b)=>a+b,0)/hrs.length:0,
+    strava_splits:splits,
+  };
+}
+function _parseTCX(text, fname) {
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) return null;
+  const actEl=doc.getElementsByTagName('Activity')[0];
+  const laps=[...doc.getElementsByTagName('Lap')];
+  if (!laps.length) return null;
+  const idEl=doc.getElementsByTagName('Id')[0];
+  const startAttr=laps[0].getAttribute('StartTime');
+  const startMs=Date.parse(startAttr || idEl?.textContent || '') || Date.now();
+  let dist=0, elapsed=0, hrSum=0, hrN=0;
+  const lapObjs=[];
+  for (const lap of laps) {
+    const dm=parseFloat(lap.getElementsByTagName('DistanceMeters')[0]?.textContent||'0');
+    const ts=parseFloat(lap.getElementsByTagName('TotalTimeSeconds')[0]?.textContent||'0');
+    const hrEl=lap.querySelector('AverageHeartRateBpm > Value');
+    const lapHr=hrEl?parseFloat(hrEl.textContent):0;
+    dist+=dm; elapsed+=ts;
+    if (lapHr){ hrSum+=lapHr; hrN++; }
+    if (dm>0 && ts>0) lapObjs.push({ distance:dm, elapsed_time:Math.round(ts), moving_time:Math.round(ts), average_speed:dm/ts, average_heartrate:lapHr||undefined });
+  }
+  // Per-km splits from trackpoints (cumulative DistanceMeters + Time), if present.
+  const tps=[...doc.getElementsByTagName('Trackpoint')];
+  const samples=[];
+  for (const tp of tps) {
+    const t=Date.parse(tp.getElementsByTagName('Time')[0]?.textContent||'');
+    const dm=parseFloat(tp.getElementsByTagName('DistanceMeters')[0]?.textContent||'NaN');
+    const hrEl=tp.querySelector('HeartRateBpm > Value');
+    const hr=hrEl?parseFloat(hrEl.textContent):null;
+    if (!isNaN(t)&&!isNaN(dm)) samples.push({ t, dist:dm, hr: hr||null });
+  }
+  const splits=samples.length>1 ? _splitsFromSamples(samples) : [];
+  const sportRaw=actEl?.getAttribute('Sport')||'';
+  return {
+    gid:_fileActId(startMs,dist), name:(fname||'Imported activity').replace(/\.tcx$/i,''),
+    sport_type:_normalizeSportType(sportRaw), source:'File',
+    start_date:new Date(startMs).toISOString(), start_date_local:new Date(startMs).toISOString(),
+    distance:dist, elapsed_time:Math.max(1,elapsed), average_speed: dist>0&&elapsed>0?dist/elapsed:0,
+    average_heartrate: hrN?hrSum/hrN:0,
+    strava_splits:splits, strava_laps: lapObjs.length>1?lapObjs:undefined,
+  };
+}
+async function importActivityFiles(fileList) {
+  const files=[...(fileList||[])];
+  if (!files.length) return;
+  let imported=0, dup=0, failed=0; const newGids=[]; const bad=[];
+  for (const f of files) {
+    try {
+      const text=await f.text();
+      const ext=(f.name.split('.').pop()||'').toLowerCase();
+      let act=null;
+      if (ext==='gpx') act=_parseGPX(text, f.name);
+      else if (ext==='tcx') act=_parseTCX(text, f.name);
+      else { failed++; bad.push(f.name+' (unsupported — export GPX or TCX)'); continue; }
+      if (!act) { failed++; bad.push(f.name+' (could not read)'); continue; }
+      const r=_activityToSession(act, { allowOutOfRange:true });
+      if (r.skip==='dup') { dup++; continue; }
+      if (r.skip) { failed++; bad.push(f.name+' (no data)'); continue; }
+      sessions.unshift(r.session); newGids.push(r.gid); imported++;
+    } catch(e) { failed++; bad.push(f.name+' (error)'); }
+  }
+  if (imported) {
+    for (const gid of newGids) if (!pendingReview.includes(gid)) pendingReview.push(gid);
+    try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e) {}
+    saveData(); renderAll();
+    try { refreshVO2maxComposite(); } catch(e) {}
+  }
+  const parts=[];
+  if (imported) parts.push(`imported ${imported}`);
+  if (dup) parts.push(`${dup} already logged`);
+  if (failed) parts.push(`${failed} skipped`);
+  toast('Import: ' + (parts.join(' · ') || 'nothing to import') + (imported?' ✓ — rate them in Today':''));
+  if (bad.length) console.log('[File import] skipped:', bad.join('; '));
+}
+function triggerActivityImport() {
+  const inp=document.getElementById('activity-file-input');
+  if (inp) { inp.value=''; inp.click(); }
+}
+
 async function syncFromStrava(silent = false) {
   const tok = await stravaGetToken();
   if (!tok) { if (!silent) toast('Reconnect Strava first'); return; }
@@ -5935,62 +6153,12 @@ async function syncFromStrava(silent = false) {
     const newGids = [];
 
     for (const act of activities) {
-      const gid = `strava-${act.id}`;
-      if (sessions.find(s => s.gid === gid)) { skippedDup++; continue; }
-
-      const localDate = (act.start_date_local || act.start_date || '').slice(0, 10);
-      if (!localDate) continue;
-
-      const d = new Date(localDate + 'T12:00:00');
-      const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
-
-      // Resolve which week this lands in + which planned session it matches.
-      // Prefer the active AI program (date-anchored); fall back to the built-in plan.
-      let week=null, sessName=null, intensity=null, link=null;
-      const actType=(act.sport_type||act.type||'').toLowerCase();
-      const isStrengthAct = actType.includes('weight')||actType.includes('strength')||actType==='workout';
-      const isRunAct = actType.includes('run');
-      if (savedProgram && savedProgram.startDate) {
-        const pw=_progWeekForDate(localDate);
-        if (pw){
-          week=String(pw);
-          const slot=_progWeekSessions(pw).find(x=>x.day===dow && x.session);
-          if (slot){
-            // Link when the activity discipline matches the program slot's type:
-            // runs → endurance sessions; weights/workouts → strength/fitstop sessions.
-            const st=_sessType(slot.session);
-            const enduranceSlot=(st==='endurance'||st==='run');
-            const strengthSlot=(st==='strength'||st==='fitstop'||st==='conditioning'||st==='mixed');
-            if ((enduranceSlot && isRunAct) || (strengthSlot && isStrengthAct)){
-              sessName=slot.session.name; intensity=slot.session.intensity||'moderate';
-              link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
-            }
-          }
-        }
-      }
-      if (week===null) {
-        // Fall back to the built-in running plan calendar
-        const w=weekFor(localDate);
-        if (!w) { skippedRange++; continue; }
-        week=w;
-        const planSess = PLAN[parseInt(w)]?.sessions.find(s => s.day === dow);
-        if (planSess){ sessName=planSess.session; intensity=planSess.intensity; }
-      }
-
-      sessions.unshift({
-        week, day: dow,
-        session:   sessName   || stravaClassify(act),
-        intensity: intensity  || stravaIntensity(act),
-        pace:      mpsToMinKm(act.average_speed),
-        dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
-        hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
-        dur:       act.elapsed_time      ? String(Math.round(act.elapsed_time / 60)) : '',
-        feel: '', notes: `Strava: ${act.name}`,
-        ts: new Date(act.start_date).getTime(),
-        gid,
-        ...(link || {}),
-      });
-      newGids.push(gid);
+      const r = _activityToSession(act);
+      if (r.skip === 'dup')   { skippedDup++; continue; }
+      if (r.skip === 'range') { skippedRange++; continue; }
+      if (r.skip) continue;
+      sessions.unshift(r.session);
+      newGids.push(r.gid);
       imported++;
     }
 
@@ -6313,6 +6481,23 @@ function renderStravaCard() {
         </div>
       `}`;
   }
+  // Always-available file import (works without any API — Garmin/Strava/COROS exports).
+  card.innerHTML += _stravaImportFooter();
+}
+
+// File-import footer appended to the Strava card in every state, so activities can be
+// brought in even when the Strava API is unavailable (e.g. app inactive / no subscription).
+function _stravaImportFooter() {
+  return `
+    <div style="margin-top:12px;padding-top:12px;border-top:.5px solid var(--border);">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;margin-bottom:8px;">
+        No API needed — export an activity from <b>Garmin Connect</b>, Strava, or COROS as
+        <b>GPX</b> or <b>TCX</b> and import it here (pace, distance, HR &amp; splits).
+      </div>
+      <input id="activity-file-input" type="file" accept=".gpx,.tcx,application/gpx+xml" multiple
+        style="display:none;" onchange="importActivityFiles(this.files)">
+      <button class="btn" style="width:100%;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="triggerActivityImport()">↓ Import activity file (GPX/TCX)</button>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
