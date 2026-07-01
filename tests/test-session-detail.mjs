@@ -31,12 +31,19 @@ check('Endurance: Main set section present', /main set/i.test(eTxt));
 check('Endurance: Cool-down section present', /cool-?down/i.test(eTxt));
 check('Endurance: execution cue present (comfortably hard)', /comfortably hard/i.test(eTxt));
 
-// The KB-driven coaching helper returns the matching domain's adaptation + cue
-const ec=await page.evaluate(()=>_enduranceCoaching('tempo'));
+// Endurance: warm-up / main / cool-down render as individual line items (not prose)
+const itemCount=await page.evaluate(()=>document.querySelectorAll('#po-breakdown .bk-item').length);
+check('Endurance: coaching detail is itemised (multiple .bk-item rows)', itemCount>=6, `got ${itemCount}`);
+check('Endurance: strides warm-up line item present', /strides/i.test(eTxt));
+check('Endurance: recovery-jog line item present', /recovery jog between reps/i.test(eTxt));
+
+// The KB-driven coaching helper returns itemised warm-up/main/cool-down + adaptation
+const ec=await page.evaluate(()=>_enduranceCoaching('tempo',{reps:4,repSize:'9 min',repPace:'4:10/km',recovery:'2 min jog',duration:'~50 min'}));
 check('_enduranceCoaching(tempo) → Lactate Threshold adaptation', /lactate threshold/i.test(ec.adaptation), ec.adaptation);
-check('_enduranceCoaching has warmup/cooldown/cue/purpose', !!(ec.warmup&&ec.cooldown&&ec.cue&&ec.purpose));
-const ecEasy=await page.evaluate(()=>_enduranceCoaching('easy'));
-check('_enduranceCoaching(easy) cue differs from tempo', ecEasy.cue!==ec.cue);
+check('_enduranceCoaching returns item arrays (warmup/main/cooldown)', Array.isArray(ec.warmup)&&Array.isArray(ec.main)&&Array.isArray(ec.cooldown)&&!!ec.purpose);
+check('_enduranceCoaching main set reflects the prescription (4 × 9 min)', ec.main.some(i=>/4 × 9 min/.test(i.name)), JSON.stringify(ec.main[0]?.name));
+const ecEasy=await page.evaluate(()=>_enduranceCoaching('easy',{duration:'45 min'}));
+check('_enduranceCoaching(easy) main differs from tempo', ecEasy.main[0].name!==ec.main[0].name);
 
 // ── Strength: a generated strength session shows purpose + warm-up/cool-down
 await page.evaluate(()=>{
@@ -57,6 +64,10 @@ check('Strength: Warm-up section present', /warm-?up/i.test(sTxt));
 check('Strength: Cool-down section present', /cool-?down/i.test(sTxt));
 check('Strength: week-2 set bump applied (5×5)', /5×5|5 ×5|5x5/i.test(sTxt), sTxt.match(/\d+×\d+/g)?.join(',')||'');
 check('Strength: exercise cue still shown', /brace, knees track toes/i.test(sTxt));
+check('Strength: "How to execute" section present', /how to execute/i.test(sTxt));
+const sItems=await page.evaluate(()=>document.querySelectorAll('#po-breakdown .bk-item').length);
+check('Strength: coaching detail is itemised (multiple .bk-item rows)', sItems>=6, `got ${sItems}`);
+check('Strength: ramp-up warm-up item references the first lift', /ramp-up sets/i.test(sTxt)&&/back squat/i.test(sTxt));
 
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
