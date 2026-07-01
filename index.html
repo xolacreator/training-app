@@ -5906,6 +5906,14 @@ async function syncFromStrava(silent = false) {
       if (!silent) toast('Strava rate limit reached — wait ~15 min, then sync again' + (usage ? ` (usage ${usage})` : ''));
       return;
     }
+    if (resp.status === 403) {
+      // 403 "Forbidden / status inactive" = the token lacks the activity scope, or the
+      // Strava API application itself is marked inactive. Neither is fixable by retrying —
+      // guide the user to reconnect (fresh consent) or check their Strava API app status.
+      stravaState = 'error'; renderStravaCard();
+      if (!silent) toast('Strava access forbidden — disconnect & reconnect to re-grant activity access. If it persists, check your Strava API app status.');
+      return;
+    }
     const body = await resp.json();
 
     // Validate response is an array
