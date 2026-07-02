@@ -4526,14 +4526,28 @@ function _cardPalette(name){
     panel:'rgba(255,255,255,.05)', border:'rgba(255,255,255,.10)', hair:'rgba(255,255,255,.12)',
     text:'#F0ECF6', muted:'#9C93AE', restBar:'rgba(255,255,255,.14)', otherBar:'rgba(255,255,255,.24)', glow:true };
 }
-// Subtle carbon-fibre cross-hatch inside a rounded panel.
+// Carbon-fibre twill — a 16px tile (2×2 weave of light/dark diagonal threads),
+// built once and repeated as a pattern so panels fill cheaply during animation.
+let _carbonTile=null;
+function _carbonTileCanvas(){
+  if(_carbonTile) return _carbonTile;
+  const t=document.createElement('canvas'); t.width=16; t.height=16; const c=t.getContext('2d');
+  const cell=8;
+  for(let gy=0;gy<16;gy+=cell) for(let gx=0;gx<16;gx+=cell){
+    const dir=(((gx/cell)+(gy/cell))%2)===0;   // alternate thread direction → twill
+    c.strokeStyle='rgba(255,255,255,.085)'; c.lineWidth=2.6; c.beginPath();
+    if(dir){ c.moveTo(gx+1,gy+cell-1); c.lineTo(gx+cell-1,gy+1); } else { c.moveTo(gx+1,gy+1); c.lineTo(gx+cell-1,gy+cell-1); }
+    c.stroke();
+    c.strokeStyle='rgba(0,0,0,.24)'; c.lineWidth=1.3; c.beginPath();
+    if(dir){ c.moveTo(gx+2.5,gy+cell); c.lineTo(gx+cell,gy+2.5); } else { c.moveTo(gx,gy+2.5); c.lineTo(gx+cell-2.5,gy+cell); }
+    c.stroke();
+  }
+  _carbonTile=t; return t;
+}
 function _carbon(x,rx,ry,rw,rh,r){
+  const pat=x.createPattern(_carbonTileCanvas(),'repeat');
   x.save(); roundRect(x,rx,ry,rw,rh,r); x.clip();
-  x.lineWidth=1; const gap=7;
-  x.strokeStyle='rgba(255,255,255,.05)';
-  for(let i=-rh;i<rw+rh;i+=gap){ x.beginPath(); x.moveTo(rx+i,ry); x.lineTo(rx+i+rh,ry+rh); x.stroke(); }
-  x.strokeStyle='rgba(0,0,0,.10)';
-  for(let i=-rh;i<rw+rh;i+=gap){ x.beginPath(); x.moveTo(rx+i,ry+rh); x.lineTo(rx+i+rh,ry); x.stroke(); }
+  x.globalAlpha=1; x.fillStyle=pat; x.fillRect(rx,ry,rw,rh);
   x.restore();
 }
 
@@ -4756,6 +4770,7 @@ function _renderShareCard(x,t){
   A(seg(0.2,0.5)); x.font='500 22px Inter'; x.fillStyle=C.muted; x.fillText(L.subtitle,P,L.subY+22);
   // stats (4-up hairline)
   x.fillStyle=C.panel; roundRect(x,P,L.statsTop,W-2*P,L.statsH,14); x.fill();
+  _carbon(x,P,L.statsTop,W-2*P,L.statsH,14);
   x.strokeStyle=C.border; x.lineWidth=1; roundRect(x,P,L.statsTop,W-2*P,L.statsH,14); x.stroke();
   const cw=(W-2*P)/Math.max(1,L.grid.length);
   L.grid.forEach((st,i)=>{ const a=seg(0.24+i*0.06,0.54+i*0.06); A(a);
