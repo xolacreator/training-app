@@ -4595,14 +4595,17 @@ function _buildShareLayout(s){
       bestRepPace=convertPaceStr(mpsToMinKm(Math.max(...wr.map(r=>r.speed))));
     }
   }
+  // Total time: prefer the logged duration; else sum the breakdown segments.
+  let totalMin = s.dur ? parseFloat(s.dur) : 0;
+  if(!totalMin && bd && bd.rows.length){ const tot=bd.rows.reduce((a,r)=>a+(r.secs||0),0); if(tot>0) totalMin=tot/60; }
   const stats=[];
   if(repCount)stats.push(['WORK REPS',`${repCount}`,'']);
   if(s.pace)stats.push(['AVG PACE',avgWorkPace||convertPaceStr(s.pace),'/'+paceUnit()]);
   if(s.dist)stats.push(['DISTANCE',unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,distUnit()]);
+  if(totalMin)stats.push(['TOTAL TIME',fmtDurMin(totalMin),'']);
   if(s.hr)stats.push(['AVG HR',`${s.hr}`,'bpm']);
-  if(s.dur)stats.push(['DURATION',fmtDurMin(s.dur),'']);
   if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
-  const grid=stats.slice(0,4);
+  const grid=stats.slice(0,6);
   const MAXROWS=12;
   let rows=bd?bd.rows:[];
   let extra=0;
