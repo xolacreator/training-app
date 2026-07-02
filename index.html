@@ -6713,7 +6713,9 @@ function _stravaImportFooter() {
         No API needed — export an activity from <b>Garmin Connect</b>, Strava, or COROS as
         <b>GPX</b> or <b>TCX</b> and import it here (pace, distance, HR &amp; splits).
       </div>
-      <input id="activity-file-input" type="file" accept=".gpx,.tcx,application/gpx+xml" multiple
+      <!-- No 'accept' filter: iOS greys out .tcx/.gpx (unknown UTIs) if restricted.
+           We validate by content in importActivityFiles() and report clear errors. -->
+      <input id="activity-file-input" type="file" multiple
         style="display:none;" onchange="importActivityFiles(this.files)">
       <button class="btn" style="width:100%;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="triggerActivityImport()">↓ Import activity file (GPX/TCX)</button>
       <div id="import-result" style="display:none;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.5;margin-top:8px;background:var(--bg3);border-radius:6px;padding:8px 10px;"></div>
