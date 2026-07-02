@@ -56,6 +56,18 @@ await page.waitForTimeout(150);
 const hasBtn = await page.evaluate(()=>/Import activity file/i.test(document.getElementById('strava-card').innerText) && !!document.getElementById('activity-file-input'));
 check('Import button + hidden input present on Strava card', hasBtn);
 
+// Diagnostic reasons for bad inputs (so "skipped" is never a dead end)
+const routeGpx='<?xml version="1.0"?><gpx><rte><rtept lat="40" lon="-73"></rtept></rte></gpx>';
+const rErr=await page.evaluate((t)=>_parseGPX(t,'route.gpx')?.error||'', routeGpx);
+check('GPX route/course reports a clear reason', /route|course/i.test(rErr), rErr);
+const fitErr=await page.evaluate(()=>_parseGPX('\x00\x00\x00.FIT\x00\x00binary', 'a.fit')?.error||'');
+check('Binary/FIT file reports a clear reason', /fit|zip|export/i.test(fitErr), fitErr);
+const noLap=await page.evaluate(()=>_parseTCX('<?xml version="1.0"?><TrainingCenterDatabase><Activities><Activity Sport="Running"><Id>2026-01-01T00:00:00Z</Id></Activity></Activities></TrainingCenterDatabase>','a.tcx')?.error||'');
+check('TCX with no laps reports a clear reason', /lap/i.test(noLap), noLap);
+// Indoor GPX (no track) → clear guidance to use TCX
+const indoorErr=await page.evaluate(()=>_parseGPX('<?xml version="1.0"?><gpx><trk><name>Treadmill</name></trk></gpx>','indoor.gpx')?.error||'');
+check('Indoor GPX (no track) suggests TCX', /tcx|treadmill|indoor/i.test(indoorErr), indoorErr);
+
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
 await browser.close();
