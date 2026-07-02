@@ -633,6 +633,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
+    <div id="plan-overview" style="display:none;margin-bottom:12px;"></div>
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div class="card" id="plan-days"></div>
@@ -3350,6 +3351,7 @@ function renderPlanTabs(){
 function renderPlan(w){
   if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
   currentPlanWeek=parseInt(w);
+  const ovEl=document.getElementById('plan-overview'); if(ovEl) ovEl.style.display='none';
   renderPlanTabs();
   const pw=PLAN[w];
   const loggedDays=sessions.filter(s=>s.week===String(w)).map(s=>s.day);
@@ -3790,6 +3792,83 @@ function _renderProgramTodayStrip(){
   }
 }
 
+// Classify each week into a training phase from its progression metadata + position.
+function _programPhases(prog){
+  const wp=prog.weeklyProgressions||[];
+  const total=wp.length||((prog.weeks||4)+1);
+  return Array.from({length:total},(_,i)=>{
+    const w=i+1, p=wp[i]||{};
+    if(w===total) return {w, phase:'Taper', tone:'accent'};   // final week reads as taper
+    if(p.deload) return {w, phase:'Deload', tone:'accent'};
+    const frac=w/Math.max(1,total-1);
+    if(frac<=0.34) return {w, phase:'Base', tone:'green'};
+    if(frac<=0.7)  return {w, phase:'Build', tone:'blue'};
+    return {w, phase:'Peak', tone:'red'};
+  });
+}
+// A relative weekly-load bar (0–1) from set bumps / deload, for the overview trend.
+function _weekLoadFactor(prog, w){
+  const p=(prog.weeklyProgressions||[])[w-1]||{};
+  if(p.deload) return 0.5;
+  const base=1 + (p.setsAdd||0)*0.12;
+  return Math.min(1, base * (w%4===0?0.85:1));
+}
+// Program-level overview: periodization phases + a week-by-week progression table.
+// Answers "what's the shape of this block and why does each week change?"
+function _renderProgramOverview(activeWeek){
+  const el=document.getElementById('plan-overview');
+  const prog=savedProgram;
+  if(!el){ return; }
+  if(!prog){ el.style.display='none'; return; }
+  el.style.display='';
+  const phases=_programPhases(prog);
+  const total=phases.length;
+  const spw=prog.sessionsPerWeek||4;
+  const maxLoad=Math.max(...phases.map(p=>_weekLoadFactor(prog,p.w)),1);
+  const toneVar=t=>t==='green'?'var(--green,#34c759)':t==='blue'?'var(--blue)':t==='red'?'var(--red)':'var(--accent)';
+
+  // Phase ribbon — one chip per distinct phase span.
+  const spans=[]; phases.forEach(p=>{ const last=spans[spans.length-1]; if(last&&last.phase===p.phase){last.to=p.w;} else spans.push({phase:p.phase,tone:p.tone,from:p.w,to:p.w}); });
+  const ribbon=spans.map(s=>`<div style="flex:${s.to-s.from+1};min-width:0;">
+      <div style="height:4px;border-radius:2px;background:${toneVar(s.tone)};opacity:.85;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.phase}</div>
+    </div>`).join('');
+
+  // Week rows — number · phase · focus/note · relative load bar.
+  const rows=phases.map(p=>{
+    const wp=(prog.weeklyProgressions||[])[p.w-1]||{};
+    const note=wp.deload?'Recover & consolidate':(wp.note||`${_progWeekSessions(p.w).filter(x=>x.session).length} sessions`);
+    const load=_weekLoadFactor(prog,p.w)/maxLoad;
+    const isActive=p.w===activeWeek;
+    return `<div onclick="renderPlan(${p.w})" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;${isActive?'background:var(--bg3);':''}">
+      <div style="font-family:var(--mono);font-size:10px;font-weight:600;color:${isActive?'var(--accent)':'var(--text2)'};width:26px;">${wp.deload?'DL':'W'+p.w}</div>
+      <div style="font-family:var(--mono);font-size:8px;color:${toneVar(p.tone)};width:38px;text-transform:uppercase;">${p.phase}</div>
+      <div style="flex:1;min-width:0;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${note}</div>
+      <div style="width:52px;height:5px;border-radius:3px;background:var(--bg3);overflow:hidden;flex-shrink:0;"><div style="width:${Math.round(load*100)}%;height:100%;background:${toneVar(p.tone)};opacity:.8;"></div></div>
+    </div>`;
+  }).join('');
+
+  const open = el.getAttribute('data-open')==='1';
+  el.innerHTML=`
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:12px 14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="_toggleProgramOverview()">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Program overview · ${total} weeks · ${spw}×/wk</div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${open?'hide ▲':'details ▼'}</span>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:10px;">${ribbon}</div>
+      <div id="plan-overview-detail" style="display:${open?'block':'none'};margin-top:10px;border-top:.5px solid var(--border);padding-top:6px;">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);display:flex;justify-content:space-between;padding:0 8px 4px;"><span>Week · phase · focus</span><span>load</span></div>
+        ${rows}
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.6;margin-top:8px;padding:0 8px;">Load builds through <b>Base → Build → Peak</b>, with cutback every ~4th week and a <b>taper/deload</b> to absorb the work before it counts. Tap any week to open it.</div>
+      </div>
+    </div>`;
+}
+function _toggleProgramOverview(){
+  const el=document.getElementById('plan-overview'); if(!el) return;
+  el.setAttribute('data-open', el.getAttribute('data-open')==='1'?'0':'1');
+  _renderProgramOverview(currentProgramWeek);
+}
+
 function _renderProgramPlanTabs(){
   const prog=savedProgram; if(!prog) return;
   const total=prog.weeklyProgressions?.length || ((prog.weeks||4)+1);
@@ -3806,6 +3885,7 @@ function _renderProgramPlan(w){
   currentProgramWeek=Math.max(1,w);
   try{localStorage.setItem('ht-program-week',String(currentProgramWeek));}catch(e){}
   _renderProgramPlanTabs();
+  _renderProgramOverview(currentProgramWeek);
 
   const totalWeeks=prog.weeklyProgressions?.length || ((prog.weeks||4)+1);
   const weekProg=prog.weeklyProgressions?.[w-1]||{};
