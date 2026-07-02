@@ -3861,8 +3861,43 @@ function _renderProgramOverview(activeWeek){
         <div style="font-family:var(--mono);font-size:8px;color:var(--text3);display:flex;justify-content:space-between;padding:0 8px 4px;"><span>Week · phase · focus</span><span>load</span></div>
         ${rows}
         <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.6;margin-top:8px;padding:0 8px;">Load builds through <b>Base → Build → Peak</b>, with cutback every ~4th week and a <b>taper/deload</b> to absorb the work before it counts. Tap any week to open it.</div>
+        <button class="btn" style="width:100%;margin-top:10px;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="backfillProgramLinks()">↻ Link matching past sessions to this program</button>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);line-height:1.5;margin-top:6px;padding:0 8px;">Links any already-logged run/strength session whose date + type match a program slot (e.g. imports from before you built this program).</div>
       </div>
     </div>`;
+}
+// Discipline of a logged/imported session, inferred from its fields + name.
+function _logDiscipline(s){
+  const nm=(s.session||'')+' '+(s.notes||'');
+  if((s.exercises&&s.exercises.length) || /\b(lift|strength|squat|bench|deadlift|press|row)\b/i.test(nm)) return 'strength';
+  if(/fitstop|perform|amrap|emom|hyrox|conditioning|wod|circuit/i.test(nm)) return 'mixed';
+  if(s.pace||s.dist||/\b(run|jog|tempo|interval|easy|long|zone ?2|5k|10k)\b/i.test(nm)) return 'run';
+  return '';
+}
+// One-tap backfill: link every unlinked logged session that matches a program slot
+// by date + discipline. Conservative — skips slots already fulfilled by another log.
+function backfillProgramLinks(){
+  if(!savedProgram){ toast('No active program'); return; }
+  let linked=0;
+  for(const s of sessions){
+    if(s.progSid) continue;
+    const dISO=s.date||(s.ts?new Date(s.ts).toISOString().slice(0,10):null);
+    if(!dISO) continue;
+    const wk=_progWeekForDate(dISO); if(!wk) continue;
+    const dow=(s.day||'').slice(0,3);
+    const slot=_progWeekSessions(wk).find(x=>x.day===dow && x.session);
+    if(!slot) continue;
+    if(_progSessionDone(wk,slot.id)) continue; // already covered by another log
+    const disc=_logDiscipline(s); if(!disc) continue;
+    const st=_sessType(slot.session);
+    const enduranceSlot=(st==='endurance'||st==='run');
+    const strengthSlot=(st==='strength'||st==='fitstop'||st==='conditioning'||st==='mixed');
+    const ok=(enduranceSlot&&disc==='run')||(strengthSlot&&(disc==='strength'||disc==='mixed'));
+    if(!ok) continue;
+    s.progId=savedProgram.id; s.progWeek=wk; s.progSid=slot.id; linked++;
+  }
+  if(linked){ saveData(); renderAll(); }
+  toast(linked?`Linked ${linked} past session${linked>1?'s':''} to the program ✓`:'No unlinked sessions matched — attach manually from a session');
 }
 function _toggleProgramOverview(){
   const el=document.getElementById('plan-overview'); if(!el) return;
