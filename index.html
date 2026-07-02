@@ -5937,6 +5937,8 @@ function initStrava() {
     // Auto-sync silently on open if already connected
     setTimeout(() => syncFromStrava(true), 1200);
   }
+  // Auto-import workouts pushed from Apple Health, if the bridge is configured.
+  if (_activityToken() && _workerBase()) setTimeout(() => syncActivitiesFromHealth(true), 1600);
   renderStravaCard();
 }
 
@@ -6258,6 +6260,55 @@ async function importActivityFiles(fileList) {
 function triggerActivityImport() {
   const inp=document.getElementById('activity-file-input');
   if (inp) { inp.value=''; inp.click(); }
+}
+
+// ── AUTO-IMPORT FROM APPLE HEALTH (Garmin → Apple Health → worker → app) ──────
+function _activityToken(){ try { return localStorage.getItem('ht-activity-token')||''; } catch(e){ return ''; } }
+function _workerBase(){
+  const w = stravaWorker || (function(){ try { return localStorage.getItem('ht-strava-worker')||''; } catch(e){ return ''; } })();
+  return (w||'').replace(/\/$/,'');
+}
+function saveActivityToken(){
+  const v=(document.getElementById('activity-token-input')?.value||'').trim();
+  try { localStorage.setItem('ht-activity-token', v); } catch(e){}
+  toast(v?'Auto-import token saved':'Token cleared');
+  renderStravaCard();
+  if (v) syncActivitiesFromHealth(false);
+}
+// Fetch workout summaries the phone pushed to the worker, and import any new ones.
+async function syncActivitiesFromHealth(silent = true){
+  const tok=_activityToken(), base=_workerBase();
+  const out=document.getElementById('health-sync-out');
+  if (!tok || !base){ if(!silent){ toast('Add your worker URL (Strava section) + a sync token first'); if(out) out.textContent='Needs worker URL + token.'; } return; }
+  if (out && !silent) out.textContent='Checking…';
+  try {
+    const resp=await fetch(`${base}/activity`, { headers:{ 'X-Sync-Token': tok } });
+    if (!resp.ok){ if(!silent && out) out.textContent=`Error HTTP ${resp.status}${resp.status===401?' — token mismatch':''}`; return; }
+    const list=await resp.json();
+    if (!Array.isArray(list)){ if(!silent && out) out.textContent='No workouts stored yet — push from your phone first.'; return; }
+    let imported=0, dup=0; const newGids=[];
+    for (const a of list){
+      const distM=(a.distance_km||0)*1000, dur=a.duration_s||0;
+      const act={ gid:'health-'+(a._id||a.start||''), name:a.name||'Workout', sport_type:a.sport||a.name||'Workout',
+        source:'Apple Health', start_date:a.start, start_date_local:a.start,
+        distance:distM, elapsed_time:dur, average_speed:(distM>0&&dur>0)?distM/dur:0, average_heartrate:a.avg_hr||0 };
+      const r=_activityToSession(act,{ allowOutOfRange:true });
+      if (r.skip==='dup'){ dup++; continue; }
+      if (r.skip) continue;
+      sessions.unshift(r.session); newGids.push(r.gid); imported++;
+    }
+    if (imported){
+      for (const gid of newGids) if (!pendingReview.includes(gid)) pendingReview.push(gid);
+      try { localStorage.setItem('ht-pending-review', JSON.stringify(pendingReview)); } catch(e){}
+      saveData(); renderAll(); try { refreshVO2maxComposite(); } catch(e){}
+    }
+    try { localStorage.setItem('ht-activity-sync', new Date().toISOString()); } catch(e){}
+    const msg=`Apple Health: ${imported?('imported '+imported):(list.length?'nothing new':'no workouts yet')}${dup?(' · '+dup+' already logged'):''}`;
+    if (out) out.textContent=msg;
+    if (!silent) toast(msg+(imported?' ✓ — rate them in Today':''));
+  } catch(e){
+    if (!silent && out) out.textContent='Connection error: '+(e.message||'failed');
+  }
 }
 
 async function syncFromStrava(silent = false) {
@@ -6666,6 +6717,43 @@ function _stravaImportFooter() {
         style="display:none;" onchange="importActivityFiles(this.files)">
       <button class="btn" style="width:100%;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="triggerActivityImport()">↓ Import activity file (GPX/TCX)</button>
       <div id="import-result" style="display:none;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.5;margin-top:8px;background:var(--bg3);border-radius:6px;padding:8px 10px;"></div>
+      ${_healthAutoImportBlock()}
+    </div>`;
+}
+// Auto-import from Apple Health (Garmin → Apple Health → worker → app), zero manual steps.
+function _healthAutoImportBlock(){
+  const tok=_activityToken();
+  const last=(function(){ try { return localStorage.getItem('ht-activity-sync'); } catch(e){ return null; } })();
+  const lastStr=last?new Date(last).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'never';
+  const appUrl=(_workerBase()||'https://YOUR-worker.workers.dev');
+  return `
+    <div style="margin-top:14px;padding-top:12px;border-top:.5px solid var(--border);">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;">Auto-import from Apple Health <span style="font-family:var(--mono);font-size:8px;color:var(--green);border:.5px solid rgba(62,207,142,.4);border-radius:4px;padding:1px 4px;vertical-align:middle;">HANDS-FREE</span></div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.7;margin-bottom:8px;">
+        Garmin already syncs to Apple Health. Push those workouts to your worker and they land here automatically — summary data (no splits).
+      </div>
+      <div class="fg" style="margin-bottom:8px;">
+        <label class="flbl">Sync token (any secret phrase — must match your phone)</label>
+        <input id="activity-token-input" type="text" placeholder="e.g. bruce-garmin-2026" value="${tok.replace(/"/g,'&quot;')}"
+          style="font-size:12px;font-family:var(--mono);">
+      </div>
+      <div class="btn-row" style="margin-bottom:6px;">
+        <button class="btn" style="color:var(--green);border-color:rgba(62,207,142,.3);" onclick="saveActivityToken()">Save token</button>
+        <button class="btn" style="color:var(--blue);border-color:rgba(77,158,255,.25);" onclick="syncActivitiesFromHealth(false)" ${tok?'':'disabled'}>Check now</button>
+      </div>
+      <div id="health-sync-out" style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.5;margin-bottom:6px;">Last check: ${lastStr}</div>
+      <details>
+        <summary style="font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;list-style:none;padding:2px 0;">▸ Phone setup (one time, ~2 min)</summary>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.9;margin-top:8px;">
+          <b style="color:var(--text2);">1 · Garmin → Apple Health:</b> Garmin Connect app → <b>More → Settings → Apple Health</b> → enable + allow all. (Now every synced activity is written to Apple Health.)<br><br>
+          <b style="color:var(--text2);">2 · Apple Health → worker:</b> install <b>Health Auto Export</b> (App Store). Create an <b>Automation</b> → data type <b>Workouts</b> → format <b>JSON</b> → destination <b>REST API</b>:<br>
+          &nbsp;&nbsp;• URL: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">${appUrl}/activity</code><br>
+          &nbsp;&nbsp;• Method: <b>POST</b> · Header: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">X-Sync-Token: ${tok||'YOUR-TOKEN'}</code><br>
+          &nbsp;&nbsp;• Schedule: e.g. every 6 h (or "on new data")<br><br>
+          <b style="color:var(--text2);">3 · Here:</b> put the same token above → Save → Check now. New workouts import automatically each time you open the app.<br><br>
+          <span style="color:var(--text3);">No-cost alternative: an Apple <b>Shortcut</b> that finds recent workouts and POSTs the same JSON to that URL works too.</span>
+        </div>
+      </details>
     </div>`;
 }
 
