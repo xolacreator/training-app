@@ -633,6 +633,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--blue);border-color:rgba(77,158,255,.3);">+ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
+    <div id="plan-overview" style="display:none;margin-bottom:12px;"></div>
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div class="card" id="plan-days"></div>
@@ -3350,6 +3351,7 @@ function renderPlanTabs(){
 function renderPlan(w){
   if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
   currentPlanWeek=parseInt(w);
+  const ovEl=document.getElementById('plan-overview'); if(ovEl) ovEl.style.display='none';
   renderPlanTabs();
   const pw=PLAN[w];
   const loggedDays=sessions.filter(s=>s.week===String(w)).map(s=>s.day);
@@ -3483,6 +3485,15 @@ function _enduranceCoaching(rt, px){
       {name:'Strides', detail:'4–6 × 100 m', cue:'Prime turnover near rep pace; full recovery between.'},
     ],
   };
+  // Expand an interval prescription into rep-by-rep line items (Rep 1 … recovery … Rep N).
+  const repRows = (repPace) => {
+    const rows=[]; const n=px.reps||0;
+    for(let i=1;i<=n;i++){
+      rows.push({name:`Rep ${i}`, detail:`${px.repSize} @ ${repPace}`, cue:''});
+      if(i<n) rows.push({name:'· recovery', detail:px.recovery||'jog', cue:''});
+    }
+    return rows;
+  };
   // Main-set line items — built from the progressed prescription (px).
   const mainMap = {
     easy: [
@@ -3500,14 +3511,15 @@ function _enduranceCoaching(rt, px){
     ],
     tempo: px.reps ? [
       {name:`${px.reps} × ${px.repSize} at threshold`, detail:px.repPace||pace||'threshold', cue:'Comfortably hard — a pace you could race ~1 hr. Even effort, no fade.'},
-      {name:'Recovery jog between reps', detail:px.recovery||'2 min jog', cue:'Very easy — just enough to reset for the next rep.'},
+      ...repRows(px.repPace||pace||'threshold'),
     ] : [
       {name:'Continuous tempo', detail:dur||'20–30 min', cue:`Comfortably hard${pace?` · ${pace}`:''}. Lock into rhythm; hold to the end.`},
     ],
-    intervals: [
-      {name:`${px.reps||'reps'} × ${px.repSize||'work'} at VO₂ pace`, detail:px.repPace||pace||'~5K effort', cue:'Hard but repeatable — ~5K–3K effort. Hit the target on every rep.'},
-      {name:'Recovery jog between reps', detail:px.recovery||'90 s jog', cue:'Jog fully to hold quality; better a clean rep than a rushed one.'},
-      {name:'Stop a rep short if form breaks', detail:'as needed', cue:'End the set rather than grinding out ragged reps.'},
+    intervals: px.reps ? [
+      {name:`${px.reps} × ${px.repSize} at VO₂ pace`, detail:px.repPace||pace||'~5K effort', cue:'Hard but repeatable — ~5K–3K effort. Hit the target on every rep; jog recoveries fully.'},
+      ...repRows(px.repPace||pace||'~5K effort'),
+    ] : [
+      {name:'VO₂ intervals', detail:px.repPace||pace||'~5K effort', cue:'Hard but repeatable — ~5K–3K effort. Hit the target on every rep.'},
     ],
   };
   const cooldownMap = {
@@ -3573,6 +3585,43 @@ function _strengthCoaching(sess){
       {name:'Log your loads', detail:'now', cue:'Record weights/reps so next session can progress.'},
     ],
   };
+}
+// Known estimated 1RM for a lift (from the strength baselines), in kg — or null.
+function _lift1RM(name){
+  const b=(typeof baselines==='object'&&baselines)?baselines:{};
+  const n=(name||'').toLowerCase();
+  if(/squat/.test(n) && b.squat_1rm_est) return b.squat_1rm_est;
+  if(/bench/.test(n) && b.bench_1rm_est) return b.bench_1rm_est;
+  return null;
+}
+// Round a kg load to the nearest 2.5 kg (sensible plate increment).
+function _roundLoad(kg){ return Math.round(kg/2.5)*2.5; }
+// Concrete working load for an exercise: if the prescription is a %1RM and we know the
+// lift's 1RM, resolve it to actual weight; otherwise pass the label through.
+function _concreteLoad(loadStr, name){
+  const rm=_lift1RM(name);
+  const m=(loadStr||'').match(/(\d+)\s*%/);
+  if(rm && m){ return `${weightDisplay(_roundLoad(rm*parseInt(m[1])/100))}`; }
+  return loadStr||'';
+}
+// Build set-by-set rows for a strength exercise (incl. warm-up ramp sets when we can
+// compute a concrete working weight). Returns [{set, reps, load, warm?, rpe?}].
+function _strengthSetRows(ex, setsCount){
+  const rm=_lift1RM(ex.name);
+  const pctM=(ex.load||'').match(/(\d+)\s*%/);
+  const rpeM=(ex.load||'').match(/rpe\s*([\d.]+)/i) || (ex.load||'').match(/@\s*([\d.]+)/);
+  const workKg = (rm && pctM) ? _roundLoad(rm*parseInt(pctM[1])/100) : null;
+  const reps = (ex.reps||'8-10').toString();
+  const loadLabel = workKg ? weightDisplay(workKg) : (ex.load ? ex.load : '—');
+  const rows=[];
+  if(workKg){
+    rows.push({set:'W1', reps:'5', load:weightDisplay(_roundLoad(workKg*0.55)), warm:true});
+    rows.push({set:'W2', reps:'3', load:weightDisplay(_roundLoad(workKg*0.8)),  warm:true});
+  }
+  for(let i=1;i<=Math.max(1,setsCount);i++){
+    rows.push({set:String(i), reps, load:loadLabel, rpe:(i===1&&rpeM)?('RPE '+rpeM[1]):''});
+  }
+  return rows;
 }
 // Build the week-N prescription FROM the KB rx (KB-driven, not hardcoded) + baselines.
 function _progressEndurance(sess, week, totalWeeks){
@@ -3743,6 +3792,83 @@ function _renderProgramTodayStrip(){
   }
 }
 
+// Classify each week into a training phase from its progression metadata + position.
+function _programPhases(prog){
+  const wp=prog.weeklyProgressions||[];
+  const total=wp.length||((prog.weeks||4)+1);
+  return Array.from({length:total},(_,i)=>{
+    const w=i+1, p=wp[i]||{};
+    if(w===total) return {w, phase:'Taper', tone:'accent'};   // final week reads as taper
+    if(p.deload) return {w, phase:'Deload', tone:'accent'};
+    const frac=w/Math.max(1,total-1);
+    if(frac<=0.34) return {w, phase:'Base', tone:'green'};
+    if(frac<=0.7)  return {w, phase:'Build', tone:'blue'};
+    return {w, phase:'Peak', tone:'red'};
+  });
+}
+// A relative weekly-load bar (0–1) from set bumps / deload, for the overview trend.
+function _weekLoadFactor(prog, w){
+  const p=(prog.weeklyProgressions||[])[w-1]||{};
+  if(p.deload) return 0.5;
+  const base=1 + (p.setsAdd||0)*0.12;
+  return Math.min(1, base * (w%4===0?0.85:1));
+}
+// Program-level overview: periodization phases + a week-by-week progression table.
+// Answers "what's the shape of this block and why does each week change?"
+function _renderProgramOverview(activeWeek){
+  const el=document.getElementById('plan-overview');
+  const prog=savedProgram;
+  if(!el){ return; }
+  if(!prog){ el.style.display='none'; return; }
+  el.style.display='';
+  const phases=_programPhases(prog);
+  const total=phases.length;
+  const spw=prog.sessionsPerWeek||4;
+  const maxLoad=Math.max(...phases.map(p=>_weekLoadFactor(prog,p.w)),1);
+  const toneVar=t=>t==='green'?'var(--green,#34c759)':t==='blue'?'var(--blue)':t==='red'?'var(--red)':'var(--accent)';
+
+  // Phase ribbon — one chip per distinct phase span.
+  const spans=[]; phases.forEach(p=>{ const last=spans[spans.length-1]; if(last&&last.phase===p.phase){last.to=p.w;} else spans.push({phase:p.phase,tone:p.tone,from:p.w,to:p.w}); });
+  const ribbon=spans.map(s=>`<div style="flex:${s.to-s.from+1};min-width:0;">
+      <div style="height:4px;border-radius:2px;background:${toneVar(s.tone)};opacity:.85;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.phase}</div>
+    </div>`).join('');
+
+  // Week rows — number · phase · focus/note · relative load bar.
+  const rows=phases.map(p=>{
+    const wp=(prog.weeklyProgressions||[])[p.w-1]||{};
+    const note=wp.deload?'Recover & consolidate':(wp.note||`${_progWeekSessions(p.w).filter(x=>x.session).length} sessions`);
+    const load=_weekLoadFactor(prog,p.w)/maxLoad;
+    const isActive=p.w===activeWeek;
+    return `<div onclick="renderPlan(${p.w})" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;${isActive?'background:var(--bg3);':''}">
+      <div style="font-family:var(--mono);font-size:10px;font-weight:600;color:${isActive?'var(--accent)':'var(--text2)'};width:26px;">${wp.deload?'DL':'W'+p.w}</div>
+      <div style="font-family:var(--mono);font-size:8px;color:${toneVar(p.tone)};width:38px;text-transform:uppercase;">${p.phase}</div>
+      <div style="flex:1;min-width:0;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${note}</div>
+      <div style="width:52px;height:5px;border-radius:3px;background:var(--bg3);overflow:hidden;flex-shrink:0;"><div style="width:${Math.round(load*100)}%;height:100%;background:${toneVar(p.tone)};opacity:.8;"></div></div>
+    </div>`;
+  }).join('');
+
+  const open = el.getAttribute('data-open')==='1';
+  el.innerHTML=`
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:12px 14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="_toggleProgramOverview()">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Program overview · ${total} weeks · ${spw}×/wk</div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${open?'hide ▲':'details ▼'}</span>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:10px;">${ribbon}</div>
+      <div id="plan-overview-detail" style="display:${open?'block':'none'};margin-top:10px;border-top:.5px solid var(--border);padding-top:6px;">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);display:flex;justify-content:space-between;padding:0 8px 4px;"><span>Week · phase · focus</span><span>load</span></div>
+        ${rows}
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.6;margin-top:8px;padding:0 8px;">Load builds through <b>Base → Build → Peak</b>, with cutback every ~4th week and a <b>taper/deload</b> to absorb the work before it counts. Tap any week to open it.</div>
+      </div>
+    </div>`;
+}
+function _toggleProgramOverview(){
+  const el=document.getElementById('plan-overview'); if(!el) return;
+  el.setAttribute('data-open', el.getAttribute('data-open')==='1'?'0':'1');
+  _renderProgramOverview(currentProgramWeek);
+}
+
 function _renderProgramPlanTabs(){
   const prog=savedProgram; if(!prog) return;
   const total=prog.weeklyProgressions?.length || ((prog.weeks||4)+1);
@@ -3759,6 +3885,7 @@ function _renderProgramPlan(w){
   currentProgramWeek=Math.max(1,w);
   try{localStorage.setItem('ht-program-week',String(currentProgramWeek));}catch(e){}
   _renderProgramPlanTabs();
+  _renderProgramOverview(currentProgramWeek);
 
   const totalWeeks=prog.weeklyProgressions?.length || ((prog.weeks||4)+1);
   const weekProg=prog.weeklyProgressions?.[w-1]||{};
@@ -3876,20 +4003,35 @@ function openProgramSessionOverlay(id,week,day){
         ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${ex.cue}</div>`:''}</div>`).join('');
     bodyHtml=`${fmt}${rows?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:16px;">${rows}</div>`:''}`;
   } else {
-    // Strength: exercise list with progressive set bumps.
+    // Strength: exercise list, each expanded into a per-set table (concrete kg when the
+    // lift's 1RM is known; otherwise the % / RPE label + a blank to fill in).
+    let anyConcrete=false;
     const exRows=(sess.exercises||[]).map((ex,i)=>{
       const baseSets=parseInt(ex.sets)||3;
       const sets=isDeload?Math.max(2,Math.floor(baseSets/2)):baseSets+setsAdd;
       const isLast=i===sess.exercises.length-1;
+      const rows=_strengthSetRows(ex, sets);
+      if(_lift1RM(ex.name)) anyConcrete=true;
+      const setTbl=`<table class="split-tbl" style="width:100%;margin-top:6px;"><thead><tr>
+          <th style="text-align:left;">Set</th><th style="text-align:right;">Reps</th><th style="text-align:right;">Load</th>
+        </tr></thead><tbody>${rows.map(r=>`<tr style="${r.warm?'opacity:.5;':''}">
+          <td style="font-family:var(--mono);">${r.warm?'<span style="font-size:8px;">warm</span> ':''}${r.set}</td>
+          <td style="text-align:right;font-family:var(--mono);">${r.reps}</td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600;color:${r.load&&/kg|lbs/.test(r.load)?'var(--blue)':'var(--text2)'};">${r.load}${r.rpe?` <span style="color:var(--text3);font-weight:400;">${r.rpe}</span>`:''}</td>
+        </tr>`).join('')}</tbody></table>`;
       return `<div style="padding:12px 0;${isLast?'':'border-bottom:.5px solid var(--border)'}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
           <div style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name}</div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${sets}×${ex.reps||'8-10'}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${sets}×${ex.reps||'8-10'}${ex.rest?' · rest '+ex.rest:''}</div>
         </div>
-        ${ex.load?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ex.load}${ex.rest?' · rest '+ex.rest:''}</div>`:''}
-        ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:4px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
+        ${setTbl}
+        ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:6px;line-height:1.5;">↳ ${ex.cue}</div>`:''}
       </div>`;
     }).join('');
+    // If no concrete weights could be resolved, nudge the user to add 1RMs.
+    const loadHint = !anyConcrete
+      ? `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);background:var(--bg2);border:.5px dashed var(--border2);border-radius:6px;padding:8px 10px;margin-bottom:12px;line-height:1.6;">Add your squat/bench 1RM in <b>Assessments</b> to see exact working weights here instead of % targets.</div>`
+      : '';
     const sc=_strengthCoaching(sess);
     const scPurpose = sc.purpose ? `<div style="background:rgba(77,158,255,.08);border:1px solid rgba(77,158,255,.25);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">
         <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;">Purpose${sc.adaptation?` · ${sc.adaptation}`:''}</div>
@@ -3899,7 +4041,7 @@ function openProgramSessionOverlay(id,week,day){
         <div class="bk-header main" style="margin-bottom:6px;">Main Lifts</div>${exRows}</div>`;
     const scExec=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:14px 14px 2px;margin-bottom:12px;">${renderBlocks({blocks:[{type:'main',title:'How to execute',items:sc.execution}]})}</div>`;
     const scCool=`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:14px 14px 2px;margin-bottom:16px;">${renderBlocks({blocks:[{type:'cooldown',title:'Cool-Down',items:sc.cooldown}]})}</div>`;
-    bodyHtml=`${scPurpose}${scWarm}${mainLifts}${scExec}${scCool}`;
+    bodyHtml=`${scPurpose}${loadHint}${scWarm}${mainLifts}${scExec}${scCool}`;
   }
 
   // For a loaded Fitstop block, surface the published format for this exact day/week.
