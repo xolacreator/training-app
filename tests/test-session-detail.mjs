@@ -35,7 +35,7 @@ check('Endurance: execution cue present (comfortably hard)', /comfortably hard/i
 const itemCount=await page.evaluate(()=>document.querySelectorAll('#po-breakdown .bk-item').length);
 check('Endurance: coaching detail is itemised (multiple .bk-item rows)', itemCount>=6, `got ${itemCount}`);
 check('Endurance: strides warm-up line item present', /strides/i.test(eTxt));
-check('Endurance: recovery-jog line item present', /recovery jog between reps/i.test(eTxt));
+check('Endurance: rep-by-rep breakdown present (Rep 1 … recovery)', /rep\s*1/i.test(eTxt) && /recovery/i.test(eTxt), eTxt.match(/rep\s*\d/gi)?.slice(0,3).join(','));
 
 // The KB-driven coaching helper returns itemised warm-up/main/cool-down + adaptation
 const ec=await page.evaluate(()=>_enduranceCoaching('tempo',{reps:4,repSize:'9 min',repPace:'4:10/km',recovery:'2 min jog',duration:'~50 min'}));
@@ -55,9 +55,13 @@ await page.evaluate(()=>{
     dayMap:['lower',null,null,null,'lower',null,null],
     weeklyProgressions:[{week:1},{week:2,setsAdd:1},{week:3},{week:4}] });
 });
+// Give the athlete a known squat 1RM so loads resolve to concrete kg
+await page.evaluate(()=>{ baselines=baselines||{}; baselines.squat_1rm_est=140; });
 await page.evaluate(()=>openProgramSessionOverlay('lower',2,'Mon'));
 await page.waitForTimeout(250);
 const sTxt=await page.locator('#po-breakdown').innerText();
+check('Strength: per-set table present (Set/Reps/Load)', /\bset\b/i.test(sTxt) && /\bload\b/i.test(sTxt));
+check('Strength: concrete working weight resolved from 1RM (~112kg)', /11[02]|11[02]\s*kg/.test(sTxt.replace(/\s/g,'')) || /112kg/i.test(sTxt.replace(/\s/g,'')), sTxt.replace(/\s+/g,' ').match(/\d+kg/g)?.join(',')||'none');
 check('Strength: Purpose section present', /purpose/i.test(sTxt));
 check('Strength: Purpose is KB-driven (maximal strength)', /maximal strength|force production/i.test(sTxt));
 check('Strength: Warm-up section present', /warm-?up/i.test(sTxt));
