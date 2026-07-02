@@ -925,7 +925,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="eyebrow" style="align-self:flex-start;">Session card</div>
     <canvas id="sharecard-canvas" style="width:100%;max-width:340px;border-radius:18px;box-shadow:0 12px 44px rgba(0,0,0,.55);background:var(--bg);"></canvas>
     <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:16px;">
-      <button class="btn btn-accent" id="sc-share-btn" onclick="_exportShareCard(false)">↗ Share</button>
+      <button class="btn btn-accent" id="sc-share-btn" onclick="_exportShareCard(false)">↗ Share image</button>
+      <button class="btn" id="sc-video-btn" style="color:var(--blue);border-color:rgba(77,158,255,.3);" onclick="_shareVideo()">▶ Share as video</button>
       <div class="btn-row">
         <button class="btn" onclick="_exportShareCard(true)">↓ Save image</button>
         <button class="btn" onclick="_replayShareCard()">↺ Replay</button>
@@ -4553,11 +4554,21 @@ function _buildShareLayout(s){
   if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
   const grid=stats.slice(0,4);
   const bd=_cardBreakdown(s);
-  const MAXROWS=14;
+  const MAXROWS=12;
   let rows=bd?bd.rows:[];
   let extra=0;
   if(rows.length>MAXROWS){ extra=rows.length-(MAXROWS-1); rows=rows.slice(0,MAXROWS-1); }
   const maxSpeed=rows.reduce((m,r)=>Math.max(m,r.speed||0),0)||1;
+  // Pace chart data: work reps for intervals, all splits otherwise.
+  let chart=null;
+  if(bd){
+    const src = bd.kind==='lap' ? bd.rows.filter(r=>r.work) : rows;
+    const speeds=src.map(r=>r.speed).filter(v=>v>0);
+    if(speeds.length>=2){
+      const min=Math.min(...speeds), max=Math.max(...speeds);
+      chart={ speeds, min, max, title: bd.kind==='lap'?'PACE PER REP':`PACE PER ${distUnit().toUpperCase()}` };
+    }
+  }
   // Vertical layout
   const nameTop=P+210;
   const nameH=lines.length*76;
@@ -4565,12 +4576,52 @@ function _buildShareLayout(s){
   const tileH=190, tileGap=24;
   const tileRows=Math.ceil(grid.length/2)||0;
   const tilesBottom=tilesTop + (tileRows? tileRows*tileH+(tileRows-1)*tileGap : 0);
-  const rowH=54;
-  const bdTop=tilesBottom+70;
-  const bdH=bd? (56 /*title*/ + 40 /*colhead*/ + rows.length*rowH + (extra?44:0)) : 0;
+  const chartTop = tilesBottom+56;
+  const chartH = chart ? 320 : 0;              // title + plot + labels
+  const rowH=46;
+  const bdTop=(chart? chartTop+chartH+30 : tilesBottom) + 40;
+  const bdH=bd? (52 /*title*/ + 40 /*colhead*/ + rows.length*rowH + (extra?44:0)) : 0;
   const footerTop=bdTop+bdH+50;
   const H=Math.round(footerTop+70);
-  return {C,W,H,P,lines,grid,iv,bd,rows,extra,maxSpeed,nameTop,tilesTop,tileH,tileGap,tilesBottom,bdTop,rowH,footerTop};
+  return {C,W,H,P,lines,grid,iv,bd,rows,extra,maxSpeed,chart,nameTop,tilesTop,tileH,tileGap,tilesBottom,chartTop,chartH,bdTop,rowH,footerTop};
+}
+// hex/rgb → rgba with alpha (for gradient stops + glows).
+function _hexA(c,a){
+  c=(c||'').trim();
+  if(c[0]==='#'){ let h=c.slice(1); if(h.length===3)h=h.split('').map(k=>k+k).join(''); const n=parseInt(h,16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+  const m=c.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/); if(m)return `rgba(${m[1]},${m[2]},${m[3]},${a})`;
+  return c;
+}
+// Animated pace area chart (line draws left→right with reveal r∈[0,1]).
+function _drawPaceChart(x,L,r){
+  const ch=L.chart; if(!ch) return;
+  const {C,W,P}=L; const top=L.chartTop;
+  x.globalAlpha=Math.min(1,r*1.6); x.textAlign='left';
+  x.fillStyle=C.text3;x.font='600 26px "JetBrains Mono", ui-monospace, monospace';x.fillText(ch.title,P,top+26);
+  const plotTop=top+58, plotH=200, plotBottom=plotTop+plotH, x0=P, x1=W-P, plotW=x1-x0;
+  const n=ch.speeds.length, range=(ch.max-ch.min)||1;
+  const px=i=> x0 + (n===1?plotW/2:plotW*i/(n-1));
+  const py=s=> plotBottom - 14 - ((s-ch.min)/range)*(plotH-28);
+  // gridlines
+  x.globalAlpha=0.18*Math.min(1,r*2);x.strokeStyle=C.text3;x.lineWidth=1;
+  for(let g=0;g<=2;g++){const gy=plotTop+plotH*g/2;x.beginPath();x.moveTo(x0,gy);x.lineTo(x1,gy);x.stroke();}
+  if(r<=0){x.globalAlpha=1;return;}
+  x.save();
+  x.beginPath();x.rect(x0-6,plotTop-46,plotW*r+12,plotH+92);x.clip();
+  const grad=x.createLinearGradient(0,plotTop,0,plotBottom);
+  grad.addColorStop(0,_hexA(C.accent,0.38));grad.addColorStop(1,_hexA(C.accent,0.02));
+  x.globalAlpha=1;x.beginPath();x.moveTo(px(0),plotBottom);
+  for(let i=0;i<n;i++)x.lineTo(px(i),py(ch.speeds[i]));
+  x.lineTo(px(n-1),plotBottom);x.closePath();x.fillStyle=grad;x.fill();
+  x.beginPath();for(let i=0;i<n;i++){const X=px(i),Y=py(ch.speeds[i]);i?x.lineTo(X,Y):x.moveTo(X,Y);}
+  x.strokeStyle=C.accent;x.lineWidth=6;x.lineJoin='round';x.lineCap='round';
+  x.shadowColor=_hexA(C.accent,0.55);x.shadowBlur=20;x.stroke();x.shadowBlur=0;
+  for(let i=0;i<n;i++){const X=px(i),Y=py(ch.speeds[i]);x.beginPath();x.arc(X,Y,7,0,Math.PI*2);x.fillStyle=C.bg;x.fill();x.lineWidth=4;x.strokeStyle=C.accent;x.stroke();}
+  x.restore();
+  x.globalAlpha=Math.min(1,r*1.5);x.font='500 22px "JetBrains Mono", ui-monospace, monospace';x.textAlign='right';
+  x.fillStyle=C.accent;x.fillText(fmtPaceFull(ch.max),x1,plotTop+10);
+  x.fillStyle=C.text3;x.fillText(fmtPaceFull(ch.min),x1,plotBottom+2);
+  x.textAlign='left';x.globalAlpha=1;
 }
 
 function _renderShareCard(x,t){
@@ -4581,13 +4632,19 @@ function _renderShareCard(x,t){
   const seg=(a,b)=>ez((t-a)/(b-a));
   const A=(a)=>{x.globalAlpha=a<0?0:a>1?1:a;};
   x.textBaseline='alphabetic'; x.globalAlpha=1;
-  // bg
-  x.fillStyle=C.bg;x.fillRect(0,0,W,H);
+  // gradient background + soft accent glow (top-right)
+  const bgGrad=x.createLinearGradient(0,0,0,H);
+  bgGrad.addColorStop(0,C.bg2);bgGrad.addColorStop(0.45,C.bg);bgGrad.addColorStop(1,C.bg);
+  x.fillStyle=bgGrad;x.fillRect(0,0,W,H);
+  const glow=x.createRadialGradient(W*0.82,140,0,W*0.82,140,640);
+  glow.addColorStop(0,_hexA(C.accent,0.12));glow.addColorStop(1,_hexA(C.accent,0));
+  x.fillStyle=glow;x.fillRect(0,0,W,H);
   // top accent bar grows in
   x.fillStyle=C.accent;x.fillRect(0,0,W*seg(0,0.35),8);
   // header
   A(seg(0.05,0.3));
-  x.fillStyle=C.accent;x.font='700 44px system-ui, sans-serif';x.fillText('REV3',P,P+44);
+  x.fillStyle=C.accent;x.font='700 44px system-ui, sans-serif';
+  x.shadowColor=_hexA(C.accent,0.5);x.shadowBlur=24;x.fillText('REV3',P,P+44);x.shadowBlur=0;
   const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
   x.fillStyle=C.text3;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';
   const dw=x.measureText(ds).width;x.fillText(ds,W-P-dw,P+40);
@@ -4612,9 +4669,11 @@ function _renderShareCard(x,t){
     const vw=x.measureText(tl[1]).width;x.fillText(tl[1],tx+34,ty+148);
     if(tl[2]){x.fillStyle=C.text2;x.font='500 30px "JetBrains Mono", ui-monospace, monospace';x.fillText(tl[2],tx+34+vw+12,ty+148);}
   });
+  // pace chart (animated area/line)
+  if(L.chart) _drawPaceChart(x, L, seg(0.42,0.9));
   // breakdown
   if(L.bd && L.rows.length){
-    A(seg(0.42,0.6));
+    A(seg(0.5,0.66));
     x.fillStyle=C.text3;x.font='600 26px "JetBrains Mono", ui-monospace, monospace';
     x.fillText(L.bd.title,P,L.bdTop+30);
     // column headers
@@ -4627,13 +4686,11 @@ function _renderShareCard(x,t){
     const rowsTop=L.bdTop+56+40;
     const usable=W-2*P;
     L.rows.forEach((r,i)=>{
-      const a=seg(0.5+i*0.028,0.78+i*0.028);
+      const a=seg(0.6+i*0.025,0.85+i*0.025);
       const ry=rowsTop+i*L.rowH;
       const col=r.work?C.accent:C.text3;
-      // pace bar (grows) — faster => longer
-      const frac=(r.speed/L.maxSpeed)*a;
-      x.globalAlpha=1; x.fillStyle=C.bg2; roundRect(x,P,ry+L.rowH-16,usable,6,3);x.fill();
-      x.fillStyle=col; x.globalAlpha=r.work?0.9:0.5; roundRect(x,P,ry+L.rowH-16,Math.max(6,usable*frac),6,3);x.fill();
+      // hairline row separator
+      x.globalAlpha=0.5*a; x.strokeStyle=C.bg2; x.lineWidth=1; x.beginPath(); x.moveTo(P,ry+L.rowH-6); x.lineTo(W-P,ry+L.rowH-6); x.stroke();
       // text
       A(a);
       x.font='600 28px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=col;x.textAlign='left';
@@ -4693,6 +4750,49 @@ async function _exportShareCard(save){
     setTimeout(()=>URL.revokeObjectURL(url),2000);
     toast('Card saved to downloads');
   }
+}
+
+// Record the animation to a short video (MediaRecorder on an offscreen canvas) and
+// share/save it. Picks an MP4 codec on Safari, WebM on Chrome/Android.
+async function _shareVideo(save){
+  const s=sessions[_shareIdx]; if(!s||!_shareLayout) return;
+  if(typeof MediaRecorder==='undefined'){ toast('Video not supported here — use Share image'); return; }
+  const types=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  const mime=types.find(t=>{try{return MediaRecorder.isTypeSupported(t);}catch(e){return false;}});
+  if(!mime){ toast('Video not supported here — use Share image'); return; }
+  const btn=document.getElementById('sc-video-btn'); const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='Rendering video…';btn.disabled=true;}
+  try{
+    const {W,H}=_shareLayout;
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const x=cv.getContext('2d');
+    _renderShareCard(x,0);
+    const stream=cv.captureStream(30);
+    const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000});
+    const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    const stopped=new Promise(res=>{ rec.onstop=res; });
+    rec.start();
+    const dur=2200, hold=1000, start=performance.now();
+    await new Promise(res=>{
+      const step=(now)=>{ const el=now-start; const t=Math.min(1,el/dur); _renderShareCard(x,t);
+        if(el<dur+hold) requestAnimationFrame(step); else res(); };
+      requestAnimationFrame(step);
+    });
+    rec.stop(); await stopped;
+    const blob=new Blob(chunks,{type:mime});
+    const ext=mime.includes('mp4')?'mp4':'webm';
+    const file=new File([blob],`rev3-session.${ext}`,{type:mime});
+    if(!save && navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:s.session}); }
+      catch(e){ if(e&&e.name!=='AbortError') toast('Share cancelled'); }
+    }else{
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download=`rev3-session.${ext}`;a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+      toast('Video saved to downloads');
+    }
+  }catch(e){ toast('Video failed: '+(e.message||'error')); }
+  finally{ if(btn){btn.textContent=orig;btn.disabled=false;} }
 }
 
 function roundRect(ctx,x,y,w,h,r){

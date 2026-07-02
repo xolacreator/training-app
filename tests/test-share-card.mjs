@@ -41,6 +41,10 @@ await page.evaluate(()=>{ sessions.length=0; sessions.push({week:'1',day:'Mon',s
 const noBd=await page.evaluate(async()=>{ const b=_cardBreakdown(sessions[0]); await shareSession(0); return {bd:b, ok:!!_shareLayout&&_shareLayout.H>0}; });
 check('No-splits session → no breakdown but card still builds', noBd.bd===null && noBd.ok, JSON.stringify(noBd));
 
+// Video export pipeline runs (MediaRecorder + captureStream) without throwing
+const vid=await page.evaluate(async()=>{ try{ await shareSession(0); await _shareVideo(true); return 'ok'; }catch(e){ return 'ERR:'+e.message; } });
+check('Video export runs without error', vid==='ok'||/not supported/i.test(vid), vid);
+
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
 await browser.close();
