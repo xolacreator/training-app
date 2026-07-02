@@ -907,6 +907,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         padding:12px;font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;" id="lo-notes"></div>
     </div>
     <div id="lo-splits"></div>
+    <div id="lo-attach" style="margin-bottom:6px;"></div>
     <div class="sec-lbl">Session breakdown</div>
     <div id="lo-breakdown"></div>
     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
@@ -4390,11 +4391,65 @@ function openLogOverlay(idx){
     splitsEl.innerHTML = '';
   }
 
+  _renderLogAttach(idx);
   document.getElementById('lo-breakdown').innerHTML=getBreakdown(s.week,s.day,s.session);
   document.getElementById('lo-del-btn').onclick=()=>{
     sessions.splice(detailIdx,1);saveData();renderAll();closeOv('log-overlay');toast('Session removed');
   };
   openOv('log-overlay');
+}
+
+// Program tracking control in the log detail: link a logged/imported session to a
+// program slot so it counts toward completion (or unlink it).
+function _renderLogAttach(idx){
+  const el=document.getElementById('lo-attach'); if(!el) return;
+  const s=sessions[idx];
+  if(!savedProgram){ el.innerHTML=''; return; }
+  const linked = !!(s.progSid && s.progWeek!=null && s.progWeek!=='');
+  if(linked){
+    const slot=(savedProgram.sessions||[]).find(x=>x.id===s.progSid);
+    const nm=slot?.name||s.progSid;
+    el.innerHTML=`<div class="sec-lbl">Program tracking</div>
+      <div style="background:var(--green-dim);border:1px solid rgba(52,199,89,.35);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="color:var(--green,#34c759);font-size:16px;flex-shrink:0;">✓</span>
+        <div style="flex:1;min-width:0;font-size:12px;color:var(--text);line-height:1.4;">Counts toward <b>${nm}</b> · Week ${s.progWeek}</div>
+        <button class="btn" style="font-size:9px;padding:4px 8px;flex-shrink:0;" onclick="unlinkLogFromProgram(${idx})">Unlink</button>
+      </div>`;
+    return;
+  }
+  const dISO = s.date || (s.ts ? new Date(s.ts).toISOString().slice(0,10) : todayISO());
+  const dateWk = _progWeekForDate(dISO);
+  const wk = dateWk || _progActualWeek();
+  const slots = (typeof _progWeekSessions==='function') ? _progWeekSessions(wk).filter(x=>x.session) : [];
+  if(!slots.length){ el.innerHTML=''; return; }
+  const dow = (s.day||'').slice(0,3);
+  const btns = slots.map(x=>{
+    const isMatch = x.day===dow;
+    const already = _progSessionDone(wk, x.id);
+    return `<button class="btn" style="width:100%;justify-content:space-between;margin-bottom:6px;${isMatch?'border-color:var(--accent);color:var(--text);':''}" ${already?'disabled':''} onclick="attachLogToProgram(${idx},${wk},'${x.id}')">
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_sessIcon(x.session)} ${x.day} · ${x.session.name}${isMatch?' ·★':''}</span>
+      <span style="font-family:var(--mono);font-size:9px;color:${already?'var(--green,#34c759)':'var(--accent)'};flex-shrink:0;margin-left:8px;">${already?'done':'attach'}</span>
+    </button>`;
+  }).join('');
+  el.innerHTML=`<div class="sec-lbl">Program tracking</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.6;margin-bottom:8px;">
+      Attach this session to a <b>Week ${wk}</b> slot so it counts as done${dateWk?'':' (log date is outside the program — showing the current week)'}.${slots.some(x=>x.day===dow)?' ★ = matches the session day.':''}
+    </div>${btns}`;
+}
+function attachLogToProgram(idx, week, sid){
+  const s=sessions[idx]; if(!s||!savedProgram) return;
+  s.progId=savedProgram.id; s.progWeek=week; s.progSid=sid;
+  saveData(); renderAll();
+  _renderLogAttach(idx);
+  const nm=(savedProgram.sessions||[]).find(x=>x.id===sid)?.name||'session';
+  toast(`Linked to ${nm} · W${week} ✓`);
+}
+function unlinkLogFromProgram(idx){
+  const s=sessions[idx]; if(!s) return;
+  delete s.progId; delete s.progWeek; delete s.progSid;
+  saveData(); renderAll();
+  _renderLogAttach(idx);
+  toast('Unlinked from program');
 }
 
 // Generate a shareable session summary card (canvas → Web Share / download)
