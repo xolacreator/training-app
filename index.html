@@ -4553,6 +4553,16 @@ function _carbon(x,rx,ry,rw,rh,r){
 
 // Distance/time/pace formatting for the card breakdown.
 function _cardDist(m){ const km=m/1000; return unitRun==='mi' ? (km*MI_PER_KM).toFixed(2) : km.toFixed(2); }
+// Infer a run type for the card's "why this session" line.
+function _cardRunType(s, grouped){
+  const t=((s.runType||'')+' '+(s.session||'')).toLowerCase();
+  if(/threshold|tempo/.test(t)) return 'tempo';
+  if(/interval|vo2|vo₂|track|\brep\b|400|800|1k/.test(t)) return 'intervals';
+  if(/long/.test(t)) return 'long';
+  if(/recover/.test(t)) return 'recovery';
+  if(/easy|zone ?2|\bz2\b/.test(t)) return 'easy';
+  return grouped?'tempo':'easy';
+}
 // Group raw laps into the workout's logical structure:
 // Warm-up (all leading easy laps) · Rep 1 · Rest 1 · Rep 2 · … · Cool-down.
 // Contiguous laps of the same kind merge into one summarized line (total dist/time,
@@ -4658,23 +4668,48 @@ function _buildShareLayout(s){
   const hrs=segs.map(r=>r.hr).filter(v=>v>0); const hrMin=hrs.length?Math.min(...hrs):0, hrMax=hrs.length?Math.max(...hrs):0;
   const hasChart=segs.length>=2 && spMax>spMin;
   const fastPace=segs.length?convertPaceStr(mpsToMinKm(Math.max(...segs.map(r=>r.speed)))):'';
-  // Vertical layout — fixed 9:16 frame. Cluster the header, then let the CHART absorb
-  // most of the slack (a bigger, more impactful figure) so space is used, not left empty;
-  // any remainder spreads across gaps. [key, height, gapBefore]
+  // Added content: a KB "why this session" line + a highlights row.
+  const scratch2=document.createElement('canvas').getContext('2d');
+  let purpose=null;
+  if((s.pace||s.dist) && typeof _enduranceCoaching==='function'){
+    let co=null; try{ co=_enduranceCoaching(_cardRunType(s,grouped)); }catch(e){}
+    if(co && co.purpose){
+      // Punchy first clause only (before an em-dash or first sentence), wrapped to ≤2 lines.
+      let ptext=co.purpose.split(/\s[—-]\s/)[0].split('. ')[0].replace(/\.$/,'').trim();
+      scratch2.font='500 22px Inter'; const maxW=W-2*P; const words=ptext.split(' '); let ln='',pls=[];
+      for(const w of words){ const tt=ln?ln+' '+w:w; if(scratch2.measureText(tt).width>maxW && ln){pls.push(ln);ln=w;}else ln=tt; }
+      if(ln)pls.push(ln);
+      if(pls.length>2){ pls=pls.slice(0,2); pls[1]=pls[1].replace(/\s\S*$/,'')+'…'; }
+      purpose={ adaptation:(co.adaptation||'').toUpperCase(), lines:pls };
+    }
+  }
+  const wr=(bd&&bd.grouped)?bd.rows.filter(r=>r.kind==='work'):[];
+  const highlights=[];
+  if(bestRepPace) highlights.push({ic:'★',lab:'BEST REP',val:bestRepPace,c:'gold'});
+  if(wr.length>=2){ const f=wr[0].speed,l=wr[wr.length-1].speed; const t=l>f*1.008?['↘','NEGATIVE SPLIT','gold']:(l<f*0.992?['↗','FADE','purple']:['→','EVEN SPLITS','purple']); highlights.push({ic:t[0],lab:t[1],val:'',c:t[2]}); }
+  if(hrMax) highlights.push({ic:'♥',lab:'PEAK HR',val:hrMax+' bpm',c:'purple'});
+  const hl=highlights.slice(0,3);
+  // Vertical layout — fixed 9:16 frame. Cluster the header, add the "why" + highlights,
+  // let the chart take a modest share of remaining slack; the rest spreads across gaps.
   const H = Math.round(W*16/9);   // 1920
   const stampH=64, statsH=170, repHeadH=46, rowH=54, titleLH=70;
   const titleH=lines.length*titleLH;
   const baseFig=hasChart?300:0;
   const bdH = rows.length? (repHeadH + rows.length*rowH + (extra?44:0)):0;
+  const purposeH = purpose? (30 + purpose.lines.length*32) : 0;
+  const hlH = hl.length? 66 : 0;
   const blocks=[['topbar',34,0],['stamp',stampH,26]];
   if(plan) blocks.push(['prog',6,16]);
-  blocks.push(['title',titleH, plan?36:44],['sub',30,18],['stats',statsH,36]);
-  if(hasChart) blocks.push(['chart',baseFig,40]);
-  if(bdH) blocks.push(['table',bdH,40]);
-  blocks.push(['footer',34,40]);
+  blocks.push(['title',titleH, plan?36:44],['sub',30,18]);
+  if(purpose) blocks.push(['purpose',purposeH,22]);
+  blocks.push(['stats',statsH,34]);
+  if(hl.length) blocks.push(['highlights',hlH,26]);
+  if(hasChart) blocks.push(['chart',baseFig,34]);
+  if(bdH) blocks.push(['table',bdH,34]);
+  blocks.push(['footer',34,36]);
   let natural=2*P; blocks.forEach((b,i)=> natural += b[1] + (i>0?b[2]:0));
   let leftover=H-natural, figH=baseFig;
-  if(leftover>0 && hasChart){ const add=Math.min(leftover,340); figH+=add; leftover-=add; const ci=blocks.findIndex(b=>b[0]==='chart'); blocks[ci][1]=figH; }
+  if(leftover>0 && hasChart){ const add=Math.min(leftover,150); figH+=add; leftover-=add; const ci=blocks.findIndex(b=>b[0]==='chart'); blocks[ci][1]=figH; }
   const nGaps=Math.max(1,blocks.length-1);
   const gapExtra=leftover/nGaps;
   const pos={}; let yy=P;
@@ -4684,12 +4719,14 @@ function _buildShareLayout(s){
   const wkbarY=plan?pos.prog:0; const wkbarH=plan?6:0;
   const titleTop=pos.title+54;
   const subY=pos.sub;
+  const purposeTop=purpose?pos.purpose:0;
   const statsTop=pos.stats;
+  const hlTop=hl.length?pos.highlights:0;
   const figTop=hasChart?pos.chart:0;
   const bdTop=bdH?pos.table:0;
   const footerTop=pos.footer+22;
-  return {C,W,P,plan,lines,grid,rows,grouped,extra,segs,spMin,spMax,hrMin,hrMax,hasChart,fastPace,bestRepPace,repCount,
-    topbarY,stampTop,stampH,wkbarY,wkbarH,titleTop,titleLH,subY,statsTop,statsH,figTop,figH,bdTop,repHeadH,rowH,bdH,footerTop,H,
+  return {C,W,P,plan,lines,grid,rows,grouped,extra,segs,spMin,spMax,hrMin,hrMax,hasChart,fastPace,bestRepPace,repCount,purpose,hl,
+    topbarY,stampTop,stampH,wkbarY,wkbarH,titleTop,titleLH,subY,purposeTop,statsTop,statsH,hlTop,figTop,figH,bdTop,repHeadH,rowH,bdH,footerTop,H,
     subtitle:((s.intensity||'session').toUpperCase())+(s.feel?(' · FELT '+s.feel+'/5'):'')};
 }
 function _hexA(c,a){
@@ -4786,6 +4823,13 @@ function _renderShareCard(x,t){
   let ly=L.titleTop+(1-na)*16; L.lines.forEach(l=>{ x.fillText(l,P,ly); ly+=L.titleLH; });
   // subtitle
   A(seg(0.2,0.5)); x.font='500 22px Inter'; x.fillStyle=C.muted; x.fillText(L.subtitle,P,L.subY+22);
+  // "why this session" — KB purpose, with a gold accent rail
+  if(L.purpose){ const pa=seg(0.24,0.54); A(pa);
+    const py=L.purposeTop; x.fillStyle=C.gold; roundRect(x,P,py+4,4,20,2); x.fill();
+    x.font='700 16px Inter'; x.fillStyle=C.gold; x.fillText('WHY THIS SESSION'+(L.purpose.adaptation?(' · '+L.purpose.adaptation):''),P+16,py+18);
+    x.font='500 22px Inter'; x.fillStyle=_hexA(C.text,0.86);
+    L.purpose.lines.forEach((ln,i)=> x.fillText(ln,P,py+52+i*32));
+  }
   // stats (4-up hairline)
   x.fillStyle=C.panel; roundRect(x,P,L.statsTop,W-2*P,L.statsH,14); x.fill();
   _carbon(x,P,L.statsTop,W-2*P,L.statsH,14);
@@ -4799,8 +4843,21 @@ function _renderShareCard(x,t){
     const vw=x.measureText(st[1]).width; x.fillText(st[1],gx+22,L.statsTop+120);
     if(st[2]){ x.font='600 21px Inter'; x.fillStyle=C.muted; x.fillText(st[2],gx+22+vw+6,L.statsTop+120); }
   });
+  // highlights pills
+  if(L.hl && L.hl.length){ const hy=L.hlTop, ph=52; let hx=P;
+    L.hl.forEach((h,i)=>{ const a=seg(0.34+i*0.06,0.6+i*0.06);
+      const col = h.c==='gold'?C.gold:C.purple2;
+      const label=h.ic+' '+h.lab+(h.val?('  '+h.val):'');
+      x.font='700 22px Inter'; const tw=x.measureText(label).width; const pw2=tw+40;
+      A(a); x.fillStyle=_hexA(col,0.14); roundRect(x,hx,hy,pw2,ph,ph/2); x.fill();
+      x.strokeStyle=_hexA(col,0.5); x.lineWidth=1.5; roundRect(x,hx,hy,pw2,ph,ph/2); x.stroke();
+      x.fillStyle=col; x.textAlign='left'; x.fillText(label,hx+20,hy+34);
+      hx+=pw2+12;
+    });
+    x.globalAlpha=1;
+  }
   // figure
-  if(L.hasChart) _drawPaceChart(x,L,seg(0.4,0.92));
+  if(L.hasChart) _drawPaceChart(x,L,seg(0.42,0.94));
   // reps
   if(L.rows.length){
     const grouped=L.grouped;
