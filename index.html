@@ -4658,18 +4658,31 @@ function _buildShareLayout(s){
   const hrs=segs.map(r=>r.hr).filter(v=>v>0); const hrMin=hrs.length?Math.min(...hrs):0, hrMax=hrs.length?Math.max(...hrs):0;
   const hasChart=segs.length>=2 && spMax>spMin;
   const fastPace=segs.length?convertPaceStr(mpsToMinKm(Math.max(...segs.map(r=>r.speed)))):'';
-  // Vertical layout
-  let y=P+30;              // topbar baseline area
-  const topbarY=y; y+=42;
-  const stampTop=y; const stampH=64; y+=stampH;
-  const wkbarY = plan? y+16 : y; const wkbarH = plan?6:0; y = wkbarY + wkbarH;
-  const titleTop = y+56; const titleLH=62; y = titleTop + (lines.length-1)*titleLH;
-  const subY = y+40; y = subY;
-  const statsTop = y+30; const statsH=150; y = statsTop + statsH;
-  const figTop = y+28; const figH = hasChart? 300:0; y = figTop + figH;
-  const bdTop = y + (hasChart?28:24); const repHeadH=46; const rowH=54;
-  const bdH = rows.length? (repHeadH + rows.length*rowH + (extra?44:0)):0; y = bdTop + bdH;
-  const footerTop = y+40; const H=Math.round(footerTop+56);
+  // Vertical layout — pin to a fixed 9:16 frame (1080×1920); distribute slack into gaps.
+  const H = Math.round(W*16/9);   // 1920
+  const stampH=64, statsH=150, repHeadH=46, rowH=54, titleLH=62;
+  const titleH=lines.length*titleLH, figH=hasChart?300:0;
+  const bdH = rows.length? (repHeadH + rows.length*rowH + (extra?44:0)):0;
+  const blocks=[['topbar',34],['stamp',stampH]];
+  if(plan) blocks.push(['prog',6]);
+  blocks.push(['title',titleH],['sub',30],['stats',statsH]);
+  if(hasChart) blocks.push(['chart',figH]);
+  if(bdH) blocks.push(['table',bdH]);
+  blocks.push(['footer',34]);
+  const contentH=blocks.reduce((a,b)=>a+b[1],0);
+  const nGaps=Math.max(1,blocks.length-1);
+  let gap=(H - 2*P - contentH)/nGaps; if(gap<8) gap=8;
+  const pos={}; let yy=P;
+  blocks.forEach((b,i)=>{ pos[b[0]]=yy; yy+=b[1]+(i<blocks.length-1?gap:0); });
+  const topbarY=pos.topbar+24;
+  const stampTop=pos.stamp;
+  const wkbarY=plan?pos.prog:0; const wkbarH=plan?6:0;
+  const titleTop=pos.title+48;
+  const subY=pos.sub;
+  const statsTop=pos.stats;
+  const figTop=hasChart?pos.chart:0;
+  const bdTop=bdH?pos.table:0;
+  const footerTop=pos.footer+22;
   return {C,W,P,plan,lines,grid,rows,grouped,extra,segs,spMin,spMax,hrMin,hrMax,hasChart,fastPace,bestRepPace,repCount,
     topbarY,stampTop,stampH,wkbarY,wkbarH,titleTop,titleLH,subY,statsTop,statsH,figTop,figH,bdTop,repHeadH,rowH,bdH,footerTop,H,
     subtitle:((s.intensity||'session').toUpperCase())+(s.feel?(' · FELT '+s.feel+'/5'):'')};
@@ -4808,8 +4821,8 @@ function _renderShareCard(x,t){
     if(L.extra){ A(seg(0.72,0.95)); x.fillStyle=C.muted; x.font='600 22px Inter'; x.textAlign='center'; x.fillText('+ '+L.extra+' more',W/2,rowsTop+L.rows.length*L.rowH+26); x.textAlign='left'; }
   }
   // footer
-  A(seg(0.72,1)); x.font='600 20px Inter'; x.fillStyle=C.muted; x.fillText('REV3 · TRAINING',P,H-P+8);
-  if(L.bestRepPace){ const bp='BEST REP '+L.bestRepPace+'/'+paceUnit(); x.textAlign='right'; x.fillStyle=C.gold; x.fillText(bp,W-P,H-P+8); x.textAlign='left'; }
+  A(seg(0.72,1)); x.font='600 20px Inter'; x.fillStyle=C.muted; x.fillText('REV3 · TRAINING',P,L.footerTop);
+  if(L.bestRepPace){ const bp='BEST REP '+L.bestRepPace+'/'+paceUnit(); x.textAlign='right'; x.fillStyle=C.gold; x.fillText(bp,W-P,L.footerTop); x.textAlign='left'; }
   x.globalAlpha=1; x.textAlign='left';
 }
 
