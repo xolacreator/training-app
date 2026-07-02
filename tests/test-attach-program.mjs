@@ -48,6 +48,20 @@ await page.evaluate(()=>{ const i=sessions.findIndex(s=>s.gid==='file-abc'); unl
 await page.waitForTimeout(150);
 check('Unlink clears completion', await page.evaluate(()=>_progSessionDone(1,'tempo'))===false);
 check('Unlink removes stamps', await page.evaluate(()=>{const s=sessions.find(s=>s.gid==='file-abc');return !s.progSid&&!s.progId;}));
+
+// Backfill: unlinked Wed run links to easy slot; a strength log on the Fri long-run slot does not
+await page.evaluate((START)=>{
+  const iso=off=>{const d=new Date(START+'T00:00:00');d.setDate(d.getDate()+off);return d.toISOString().slice(0,10);};
+  sessions.unshift({ week:'1', day:'Wed', session:'Easy Run', pace:'5:40', dist:'6.0', dur:'34', feel:4, ts:new Date(iso(2)+'T09:00:00').getTime(), gid:'file-wed' });
+  sessions.unshift({ week:'1', day:'Fri', session:'Bench Press strength', dur:'50', feel:4, ts:new Date(iso(4)+'T09:00:00').getTime(), gid:'file-fri' });
+  saveData();
+},START);
+await page.evaluate(()=>backfillProgramLinks());
+await page.waitForTimeout(200);
+check('Backfill links the Wed run to the easy slot', await page.evaluate(()=>{const s=sessions.find(s=>s.gid==='file-wed');return s.progSid==='easy'&&String(s.progWeek)==='1';}));
+check('Backfill does NOT link a strength log to a run slot', await page.evaluate(()=>{const s=sessions.find(s=>s.gid==='file-fri');return !s.progSid;}));
+check('Wed easy slot now done after backfill', await page.evaluate(()=>_progSessionDone(1,'easy'))===true);
+
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
 await browser.close();
