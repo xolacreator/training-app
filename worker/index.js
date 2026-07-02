@@ -2,12 +2,51 @@ const STRAVA_AUTH_URL  = 'https://www.strava.com/oauth/authorize';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, X-Sync-Token',
 };
+
+// Pull a number out of a Health Auto Export field, which may be a number, a numeric
+// string, or an object like { qty: 5.2, units: "km" }.
+function numFrom(v) {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  if (typeof v === 'object') return numFrom(v.qty ?? v.value ?? v.average ?? v.avg);
+  return 0;
+}
+function distToKm(v) {
+  if (v == null) return 0;
+  const qty = numFrom(v);
+  const units = (typeof v === 'object' && v.units) ? String(v.units).toLowerCase() : 'km';
+  if (units.includes('mi')) return qty * 1.60934;
+  if (units === 'm' || units.includes('meter')) return qty / 1000;
+  return qty; // assume km
+}
+// Normalise a workout from Health Auto Export / a Shortcut into a compact summary.
+function normWorkout(w) {
+  if (!w || typeof w !== 'object') return null;
+  const startRaw = w.start || w.startDate || w.start_date || w.date || w.startTime;
+  const startMs = Date.parse(startRaw || '');
+  if (isNaN(startMs)) return null;
+  const name = w.name || w.workoutActivityType || w.activityType || w.type || 'Workout';
+  let dur = numFrom(w.duration ?? w.durationSeconds ?? w.elapsed);
+  if (!dur && w.end) { const e = Date.parse(w.end); if (!isNaN(e)) dur = (e - startMs) / 1000; }
+  const distKm = distToKm(w.distance ?? w.totalDistance ?? w.distanceWalkingRunning);
+  const hr = numFrom(w.avgHeartRate ?? w.averageHeartRate ?? w.heartRateAverage ?? w.heartRate);
+  const id = w.id || w.uuid || `hae-${startMs}-${Math.round((distKm || 0) * 1000)}`;
+  return {
+    _id: String(id), name: String(name), sport: String(name),
+    start: new Date(startMs).toISOString(),
+    distance_km: +(distKm || 0).toFixed(3),
+    duration_s: Math.round(dur || 0),
+    avg_hr: Math.round(hr || 0),
+  };
+}
 
 export default {
   async fetch(request, env) {
@@ -144,6 +183,52 @@ export default {
         { headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
 
+    // ── ACTIVITY BRIDGE ──────────────────────────────────────────────────────
+    // Store workout summaries pushed from Apple Health (via Health Auto Export or an
+    // iOS Shortcut) so the app can auto-import them — no Strava/Garmin API needed.
+    // POST: body = a workout object, an array, or { data:{ workouts:[…] } }.
+    if (path === '/activity' && request.method === 'POST') {
+      const token = request.headers.get('X-Sync-Token') || '';
+      if (!token) {
+        return new Response(JSON.stringify({ ok: false, reason: 'missing_token' }),
+          { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      let body;
+      try { body = await request.json(); } catch(e) {
+        return new Response(JSON.stringify({ ok: false, reason: 'invalid_json' }),
+          { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const raw = Array.isArray(body) ? body
+        : Array.isArray(body?.workouts) ? body.workouts
+        : Array.isArray(body?.data?.workouts) ? body.data.workouts
+        : [body];
+      const key = `activity:${token}:list`;
+      let list = [];
+      try { list = JSON.parse(await env.HEALTH_DATA.get(key) || '[]'); } catch(e) {}
+      const seen = new Set(list.map(a => a._id));
+      let added = 0;
+      for (const w of raw) {
+        const n = normWorkout(w);
+        if (!n || seen.has(n._id)) continue;
+        list.unshift(n); seen.add(n._id); added++;
+      }
+      list = list.slice(0, 100); // keep the most recent 100
+      await env.HEALTH_DATA.put(key, JSON.stringify(list), { expirationTtl: 7776000 });
+      return new Response(JSON.stringify({ ok: true, added, total: list.length }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+
+    // GET: the app pulls the stored workout summaries for this token.
+    if (path === '/activity' && request.method === 'GET') {
+      const token = request.headers.get('X-Sync-Token') || url.searchParams.get('token') || '';
+      if (!token) {
+        return new Response(JSON.stringify({ ok: false, reason: 'missing_token' }),
+          { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const raw = await env.HEALTH_DATA.get(`activity:${token}:list`) || '[]';
+      return new Response(raw, { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+
     // Proxy Claude API calls — avoids CORS/iOS PWA restrictions on direct browser requests
     if (path === '/claude' && request.method === 'POST') {
       try {
@@ -160,6 +245,37 @@ export default {
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({ model, system, messages, max_tokens }),
+        });
+        const data = await resp.json();
+        return new Response(JSON.stringify(data),
+          { status: resp.status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: { message: 'proxy_failed' } }),
+          { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // Proxy OpenAI (ChatGPT) calls — same CORS/iOS-PWA reasons as /claude.
+    // Accepts the same Claude-shaped payload {key, model, system, messages, max_tokens}
+    // and translates to OpenAI's chat-completions format. Returns OpenAI's raw JSON;
+    // the client normalizes it to the {content:[{text}]} shape.
+    if (path === '/openai' && request.method === 'POST') {
+      try {
+        const { key, model, system, messages, max_tokens } = await request.json();
+        if (!key || !key.startsWith('sk-')) {
+          return new Response(JSON.stringify({ error: { message: 'missing or invalid API key' } }),
+            { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
+        const oaMessages = [];
+        if (system) oaMessages.push({ role: 'system', content: system });
+        for (const m of (messages || [])) oaMessages.push({ role: m.role, content: m.content });
+        const resp = await fetch(OPENAI_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({ model, messages: oaMessages, max_tokens }),
         });
         const data = await resp.json();
         return new Response(JSON.stringify(data),
