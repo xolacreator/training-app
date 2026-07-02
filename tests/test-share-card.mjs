@@ -31,6 +31,21 @@ check('Card renders mid + final frame without error', drew===true, drew);
 const exported=await page.evaluate(async()=>{ const {W,H}=_shareLayout; const cv=document.createElement('canvas');cv.width=W;cv.height=H; _renderShareCard(cv.getContext('2d'),1); const b=await new Promise(r=>cv.toBlob(r,'image/png')); return b&&b.size>1000; });
 check('Exports a non-trivial PNG', exported===true);
 
+// Grouped structure: warm-up + multi-lap rep + rests + cool-down → Warm-up/Rep/Rest/Cool-down
+await page.evaluate(()=>{
+  const L=(d,mt,sp,hr)=>({distance:d,moving_time:mt,elapsed_time:mt,average_speed:sp,average_heartrate:hr});
+  sessions.length=0;
+  sessions.push({week:'3',day:'Tue',session:'Intervals',pace:'4:05',dist:'11.3',hr:'160',dur:'50',feel:4,ts:Date.now(),gid:'strava-g',
+    strava_laps:[L(2000,600,3.33,130),L(1000,238,4.20,165),L(1000,240,4.17,168),L(400,160,2.5,150),L(2000,475,4.21,169),L(400,160,2.5,150),L(2000,470,4.26,170),L(1500,450,3.33,135)]});
+  saveData();
+});
+const g=await page.evaluate(()=>_cardBreakdown(sessions[0]));
+check('Lap session groups into structure', !!g && g.grouped===true, g&&g.title);
+check('Groups: Warm-up · 3 reps · 2 rests · Cool-down', !!g && g.rows.map(r=>r.kind).join(',')==='warm,work,rest,work,rest,work,cool', g&&g.rows.map(r=>r.label).join('|'));
+check('Rep 1 merges its 2 sub-laps into ~2km', !!g && Math.abs(g.rows[1].distM-2000)<1 && g.rows[1].laps===2, g&&JSON.stringify({d:g.rows[1].distM,laps:g.rows[1].laps}));
+const rc=await page.evaluate(async()=>{ await shareSession(0); return _shareLayout.grid.find(t=>t[0]==='WORK REPS')?.[1]; });
+check('WORK REPS tile reflects 3 grouped reps (not raw laps)', rc==='3', rc);
+
 // Per-km splits session (no laps) → PER-KM/MI SPLITS
 await page.evaluate(()=>{ sessions.length=0; sessions.push({week:'1',day:'Wed',session:'Tempo',pace:'4:10',dist:'8',hr:'150',dur:'34',feel:4,ts:Date.now(),gid:'file-y',strava_splits:[{distance:1000,moving_time:250,average_speed:4.0,average_heartrate:150}]}); saveData(); });
 const bd2=await page.evaluate(()=>_cardBreakdown(sessions[0]));
