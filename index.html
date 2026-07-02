@@ -918,6 +918,23 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="of"><button class="back-btn" onclick="closeOv('log-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
 </div>
 
+<!-- SHARE CARD PREVIEW OVERLAY -->
+<div class="overlay" id="sharecard-overlay">
+  <div class="oh"><div class="drag-handle"></div></div>
+  <div class="oi" style="display:flex;flex-direction:column;align-items:center;">
+    <div class="eyebrow" style="align-self:flex-start;">Session card</div>
+    <canvas id="sharecard-canvas" style="width:100%;max-width:340px;border-radius:18px;box-shadow:0 12px 44px rgba(0,0,0,.55);background:var(--bg);"></canvas>
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:16px;">
+      <button class="btn btn-accent" id="sc-share-btn" onclick="_exportShareCard(false)">↗ Share</button>
+      <div class="btn-row">
+        <button class="btn" onclick="_exportShareCard(true)">↓ Save image</button>
+        <button class="btn" onclick="_replayShareCard()">↺ Replay</button>
+      </div>
+    </div>
+  </div>
+  <div class="of"><button class="back-btn" onclick="closeOv('sharecard-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
+</div>
+
 <!-- INTERVAL TIMER OVERLAY -->
 <div class="overlay" id="timer-overlay">
   <!-- Timer keeps back button at top: active-timer view uses Pause/Stop at bottom, no room for .of -->
@@ -4487,90 +4504,194 @@ function unlinkLogFromProgram(idx){
   toast('Unlinked from program');
 }
 
-// Generate a shareable session summary card (canvas → Web Share / download)
-async function shareSession(idx){
-  const s=sessions[idx];
-  if(!s)return;
-  const btn=document.getElementById('lo-share-btn');
-  const orig=btn?btn.textContent:'';
-  if(btn){btn.textContent='Building card…';btn.disabled=true;}
-  try{
-    try{if(document.fonts&&document.fonts.ready)await document.fonts.ready;}catch(e){}
-    const cs=getComputedStyle(document.documentElement);
-    const v=n=>cs.getPropertyValue(n).trim();
-    const C={bg:v('--bg')||'#131316',bg2:v('--bg2')||'#1C1C20',accent:v('--accent')||'#C9A84C',
-             blue:v('--blue')||'#9B8AD4',text:v('--text')||'#ECECEF',text2:v('--text2')||'#A0A0AB',
-             text3:v('--text3')||'#62626E',border:'rgba(255,255,255,0.12)'};
-    const W=1080,H=1350,P=80;
-    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
-    const x=cv.getContext('2d');
-    // background
-    x.fillStyle=C.bg;x.fillRect(0,0,W,H);
-    // subtle top accent bar
-    x.fillStyle=C.accent;x.fillRect(0,0,W,8);
+// ── SHAREABLE SESSION CARD (animated preview + comprehensive breakdown) ───────
+let _shareIdx=null, _shareLayout=null, _shareRAF=null;
 
-    // header: wordmark + date
-    x.textBaseline='alphabetic';
-    x.fillStyle=C.accent;x.font='700 44px system-ui, sans-serif';
-    x.fillText('REV3',P,P+44);
-    const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
-    x.fillStyle=C.text3;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';
-    const dw=x.measureText(ds).width;x.fillText(ds,W-P-dw,P+40);
+// Distance/time/pace formatting for the card breakdown.
+function _cardDist(m){ const km=m/1000; return unitRun==='mi' ? (km*MI_PER_KM).toFixed(2) : km.toFixed(2); }
+// Per-split / per-lap breakdown for the card, or null if none.
+function _cardBreakdown(s){
+  const laps=s.strava_laps, splits=s.strava_splits;
+  if(laps && laps.length>1){
+    const iv=(typeof getIntervalStats==='function')?getIntervalStats(s):null;
+    const ws=iv?iv.workSpeeds:null;
+    const rows=laps.map((l,i)=>({label:String(i+1), distM:l.distance||0, secs:(l.moving_time||l.elapsed_time||0),
+      speed:l.average_speed||0, hr:l.average_heartrate?Math.round(l.average_heartrate):0,
+      work: ws? ws.has(l.average_speed) : true}));
+    return {title: (iv&&iv.reps? 'INTERVAL LAPS' : 'LAPS'), rows, kind:'lap'};
+  }
+  if(splits && splits.length){
+    const rows=splits.map((sp,i)=>({label:String(i+1), distM:sp.distance||1000, secs:(sp.moving_time||sp.elapsed_time||0),
+      speed:sp.average_speed||0, hr:sp.average_heartrate?Math.round(sp.average_heartrate):0, work:true}));
+    return {title:`PER-${distUnit().toUpperCase()} SPLITS`, rows, kind:'split'};
+  }
+  return null;
+}
 
-    // intensity eyebrow
-    x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
-    x.fillText(`WEEK ${s.week} · ${(s.intensity||'').toUpperCase()}`,P,P+150);
+// Build the layout (sizes + data) once, so the animated preview and the exported
+// image render identically at any progress t.
+function _buildShareLayout(s){
+  const cs=getComputedStyle(document.documentElement);
+  const v=n=>cs.getPropertyValue(n).trim();
+  const C={bg:v('--bg')||'#131316',bg2:v('--bg2')||'#1C1C20',bg3:v('--bg3')||'#26262C',
+    accent:v('--accent')||'#C9A84C',blue:v('--blue')||'#9B8AD4',green:v('--green')||'#3ECF8E',
+    text:v('--text')||'#ECECEF',text2:v('--text2')||'#A0A0AB',text3:v('--text3')||'#62626E'};
+  const W=1080,P=80;
+  // Measure name wrap (up to 2 lines) with a scratch context.
+  const scratch=document.createElement('canvas').getContext('2d');
+  scratch.font='600 66px system-ui, sans-serif';
+  const words=(s.session||'Session').split(' ');let line='',lines=[];
+  for(const w of words){const t=line?line+' '+w:w;if(scratch.measureText(t).width>W-2*P&&line){lines.push(line);line=w;}else line=t;}
+  if(line)lines.push(line);lines=lines.slice(0,2);
+  const iv=(typeof getIntervalStats==='function')?getIntervalStats(s):null;
+  const stats=[];
+  if(iv)stats.push(['WORK REPS',`${iv.reps}`,'']);
+  if(s.pace)stats.push(['AVG PACE',iv?iv.avgPace:convertPaceStr(s.pace),'/'+paceUnit()]);
+  if(s.dist)stats.push(['DISTANCE',unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,distUnit()]);
+  if(s.hr)stats.push(['AVG HR',`${s.hr}`,'bpm']);
+  if(s.dur)stats.push(['DURATION',fmtDurMin(s.dur),'']);
+  if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
+  const grid=stats.slice(0,4);
+  const bd=_cardBreakdown(s);
+  const MAXROWS=14;
+  let rows=bd?bd.rows:[];
+  let extra=0;
+  if(rows.length>MAXROWS){ extra=rows.length-(MAXROWS-1); rows=rows.slice(0,MAXROWS-1); }
+  const maxSpeed=rows.reduce((m,r)=>Math.max(m,r.speed||0),0)||1;
+  // Vertical layout
+  const nameTop=P+210;
+  const nameH=lines.length*76;
+  const tilesTop=nameTop+nameH+30;
+  const tileH=190, tileGap=24;
+  const tileRows=Math.ceil(grid.length/2)||0;
+  const tilesBottom=tilesTop + (tileRows? tileRows*tileH+(tileRows-1)*tileGap : 0);
+  const rowH=54;
+  const bdTop=tilesBottom+70;
+  const bdH=bd? (56 /*title*/ + 40 /*colhead*/ + rows.length*rowH + (extra?44:0)) : 0;
+  const footerTop=bdTop+bdH+50;
+  const H=Math.round(footerTop+70);
+  return {C,W,H,P,lines,grid,iv,bd,rows,extra,maxSpeed,nameTop,tilesTop,tileH,tileGap,tilesBottom,bdTop,rowH,footerTop};
+}
 
-    // session name (wrap up to 2 lines)
-    x.fillStyle=C.text;x.font='600 66px system-ui, sans-serif';
-    const words=(s.session||'Session').split(' ');let line='',lines=[];
-    for(const w of words){const t=line?line+' '+w:w;if(x.measureText(t).width>W-2*P&&line){lines.push(line);line=w;}else line=t;}
-    if(line)lines.push(line);lines=lines.slice(0,2);
-    let ly=P+230;lines.forEach(l=>{x.fillText(l,P,ly);ly+=76;});
-
-    // stat tiles (2x2)
-    const iv=getIntervalStats(s);
-    const stats=[];
-    if(iv)stats.push(['WORK REPS',`${iv.reps}`,'']);
-    if(s.pace)stats.push(['AVG PACE',iv?iv.avgPace:convertPaceStr(s.pace),'/'+paceUnit()]);
-    if(s.dist)stats.push(['DISTANCE',unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,distUnit()]);
-    if(s.hr)stats.push(['AVG HR',`${s.hr}`,'bpm']);
-    if(s.dur)stats.push(['DURATION',fmtDurMin(s.dur),'']);
-    if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
-    const grid=stats.slice(0,4);
-    const gy=ly+40,tileW=(W-2*P-30)/2,tileH=190;
-    grid.forEach((t,i)=>{
-      const col=i%2,row=Math.floor(i/2);
-      const tx=P+col*(tileW+30),ty=gy+row*(tileH+24);
-      x.fillStyle=C.bg2;roundRect(x,tx,ty,tileW,tileH,24);x.fill();
-      x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
-      x.fillText(t[0],tx+34,ty+58);
-      const accentTile=(t[0]==='AVG PACE'||t[0]==='WORK REPS');
-      x.fillStyle=accentTile?C.accent:C.text;x.font='600 78px system-ui, sans-serif';
-      const vw=x.measureText(t[1]).width;
-      x.fillText(t[1],tx+34,ty+148);
-      if(t[2]){x.fillStyle=C.text2;x.font='500 30px "JetBrains Mono", ui-monospace, monospace';x.fillText(t[2],tx+34+vw+12,ty+148);}
+function _renderShareCard(x,t){
+  const L=_shareLayout; if(!L) return;
+  const s=sessions[_shareIdx]; if(!s) return;
+  const {C,W,H,P}=L;
+  const ez=p=>{p=p<0?0:p>1?1:p;return 1-Math.pow(1-p,3);};
+  const seg=(a,b)=>ez((t-a)/(b-a));
+  const A=(a)=>{x.globalAlpha=a<0?0:a>1?1:a;};
+  x.textBaseline='alphabetic'; x.globalAlpha=1;
+  // bg
+  x.fillStyle=C.bg;x.fillRect(0,0,W,H);
+  // top accent bar grows in
+  x.fillStyle=C.accent;x.fillRect(0,0,W*seg(0,0.35),8);
+  // header
+  A(seg(0.05,0.3));
+  x.fillStyle=C.accent;x.font='700 44px system-ui, sans-serif';x.fillText('REV3',P,P+44);
+  const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+  x.fillStyle=C.text3;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';
+  const dw=x.measureText(ds).width;x.fillText(ds,W-P-dw,P+40);
+  // eyebrow
+  A(seg(0.1,0.35));
+  x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
+  x.fillText(`WEEK ${s.week||'—'} · ${(s.intensity||'').toUpperCase()}`,P,P+150);
+  // name (slide up + fade)
+  const na=seg(0.12,0.42);A(na);
+  x.fillStyle=C.text;x.font='600 66px system-ui, sans-serif';
+  let ly=L.nameTop+(1-na)*18;L.lines.forEach(l=>{x.fillText(l,P,ly);ly+=76;});
+  // stat tiles
+  const tileW=(W-2*P-30)/2;
+  L.grid.forEach((tl,i)=>{
+    const col=i%2,row=Math.floor(i/2);
+    const a=seg(0.2+i*0.07,0.5+i*0.07);A(a);
+    const tx=P+col*(tileW+30),ty=L.tilesTop+row*(L.tileH+L.tileGap)+(1-a)*20;
+    x.fillStyle=C.bg2;roundRect(x,tx,ty,tileW,L.tileH,24);x.fill();
+    x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';x.fillText(tl[0],tx+34,ty+58);
+    const accentTile=(tl[0]==='AVG PACE'||tl[0]==='WORK REPS');
+    x.fillStyle=accentTile?C.accent:C.text;x.font='600 78px system-ui, sans-serif';
+    const vw=x.measureText(tl[1]).width;x.fillText(tl[1],tx+34,ty+148);
+    if(tl[2]){x.fillStyle=C.text2;x.font='500 30px "JetBrains Mono", ui-monospace, monospace';x.fillText(tl[2],tx+34+vw+12,ty+148);}
+  });
+  // breakdown
+  if(L.bd && L.rows.length){
+    A(seg(0.42,0.6));
+    x.fillStyle=C.text3;x.font='600 26px "JetBrains Mono", ui-monospace, monospace';
+    x.fillText(L.bd.title,P,L.bdTop+30);
+    // column headers
+    const cX={num:P, dist:P+150, time:P+380, pace:P+610, hr:W-P};
+    A(seg(0.45,0.62));
+    x.font='500 20px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=C.text3;
+    const chY=L.bdTop+56+26;
+    x.textAlign='left';x.fillText('#',cX.num,chY);x.fillText('DIST',cX.dist,chY);x.fillText('TIME',cX.time,chY);x.fillText('PACE',cX.pace,chY);
+    x.textAlign='right';x.fillText('HR',cX.hr,chY);x.textAlign='left';
+    const rowsTop=L.bdTop+56+40;
+    const usable=W-2*P;
+    L.rows.forEach((r,i)=>{
+      const a=seg(0.5+i*0.028,0.78+i*0.028);
+      const ry=rowsTop+i*L.rowH;
+      const col=r.work?C.accent:C.text3;
+      // pace bar (grows) — faster => longer
+      const frac=(r.speed/L.maxSpeed)*a;
+      x.globalAlpha=1; x.fillStyle=C.bg2; roundRect(x,P,ry+L.rowH-16,usable,6,3);x.fill();
+      x.fillStyle=col; x.globalAlpha=r.work?0.9:0.5; roundRect(x,P,ry+L.rowH-16,Math.max(6,usable*frac),6,3);x.fill();
+      // text
+      A(a);
+      x.font='600 28px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=col;x.textAlign='left';
+      x.fillText(r.label,cX.num,ry+30);
+      x.font='500 28px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=C.text;
+      x.fillText(_cardDist(r.distM),cX.dist,ry+30);
+      x.fillStyle=C.text2;x.fillText(fmtSecs(r.secs),cX.time,ry+30);
+      x.fillStyle=r.work?C.accent:C.text2;x.font='600 28px "JetBrains Mono", ui-monospace, monospace';
+      x.fillText(r.speed>0?fmtPaceFull(r.speed):'—',cX.pace,ry+30);
+      if(r.hr){x.fillStyle=C.text2;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';x.textAlign='right';x.fillText(String(r.hr),cX.hr,ry+30);x.textAlign='left';}
     });
+    if(L.extra){A(seg(0.7,0.95));x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';x.textAlign='center';x.fillText(`+ ${L.extra} more`,W/2,rowsTop+L.rows.length*L.rowH+28);x.textAlign='left';}
+  }
+  // footer
+  A(seg(0.72,1));
+  x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
+  x.fillText('REV3 · TRAINING',P,H-P+10);
+  if(L.iv){const bp=`BEST REP ${L.iv.bestPace}/${paceUnit()}`;const bw=x.measureText(bp).width;x.fillStyle=C.accent;x.fillText(bp,W-P-bw,H-P+10);}
+  x.globalAlpha=1; x.textAlign='left';
+}
 
-    // footer
-    x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
-    x.fillText('REV3 · TRAINING',P,H-P+10);
-    if(iv){const bp=`BEST REP ${iv.bestPace}/${paceUnit()}`;const bw=x.measureText(bp).width;x.fillStyle=C.accent;x.fillText(bp,W-P-bw,H-P+10);}
+function _animateShareCard(){
+  const cv=document.getElementById('sharecard-canvas'); if(!cv||!_shareLayout) return;
+  cv.width=_shareLayout.W; cv.height=_shareLayout.H;
+  const x=cv.getContext('2d');
+  const dur=1200; let start=null;
+  cancelAnimationFrame(_shareRAF);
+  const step=(now)=>{ if(start===null)start=now; const t=Math.min(1,(now-start)/dur); _renderShareCard(x,t); if(t<1)_shareRAF=requestAnimationFrame(step); };
+  _shareRAF=requestAnimationFrame(step);
+}
+function _replayShareCard(){ _animateShareCard(); }
 
-    const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
-    const file=new File([blob],'rev3-session.png',{type:'image/png'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file],title:s.session});
-    }else{
-      const url=URL.createObjectURL(blob);const a=document.createElement('a');
-      a.href=url;a.download='rev3-session.png';a.click();
-      setTimeout(()=>URL.revokeObjectURL(url),2000);
-      toast('Card saved to downloads');
-    }
-  }catch(err){
-    if(err&&err.name!=='AbortError')toast('Share failed: '+(err.message||'error'));
-  }finally{
-    if(btn){btn.textContent=orig;btn.disabled=false;}
+// Open the animated preview.
+async function shareSession(idx){
+  const s=sessions[idx]; if(!s) return;
+  try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
+  _shareIdx=idx;
+  _shareLayout=_buildShareLayout(s);
+  openOv('sharecard-overlay');
+  requestAnimationFrame(()=>_animateShareCard());
+}
+
+// Render the final frame at full resolution and share/save it.
+async function _exportShareCard(save){
+  const s=sessions[_shareIdx]; if(!s||!_shareLayout) return;
+  const {W,H}=_shareLayout;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  _renderShareCard(cv.getContext('2d'),1);
+  let blob; try{ blob=await new Promise(r=>cv.toBlob(r,'image/png')); }catch(e){ toast('Could not build image'); return; }
+  const file=new File([blob],'rev3-session.png',{type:'image/png'});
+  if(!save && navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],title:s.session}); }
+    catch(e){ if(e&&e.name!=='AbortError') toast('Share cancelled'); }
+  }else{
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');
+    a.href=url;a.download='rev3-session.png';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast('Card saved to downloads');
   }
 }
 
