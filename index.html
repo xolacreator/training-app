@@ -6124,10 +6124,23 @@ function _normalizeSportType(raw) {
   if (t.includes('swim')) return 'Swim';
   return raw || 'Workout';
 }
+// A FIT/ZIP file read as text is binary garbage — detect so we can advise clearly.
+function _looksBinary(text) {
+  if (/^PK\x03\x04/.test(text)) return true;                 // zip (bulk export)
+  const head=text.slice(0,256);
+  let ctrl=0; for (let i=0;i<head.length;i++){ const c=head.charCodeAt(i); if (c===0 || (c<9)) ctrl++; }
+  return ctrl>4;
+}
 function _parseGPX(text, fname) {
+  if (_looksBinary(text)) return { error:'looks like a .FIT or .zip file — in Garmin, choose "Export to GPX" or "Export to TCX" (not "Export Original")' };
   const doc=new DOMParser().parseFromString(text,'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) return null;
+  if (doc.getElementsByTagName('parsererror').length) return { error:'not readable as GPX/XML' };
   const pts=[...doc.getElementsByTagName('trkpt')];
+  if (!pts.length) {
+    if (doc.getElementsByTagName('rtept').length || doc.getElementsByTagName('wpt').length)
+      return { error:'this is a route/course, not a recorded activity' };
+    return { error:'no GPS track — for treadmill/indoor activities export TCX instead of GPX' };
+  }
   const nameEl=doc.querySelector('trk > name') || doc.querySelector('name');
   const typeEl=doc.querySelector('trk > type') || doc.querySelector('type');
   const samples=[]; let dist=0, prev=null;
@@ -6141,27 +6154,29 @@ function _parseGPX(text, fname) {
     if (!isNaN(t)) samples.push({ t, dist, hr: hr||null });
     if (!isNaN(lat)&&!isNaN(lon)) prev={lat,lon};
   }
-  if (samples.length<2 && dist===0) return null;
-  const startMs=samples.length?samples[0].t:Date.now();
-  const endMs=samples.length?samples[samples.length-1].t:startMs;
-  const elapsed=Math.max(1,(endMs-startMs)/1000);
+  if (samples.length<2 && dist===0) return { error:'no usable track data (no positions or timestamps)' };
+  const hasTime=samples.length>=2;
+  const startMs=hasTime?samples[0].t:Date.now();
+  const endMs=hasTime?samples[samples.length-1].t:startMs;
+  const elapsed=hasTime?Math.max(1,(endMs-startMs)/1000):0;   // 0 → duration/pace left blank
   const hrs=samples.filter(s=>s.hr).map(s=>s.hr);
-  const splits=_splitsFromSamples(samples);
+  const splits=hasTime?_splitsFromSamples(samples):[];
   return {
     gid:_fileActId(startMs,dist), name:(nameEl?.textContent||fname||'Imported run').trim(),
     sport_type:_normalizeSportType(typeEl?.textContent), source:'File',
     start_date:new Date(startMs).toISOString(), start_date_local:new Date(startMs).toISOString(),
-    distance:dist, elapsed_time:elapsed, average_speed: dist>0?dist/elapsed:0,
+    distance:dist, elapsed_time:elapsed, average_speed: (dist>0&&elapsed>0)?dist/elapsed:0,
     average_heartrate: hrs.length?hrs.reduce((a,b)=>a+b,0)/hrs.length:0,
     strava_splits:splits,
   };
 }
 function _parseTCX(text, fname) {
+  if (_looksBinary(text)) return { error:'looks like a .FIT or .zip file — in Garmin, choose "Export to TCX" (not "Export Original")' };
   const doc=new DOMParser().parseFromString(text,'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) return null;
+  if (doc.getElementsByTagName('parsererror').length) return { error:'not readable as TCX/XML' };
   const actEl=doc.getElementsByTagName('Activity')[0];
   const laps=[...doc.getElementsByTagName('Lap')];
-  if (!laps.length) return null;
+  if (!laps.length) return { error:'no laps found — is this a TCX activity file?' };
   const idEl=doc.getElementsByTagName('Id')[0];
   const startAttr=laps[0].getAttribute('StartTime');
   const startMs=Date.parse(startAttr || idEl?.textContent || '') || Date.now();
@@ -6186,6 +6201,7 @@ function _parseTCX(text, fname) {
     const hr=hrEl?parseFloat(hrEl.textContent):null;
     if (!isNaN(t)&&!isNaN(dm)) samples.push({ t, dist:dm, hr: hr||null });
   }
+  if (dist===0 && elapsed===0) return { error:'no distance or time found in this TCX' };
   const splits=samples.length>1 ? _splitsFromSamples(samples) : [];
   const sportRaw=actEl?.getAttribute('Sport')||'';
   return {
@@ -6200,7 +6216,7 @@ function _parseTCX(text, fname) {
 async function importActivityFiles(fileList) {
   const files=[...(fileList||[])];
   if (!files.length) return;
-  let imported=0, dup=0, failed=0; const newGids=[]; const bad=[];
+  let imported=0, dup=0, failed=0; const newGids=[]; const rows=[];
   for (const f of files) {
     try {
       const text=await f.text();
@@ -6208,13 +6224,16 @@ async function importActivityFiles(fileList) {
       let act=null;
       if (ext==='gpx') act=_parseGPX(text, f.name);
       else if (ext==='tcx') act=_parseTCX(text, f.name);
-      else { failed++; bad.push(f.name+' (unsupported — export GPX or TCX)'); continue; }
-      if (!act) { failed++; bad.push(f.name+' (could not read)'); continue; }
+      else { failed++; rows.push({ok:false,name:f.name,why:'unsupported type — export GPX or TCX'}); continue; }
+      if (!act || act.error) { failed++; rows.push({ok:false,name:f.name,why:act?.error||'could not read file'}); continue; }
       const r=_activityToSession(act, { allowOutOfRange:true });
-      if (r.skip==='dup') { dup++; continue; }
-      if (r.skip) { failed++; bad.push(f.name+' (no data)'); continue; }
+      if (r.skip==='dup') { dup++; rows.push({ok:false,name:f.name,why:'already imported'}); continue; }
+      if (r.skip) { failed++; rows.push({ok:false,name:f.name,why:'no usable data'}); continue; }
       sessions.unshift(r.session); newGids.push(r.gid); imported++;
-    } catch(e) { failed++; bad.push(f.name+' (error)'); }
+      const km=act.distance>0?(act.distance/1000).toFixed(1)+' km':'';
+      const mn=act.elapsed_time>0?Math.round(act.elapsed_time/60)+' min':'';
+      rows.push({ok:true,name:f.name,why:[act.name,km,mn].filter(Boolean).join(' · ')});
+    } catch(e) { failed++; rows.push({ok:false,name:f.name,why:'error: '+(e.message||'unknown')}); }
   }
   if (imported) {
     for (const gid of newGids) if (!pendingReview.includes(gid)) pendingReview.push(gid);
@@ -6227,7 +6246,14 @@ async function importActivityFiles(fileList) {
   if (dup) parts.push(`${dup} already logged`);
   if (failed) parts.push(`${failed} skipped`);
   toast('Import: ' + (parts.join(' · ') || 'nothing to import') + (imported?' ✓ — rate them in Today':''));
-  if (bad.length) console.log('[File import] skipped:', bad.join('; '));
+  // Show a visible per-file result so failures are diagnosable on-device (not just console).
+  const out=document.getElementById('import-result');
+  if (out) {
+    out.style.display='block';
+    out.innerHTML = rows.map(r=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0;">
+      <span style="color:${r.ok?'var(--green,#34c759)':'var(--red)'};flex-shrink:0;">${r.ok?'✓':'✕'}</span>
+      <span style="flex:1;min-width:0;"><b style="color:var(--text2);">${(r.name||'').replace(/[<>]/g,'')}</b> — ${(r.why||'').replace(/[<>]/g,'')}</span></div>`).join('');
+  }
 }
 function triggerActivityImport() {
   const inp=document.getElementById('activity-file-input');
@@ -6639,6 +6665,7 @@ function _stravaImportFooter() {
       <input id="activity-file-input" type="file" accept=".gpx,.tcx,application/gpx+xml" multiple
         style="display:none;" onchange="importActivityFiles(this.files)">
       <button class="btn" style="width:100%;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="triggerActivityImport()">↓ Import activity file (GPX/TCX)</button>
+      <div id="import-result" style="display:none;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.5;margin-top:8px;background:var(--bg3);border-radius:6px;padding:8px 10px;"></div>
     </div>`;
 }
 
