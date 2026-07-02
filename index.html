@@ -4684,9 +4684,17 @@ function _buildShareLayout(s){
     }
   }
   const wr=(bd&&bd.grouped)?bd.rows.filter(r=>r.kind==='work'):[];
+  const rt0=_cardRunType(s,grouped);
+  const workSecs=wr.reduce((a,r)=>a+(r.secs||0),0);
+  const cad = s.cad? parseInt(s.cad) : 0;
   const highlights=[];
-  if(bestRepPace) highlights.push({ic:'★',lab:'BEST REP',val:bestRepPace,c:'gold'});
-  if(wr.length>=2){ const f=wr[0].speed,l=wr[wr.length-1].speed; const t=l>f*1.008?['↘','NEGATIVE SPLIT','gold']:(l<f*0.992?['↗','FADE','purple']:['→','EVEN SPLITS','purple']); highlights.push({ic:t[0],lab:t[1],val:'',c:t[2]}); }
+  // Type-specific headline metric (dynamic to the workout kind).
+  if(workSecs>0 && rt0==='tempo')       highlights.push({lab:'@ THRESHOLD', val:fmtSecs(workSecs), c:'gold'});
+  else if(workSecs>0 && rt0==='intervals') highlights.push({lab:'@ VO₂', val:fmtSecs(workSecs), c:'gold'});
+  else if(rt0==='long' && totalMin)     highlights.push({lab:'ON FEET', val:fmtDurMin(totalMin), c:'gold'});
+  if(cad) highlights.push({lab:'CADENCE', val:cad+' spm', c:'purple'});
+  if(bestRepPace) highlights.push({ic:'★',lab:'BEST', val:bestRepPace, c:'gold'});
+  if(wr.length>=2){ const f=wr[0].speed,l=wr[wr.length-1].speed; const t=l>f*1.008?['↘','NEG SPLIT','gold']:(l<f*0.992?['↗','FADE','purple']:['→','EVEN','purple']); highlights.push({ic:t[0],lab:t[1],val:'',c:t[2]}); }
   if(hrMax) highlights.push({ic:'♥',lab:'PEAK HR',val:hrMax+' bpm',c:'purple'});
   const hl=highlights.slice(0,3);
   // Vertical layout — fixed 9:16 frame. Cluster the header, add the "why" + highlights,
@@ -4843,17 +4851,18 @@ function _renderShareCard(x,t){
     const vw=x.measureText(st[1]).width; x.fillText(st[1],gx+22,L.statsTop+120);
     if(st[2]){ x.font='600 21px Inter'; x.fillStyle=C.muted; x.fillText(st[2],gx+22+vw+6,L.statsTop+120); }
   });
-  // highlights pills
-  if(L.hl && L.hl.length){ const hy=L.hlTop, ph=52; let hx=P;
-    L.hl.forEach((h,i)=>{ const a=seg(0.34+i*0.06,0.6+i*0.06);
+  // highlights pills (stop before the row overflows)
+  if(L.hl && L.hl.length){ const hy=L.hlTop, ph=52; let hx=P; let i=0;
+    for(const h of L.hl){ const a=seg(0.34+i*0.06,0.6+i*0.06);
       const col = h.c==='gold'?C.gold:C.purple2;
-      const label=h.ic+' '+h.lab+(h.val?('  '+h.val):'');
+      const label=(h.ic?h.ic+' ':'')+h.lab+(h.val?('  '+h.val):'');
       x.font='700 22px Inter'; const tw=x.measureText(label).width; const pw2=tw+40;
+      if(hx+pw2 > W-P+2) break;
       A(a); x.fillStyle=_hexA(col,0.14); roundRect(x,hx,hy,pw2,ph,ph/2); x.fill();
       x.strokeStyle=_hexA(col,0.5); x.lineWidth=1.5; roundRect(x,hx,hy,pw2,ph,ph/2); x.stroke();
       x.fillStyle=col; x.textAlign='left'; x.fillText(label,hx+20,hy+34);
-      hx+=pw2+12;
-    });
+      hx+=pw2+12; i++;
+    }
     x.globalAlpha=1;
   }
   // figure
@@ -6575,6 +6584,8 @@ function _activityToSession(act, opts = {}) {
     dist:      act.distance > 0 ? (act.distance / 1000).toFixed(2) : '',
     hr:        act.average_heartrate ? String(Math.round(act.average_heartrate)) : '',
     dur:       act.elapsed_time      ? String(Math.round(act.elapsed_time / 60)) : '',
+    // running cadence → steps/min (Strava/TCX report per-leg; double if it looks like it)
+    ...(act.average_cadence ? { cad: Math.round(act.average_cadence < 130 ? act.average_cadence*2 : act.average_cadence) } : {}),
     feel: '', notes: `${act.source || 'Strava'}: ${act.name || 'Activity'}`,
     ts: new Date(act.start_date || (localDate + 'T12:00:00')).getTime(),
     gid,
@@ -6644,13 +6655,15 @@ function _parseGPX(text, fname) {
   }
   const nameEl=doc.querySelector('trk > name') || doc.querySelector('name');
   const typeEl=doc.querySelector('trk > type') || doc.querySelector('type');
-  const samples=[]; let dist=0, prev=null;
+  const samples=[]; let dist=0, prev=null; let cadSum=0, cadN=0;
   for (const pt of pts) {
     const lat=parseFloat(pt.getAttribute('lat')), lon=parseFloat(pt.getAttribute('lon'));
     const tEl=pt.getElementsByTagName('time')[0];
     const t=tEl?Date.parse(tEl.textContent):NaN;
     const hrEl=[...pt.getElementsByTagName('*')].find(e=>/(^|:)hr$/i.test(e.tagName));
     const hr=hrEl?parseFloat(hrEl.textContent):null;
+    const cadEl=[...pt.getElementsByTagName('*')].find(e=>/(^|:)(cad|cadence|runcadence)$/i.test(e.tagName));
+    const cad=cadEl?parseFloat(cadEl.textContent):null; if(cad){ cadSum+=cad; cadN++; }
     if (!isNaN(lat)&&!isNaN(lon)&&prev) dist+=_haversine(prev.lat,prev.lon,lat,lon);
     if (!isNaN(t)) samples.push({ t, dist, hr: hr||null });
     if (!isNaN(lat)&&!isNaN(lon)) prev={lat,lon};
@@ -6668,6 +6681,7 @@ function _parseGPX(text, fname) {
     start_date:new Date(startMs).toISOString(), start_date_local:new Date(startMs).toISOString(),
     distance:dist, elapsed_time:elapsed, average_speed: (dist>0&&elapsed>0)?dist/elapsed:0,
     average_heartrate: hrs.length?hrs.reduce((a,b)=>a+b,0)/hrs.length:0,
+    average_cadence: cadN? cadSum/cadN : 0,
     strava_splits:splits,
   };
 }
@@ -6694,12 +6708,14 @@ function _parseTCX(text, fname) {
   }
   // Per-km splits from trackpoints (cumulative DistanceMeters + Time), if present.
   const tps=[...doc.getElementsByTagName('Trackpoint')];
-  const samples=[];
+  const samples=[]; let cadSum=0, cadN=0;
   for (const tp of tps) {
     const t=Date.parse(tp.getElementsByTagName('Time')[0]?.textContent||'');
     const dm=parseFloat(tp.getElementsByTagName('DistanceMeters')[0]?.textContent||'NaN');
     const hrEl=tp.querySelector('HeartRateBpm > Value');
     const hr=hrEl?parseFloat(hrEl.textContent):null;
+    const cadEl=tp.getElementsByTagName('Cadence')[0] || [...tp.getElementsByTagName('*')].find(e=>/RunCadence$/i.test(e.tagName));
+    const cad=cadEl?parseFloat(cadEl.textContent):null; if(cad){ cadSum+=cad; cadN++; }
     if (!isNaN(t)&&!isNaN(dm)) samples.push({ t, dist:dm, hr: hr||null });
   }
   if (dist===0 && elapsed===0) return { error:'no distance or time found in this TCX' };
@@ -6711,6 +6727,7 @@ function _parseTCX(text, fname) {
     start_date:new Date(startMs).toISOString(), start_date_local:new Date(startMs).toISOString(),
     distance:dist, elapsed_time:Math.max(1,elapsed), average_speed: dist>0&&elapsed>0?dist/elapsed:0,
     average_heartrate: hrN?hrSum/hrN:0,
+    average_cadence: cadN? cadSum/cadN : 0,
     strava_splits:splits, strava_laps: lapObjs.length>1?lapObjs:undefined,
   };
 }
