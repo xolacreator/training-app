@@ -43,8 +43,12 @@ const g=await page.evaluate(()=>_cardBreakdown(sessions[0]));
 check('Lap session groups into structure', !!g && g.grouped===true, g&&g.title);
 check('Groups: Warm-up · 3 reps · 2 rests · Cool-down', !!g && g.rows.map(r=>r.kind).join(',')==='warm,work,rest,work,rest,work,cool', g&&g.rows.map(r=>r.label).join('|'));
 check('Rep 1 merges its 2 sub-laps into ~2km', !!g && Math.abs(g.rows[1].distM-2000)<1 && g.rows[1].laps===2, g&&JSON.stringify({d:g.rows[1].distM,laps:g.rows[1].laps}));
-const rc=await page.evaluate(async()=>{ await shareSession(0); return _shareLayout.grid.find(t=>t[0]==='WORK REPS')?.[1]; });
-check('WORK REPS tile reflects 3 grouped reps (not raw laps)', rc==='3', rc);
+const rc=await page.evaluate(async()=>{ await shareSession(0); return _shareLayout.repCount; });
+check('Layout rep count reflects 3 grouped reps (not raw laps)', rc===3, rc);
+// Theme switch: both palettes available + persisted
+const themes=await page.evaluate(()=>{ setCardTheme('graphite'); const g=_shareLayout.C.name; setCardTheme('midnight'); const m=_shareLayout.C.name; return {g,m,stored:localStorage.getItem('ht-card-theme')}; });
+check('Theme switch → graphite + midnight palettes build', themes.g==='graphite'&&themes.m==='midnight', JSON.stringify(themes));
+check('Selected theme persists to localStorage', themes.stored==='midnight', themes.stored);
 
 // Per-km splits session (no laps) → PER-KM/MI SPLITS
 await page.evaluate(()=>{ sessions.length=0; sessions.push({week:'1',day:'Wed',session:'Tempo',pace:'4:10',dist:'8',hr:'150',dur:'34',feel:4,ts:Date.now(),gid:'file-y',strava_splits:[{distance:1000,moving_time:250,average_speed:4.0,average_heartrate:150}]}); saveData(); });
