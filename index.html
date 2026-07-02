@@ -4510,16 +4510,53 @@ let _shareIdx=null, _shareLayout=null, _shareRAF=null;
 
 // Distance/time/pace formatting for the card breakdown.
 function _cardDist(m){ const km=m/1000; return unitRun==='mi' ? (km*MI_PER_KM).toFixed(2) : km.toFixed(2); }
+// Group raw laps into the workout's logical structure:
+// Warm-up (all leading easy laps) · Rep 1 · Rest 1 · Rep 2 · … · Cool-down.
+// Contiguous laps of the same kind merge into one summarized line (total dist/time,
+// avg pace, avg HR). Returns null if work/rest can't be detected (not an interval run).
+function _groupLaps(s){
+  const laps=s.strava_laps; if(!laps||laps.length<2) return null;
+  // Gate: only regroup when this is clearly an interval workout.
+  const iv=(typeof getIntervalStats==='function')?getIntervalStats(s):null;
+  if(!iv) return null;
+  // Classify work tightly so a moderate warm-up/cool-down isn't mistaken for a rep:
+  // prefer Strava's hidden-lap flag; else laps within ~12% of the fastest lap = work.
+  const hasHidden=laps.some(l=>l.is_hidden);
+  const maxSp=Math.max(...laps.map(l=>l.average_speed||0))||1;
+  const isWork = hasHidden ? (l=>!l.is_hidden) : (l=>(l.average_speed||0) >= maxSp*0.88);
+  const firstW=laps.findIndex(isWork); if(firstW<0) return null;
+  let lastW=-1; for(let i=laps.length-1;i>=0;i--){ if(isWork(laps[i])){ lastW=i; break; } }
+  const mk=(label,arr,kind)=>{
+    const distM=arr.reduce((a,l)=>a+(l.distance||0),0);
+    const secs=arr.reduce((a,l)=>a+(l.moving_time||l.elapsed_time||0),0);
+    const hrA=arr.filter(l=>l.average_heartrate);
+    const hr=hrA.length?Math.round(hrA.reduce((a,l)=>a+l.average_heartrate,0)/hrA.length):0;
+    return { label, distM, secs, speed: secs>0?distM/secs:0, hr, work:kind==='work', kind, laps:arr.length };
+  };
+  const rows=[];
+  if(firstW>0) rows.push(mk('Warm-up', laps.slice(0,firstW),'warm'));
+  let i=firstW, repN=0, restN=0;
+  while(i<=lastW){
+    const w=isWork(laps[i]); let j=i+1; while(j<=lastW && isWork(laps[j])===w) j++;
+    const seg=laps.slice(i,j);
+    if(w){ repN++; rows.push(mk('Rep '+repN, seg,'work')); }
+    else { restN++; rows.push(mk('Rest '+restN, seg,'rest')); }
+    i=j;
+  }
+  if(lastW<laps.length-1) rows.push(mk('Cool-down', laps.slice(lastW+1),'cool'));
+  return rows.length?rows:null;
+}
 // Per-split / per-lap breakdown for the card, or null if none.
 function _cardBreakdown(s){
   const laps=s.strava_laps, splits=s.strava_splits;
   if(laps && laps.length>1){
-    const iv=(typeof getIntervalStats==='function')?getIntervalStats(s):null;
-    const ws=iv?iv.workSpeeds:null;
+    // Prefer the logical structure: Warm-up · Rep 1 · Rest 1 · … · Cool-down,
+    // merging any sub-laps within a segment into one summarized line.
+    const grouped=_groupLaps(s);
+    if(grouped) return {title:'SESSION STRUCTURE', rows:grouped, kind:'lap', grouped:true};
     const rows=laps.map((l,i)=>({label:String(i+1), distM:l.distance||0, secs:(l.moving_time||l.elapsed_time||0),
-      speed:l.average_speed||0, hr:l.average_heartrate?Math.round(l.average_heartrate):0,
-      work: ws? ws.has(l.average_speed) : true}));
-    return {title: (iv&&iv.reps? 'INTERVAL LAPS' : 'LAPS'), rows, kind:'lap'};
+      speed:l.average_speed||0, hr:l.average_heartrate?Math.round(l.average_heartrate):0, work:true, kind:'work'}));
+    return {title:'LAPS', rows, kind:'lap'};
   }
   if(splits && splits.length){
     const rows=splits.map((sp,i)=>({label:String(i+1), distM:sp.distance||1000, secs:(sp.moving_time||sp.elapsed_time||0),
@@ -4545,15 +4582,27 @@ function _buildShareLayout(s){
   for(const w of words){const t=line?line+' '+w:w;if(scratch.measureText(t).width>W-2*P&&line){lines.push(line);line=w;}else line=t;}
   if(line)lines.push(line);lines=lines.slice(0,2);
   const iv=(typeof getIntervalStats==='function')?getIntervalStats(s):null;
+  const bd=_cardBreakdown(s);
+  // When we grouped into reps, derive rep count / avg work pace / best rep from the
+  // grouping so the tiles match the structure exactly (not the looser lap detector).
+  let repCount=iv?iv.reps:0, avgWorkPace=iv?iv.avgPace:null, bestRepPace=iv?iv.bestPace:null;
+  if(bd && bd.grouped){
+    const wr=bd.rows.filter(r=>r.kind==='work');
+    if(wr.length){
+      repCount=wr.length;
+      const td=wr.reduce((a,r)=>a+r.distM,0), tt=wr.reduce((a,r)=>a+r.secs,0);
+      if(tt>0) avgWorkPace=convertPaceStr(mpsToMinKm(td/tt));
+      bestRepPace=convertPaceStr(mpsToMinKm(Math.max(...wr.map(r=>r.speed))));
+    }
+  }
   const stats=[];
-  if(iv)stats.push(['WORK REPS',`${iv.reps}`,'']);
-  if(s.pace)stats.push(['AVG PACE',iv?iv.avgPace:convertPaceStr(s.pace),'/'+paceUnit()]);
+  if(repCount)stats.push(['WORK REPS',`${repCount}`,'']);
+  if(s.pace)stats.push(['AVG PACE',avgWorkPace||convertPaceStr(s.pace),'/'+paceUnit()]);
   if(s.dist)stats.push(['DISTANCE',unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,distUnit()]);
   if(s.hr)stats.push(['AVG HR',`${s.hr}`,'bpm']);
   if(s.dur)stats.push(['DURATION',fmtDurMin(s.dur),'']);
   if(s.feel)stats.push(['FELT',`${s.feel}`,'/5']);
   const grid=stats.slice(0,4);
-  const bd=_cardBreakdown(s);
   const MAXROWS=12;
   let rows=bd?bd.rows:[];
   let extra=0;
@@ -4583,7 +4632,7 @@ function _buildShareLayout(s){
   const bdH=bd? (52 /*title*/ + 40 /*colhead*/ + rows.length*rowH + (extra?44:0)) : 0;
   const footerTop=bdTop+bdH+50;
   const H=Math.round(footerTop+70);
-  return {C,W,H,P,lines,grid,iv,bd,rows,extra,maxSpeed,chart,nameTop,tilesTop,tileH,tileGap,tilesBottom,chartTop,chartH,bdTop,rowH,footerTop};
+  return {C,W,H,P,lines,grid,iv,bd,rows,extra,maxSpeed,chart,bestRepPace,nameTop,tilesTop,tileH,tileGap,tilesBottom,chartTop,chartH,bdTop,rowH,footerTop};
 }
 // hex/rgb → rgba with alpha (for gradient stops + glows).
 function _hexA(c,a){
@@ -4676,29 +4725,30 @@ function _renderShareCard(x,t){
     A(seg(0.5,0.66));
     x.fillStyle=C.text3;x.font='600 26px "JetBrains Mono", ui-monospace, monospace';
     x.fillText(L.bd.title,P,L.bdTop+30);
-    // column headers
-    const cX={num:P, dist:P+150, time:P+380, pace:P+610, hr:W-P};
+    // column headers — wider first column for segment labels (Warm-up / Rep 1 / …)
+    const grouped=L.bd.grouped;
+    const cX={num:P, dist:P+(grouped?280:150), time:P+(grouped?480:380), pace:P+(grouped?680:610), hr:W-P};
     A(seg(0.45,0.62));
     x.font='500 20px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=C.text3;
     const chY=L.bdTop+56+26;
-    x.textAlign='left';x.fillText('#',cX.num,chY);x.fillText('DIST',cX.dist,chY);x.fillText('TIME',cX.time,chY);x.fillText('PACE',cX.pace,chY);
+    x.textAlign='left';x.fillText(grouped?'SEGMENT':'#',cX.num,chY);x.fillText('DIST',cX.dist,chY);x.fillText('TIME',cX.time,chY);x.fillText('PACE',cX.pace,chY);
     x.textAlign='right';x.fillText('HR',cX.hr,chY);x.textAlign='left';
     const rowsTop=L.bdTop+56+40;
-    const usable=W-2*P;
+    const kindCol=k=> k==='rest'?C.text3 : (k==='warm'||k==='cool')?C.blue : C.accent;
     L.rows.forEach((r,i)=>{
       const a=seg(0.6+i*0.025,0.85+i*0.025);
       const ry=rowsTop+i*L.rowH;
-      const col=r.work?C.accent:C.text3;
+      const lblCol=grouped?kindCol(r.kind):(r.work?C.accent:C.text3);
       // hairline row separator
       x.globalAlpha=0.5*a; x.strokeStyle=C.bg2; x.lineWidth=1; x.beginPath(); x.moveTo(P,ry+L.rowH-6); x.lineTo(W-P,ry+L.rowH-6); x.stroke();
       // text
       A(a);
-      x.font='600 28px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=col;x.textAlign='left';
+      x.font=`600 ${grouped?24:28}px "JetBrains Mono", ui-monospace, monospace`;x.fillStyle=lblCol;x.textAlign='left';
       x.fillText(r.label,cX.num,ry+30);
       x.font='500 28px "JetBrains Mono", ui-monospace, monospace';x.fillStyle=C.text;
       x.fillText(_cardDist(r.distM),cX.dist,ry+30);
       x.fillStyle=C.text2;x.fillText(fmtSecs(r.secs),cX.time,ry+30);
-      x.fillStyle=r.work?C.accent:C.text2;x.font='600 28px "JetBrains Mono", ui-monospace, monospace';
+      x.fillStyle=(grouped?(r.kind==='work'?C.accent:C.text2):(r.work?C.accent:C.text2));x.font='600 28px "JetBrains Mono", ui-monospace, monospace';
       x.fillText(r.speed>0?fmtPaceFull(r.speed):'—',cX.pace,ry+30);
       if(r.hr){x.fillStyle=C.text2;x.font='500 26px "JetBrains Mono", ui-monospace, monospace';x.textAlign='right';x.fillText(String(r.hr),cX.hr,ry+30);x.textAlign='left';}
     });
@@ -4708,7 +4758,7 @@ function _renderShareCard(x,t){
   A(seg(0.72,1));
   x.fillStyle=C.text3;x.font='500 24px "JetBrains Mono", ui-monospace, monospace';
   x.fillText('REV3 · TRAINING',P,H-P+10);
-  if(L.iv){const bp=`BEST REP ${L.iv.bestPace}/${paceUnit()}`;const bw=x.measureText(bp).width;x.fillStyle=C.accent;x.fillText(bp,W-P-bw,H-P+10);}
+  if(L.bestRepPace){const bp=`BEST REP ${L.bestRepPace}/${paceUnit()}`;const bw=x.measureText(bp).width;x.fillStyle=C.accent;x.fillText(bp,W-P-bw,H-P+10);}
   x.globalAlpha=1; x.textAlign='left';
 }
 
