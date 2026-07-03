@@ -54,6 +54,9 @@ check('Selected theme persists to localStorage', themes.stored==='midnight', the
 const hl=await page.evaluate(async()=>{ sessions[0].cad=182; await shareSession(0); return _shareLayout.hl.map(h=>h.lab); });
 check('Highlights include a type-specific metric (@ THRESHOLD / @ VO₂ / ON FEET)', hl.some(l=>/@ THRESHOLD|@ VO₂|ON FEET/.test(l)), JSON.stringify(hl));
 check('Highlights include CADENCE when present', hl.includes('CADENCE'), JSON.stringify(hl));
+// Overview avg pace is the WHOLE-SESSION pace (s.pace 4:05), not the faster work-rep pace
+const apStat=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Avg pace')?.[1]);
+check('Overview Avg pace = overall session pace (not work-rep pace)', apStat==='4:05', apStat);
 
 // Purpose source: program week note → "THIS WEEK"; no program → KB "WHY THIS SESSION"
 const pLab=await page.evaluate(async()=>{

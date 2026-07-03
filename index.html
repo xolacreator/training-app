@@ -4647,14 +4647,18 @@ function _buildShareLayout(s){
   if(bd && bd.grouped){ const wr=bd.rows.filter(r=>r.kind==='work'); if(wr.length){ repCount=wr.length;
     const td=wr.reduce((a,r)=>a+r.distM,0), tt=wr.reduce((a,r)=>a+r.secs,0);
     if(tt>0) avgWorkPace=convertPaceStr(mpsToMinKm(td/tt)); bestRepPace=convertPaceStr(mpsToMinKm(Math.max(...wr.map(r=>r.speed)))); } }
-  // Total time
+  // Total time (whole session)
   let totalMin = s.dur? parseFloat(s.dur):0;
   if(!totalMin && bd && bd.rows.length){ const tot=bd.rows.reduce((a,r)=>a+(r.secs||0),0); if(tot>0) totalMin=tot/60; }
-  // Stats (up to 4)
+  // Overview stats = WHOLE-SESSION figures (per-segment values live in the table below).
+  // Avg pace is the overall session pace (s.pace), not the work-rep pace; fall back to
+  // total distance ÷ total time if the session has no stored pace.
+  let overallPace = s.pace ? convertPaceStr(s.pace) : '';
+  if(!overallPace && s.dist && totalMin){ const mps=(parseFloat(s.dist)*1000)/(totalMin*60); if(mps>0) overallPace=convertPaceStr(mpsToMinKm(mps)); }
   const stats=[];
   if(s.dist) stats.push(['Distance', unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist, distUnit(), false]);
   if(totalMin) stats.push(['Total time', fmtDurMin(totalMin), '', true]);
-  if(s.pace) stats.push(['Avg pace', avgWorkPace||convertPaceStr(s.pace), '/'+paceUnit(), false]);
+  if(overallPace) stats.push(['Avg pace', overallPace, '/'+paceUnit(), false]);
   if(s.hr) stats.push(['Avg HR', String(s.hr), 'bpm', false]);
   if(stats.length<4 && s.feel) stats.push(['Felt', String(s.feel), '/5', false]);
   const grid=stats.slice(0,4);
