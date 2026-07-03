@@ -4647,14 +4647,17 @@ function _buildShareLayout(s){
   if(bd && bd.grouped){ const wr=bd.rows.filter(r=>r.kind==='work'); if(wr.length){ repCount=wr.length;
     const td=wr.reduce((a,r)=>a+r.distM,0), tt=wr.reduce((a,r)=>a+r.secs,0);
     if(tt>0) avgWorkPace=convertPaceStr(mpsToMinKm(td/tt)); bestRepPace=convertPaceStr(mpsToMinKm(Math.max(...wr.map(r=>r.speed)))); } }
-  // Total time (whole session)
+  // Total time (whole session). Prefer the precise segment sum when it agrees with the
+  // stored duration (imports round to whole minutes); keep s.dur when they differ (pauses).
   let totalMin = s.dur? parseFloat(s.dur):0;
-  if(!totalMin && bd && bd.rows.length){ const tot=bd.rows.reduce((a,r)=>a+(r.secs||0),0); if(tot>0) totalMin=tot/60; }
+  if(bd && bd.rows.length){ const tot=bd.rows.reduce((a,r)=>a+(r.secs||0),0)/60;
+    if(tot>0 && (!totalMin || Math.abs(tot-totalMin)<=2)) totalMin=tot; }
   // Overview stats = WHOLE-SESSION figures (per-segment values live in the table below).
-  // Avg pace is the overall session pace (s.pace), not the work-rep pace; fall back to
-  // total distance ÷ total time if the session has no stored pace.
-  let overallPace = s.pace ? convertPaceStr(s.pace) : '';
-  if(!overallPace && s.dist && totalMin){ const mps=(parseFloat(s.dist)*1000)/(totalMin*60); if(mps>0) overallPace=convertPaceStr(mpsToMinKm(mps)); }
+  // Avg pace = total distance ÷ total time (exactly how the watch derives it), so it's
+  // always the overall pace and never the work-rep pace; s.pace is only a last fallback.
+  let overallPace = '';
+  if(s.dist && totalMin){ const mps=(parseFloat(s.dist)*1000)/(totalMin*60); if(mps>0) overallPace=convertPaceStr(mpsToMinKm(mps)); }
+  if(!overallPace && s.pace) overallPace=convertPaceStr(s.pace);
   // Overall avg HR — duration-weighted across the segments (true time-weighted average,
   // matching the table and correcting unweighted lap averages); fall back to s.hr.
   let overallHR = s.hr ? parseInt(s.hr) : 0;
