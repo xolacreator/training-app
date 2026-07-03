@@ -50,6 +50,24 @@ const themes=await page.evaluate(()=>{ setCardTheme('graphite'); const g=_shareL
 check('Theme switch → graphite + midnight palettes build', themes.g==='graphite'&&themes.m==='midnight', JSON.stringify(themes));
 check('Selected theme persists to localStorage', themes.stored==='midnight', themes.stored);
 
+// Highlights: type-specific metric (@ THRESHOLD) + cadence pill
+const hl=await page.evaluate(async()=>{ sessions[0].cad=182; await shareSession(0); return _shareLayout.hl.map(h=>h.lab); });
+check('Highlights include a type-specific metric (@ THRESHOLD / @ VO₂ / ON FEET)', hl.some(l=>/@ THRESHOLD|@ VO₂|ON FEET/.test(l)), JSON.stringify(hl));
+check('Highlights include CADENCE when present', hl.includes('CADENCE'), JSON.stringify(hl));
+
+// Purpose source: program week note → "THIS WEEK"; no program → KB "WHY THIS SESSION"
+const pLab=await page.evaluate(async()=>{
+  saveProgramData({id:'pp',name:'Block',type:'endurance',startDate:_mondayISO(new Date()),weeks:8,sessionsPerWeek:3,
+    sessions:[{id:'tempo',type:'endurance',name:'Tempo',runType:'tempo'}],dayMap:['tempo',null,null,null,null,null,null],
+    weeklyProgressions:Array.from({length:9},(_,i)=>({week:i+1,note:(i===2?'Peak volume':'')}))});
+  sessions.length=0;
+  sessions.push({session:'Tempo Intervals',pace:'4:10',dist:'8',dur:'34',hr:'150',progId:'pp',progWeek:3,progSid:'tempo',date:new Date().toISOString().slice(0,10),ts:Date.now(),gid:'s1'});
+  await shareSession(0); return _shareLayout.purpose&&_shareLayout.purpose.label;
+});
+check('Program-linked week note → THIS WEEK purpose', pLab==='THIS WEEK', pLab);
+const pLab2=await page.evaluate(async()=>{ savedProgram=null; localStorage.removeItem('ht-program'); await shareSession(0); return _shareLayout.purpose&&_shareLayout.purpose.label; });
+check('No program → KB WHY THIS SESSION purpose (fallback)', pLab2==='WHY THIS SESSION', pLab2);
+
 // Per-km splits session (no laps) → PER-KM/MI SPLITS
 await page.evaluate(()=>{ sessions.length=0; sessions.push({week:'1',day:'Wed',session:'Tempo',pace:'4:10',dist:'8',hr:'150',dur:'34',feel:4,ts:Date.now(),gid:'file-y',strava_splits:[{distance:1000,moving_time:250,average_speed:4.0,average_heartrate:150}]}); saveData(); });
 const bd2=await page.evaluate(()=>_cardBreakdown(sessions[0]));
