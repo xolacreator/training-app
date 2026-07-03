@@ -4655,11 +4655,18 @@ function _buildShareLayout(s){
   // total distance ÷ total time if the session has no stored pace.
   let overallPace = s.pace ? convertPaceStr(s.pace) : '';
   if(!overallPace && s.dist && totalMin){ const mps=(parseFloat(s.dist)*1000)/(totalMin*60); if(mps>0) overallPace=convertPaceStr(mpsToMinKm(mps)); }
+  // Overall avg HR — duration-weighted across the segments (true time-weighted average,
+  // matching the table and correcting unweighted lap averages); fall back to s.hr.
+  let overallHR = s.hr ? parseInt(s.hr) : 0;
+  if(bd && bd.rows.length){
+    const hw=bd.rows.filter(r=>r.hr>0 && r.secs>0);
+    if(hw.length){ const num=hw.reduce((a,r)=>a+r.hr*r.secs,0), den=hw.reduce((a,r)=>a+r.secs,0); if(den>0) overallHR=Math.round(num/den); }
+  }
   const stats=[];
   if(s.dist) stats.push(['Distance', unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist, distUnit(), false]);
   if(totalMin) stats.push(['Total time', fmtDurMin(totalMin), '', true]);
   if(overallPace) stats.push(['Avg pace', overallPace, '/'+paceUnit(), false]);
-  if(s.hr) stats.push(['Avg HR', String(s.hr), 'bpm', false]);
+  if(overallHR) stats.push(['Avg HR', String(overallHR), 'bpm', false]);
   if(stats.length<4 && s.feel) stats.push(['Felt', String(s.feel), '/5', false]);
   const grid=stats.slice(0,4);
   // Breakdown rows (cap)
@@ -6718,12 +6725,13 @@ function _parseTCX(text, fname) {
   }
   // Per-km splits from trackpoints (cumulative DistanceMeters + Time), if present.
   const tps=[...doc.getElementsByTagName('Trackpoint')];
-  const samples=[]; let cadSum=0, cadN=0;
+  const samples=[]; let cadSum=0, cadN=0, tpHrSum=0, tpHrN=0;
   for (const tp of tps) {
     const t=Date.parse(tp.getElementsByTagName('Time')[0]?.textContent||'');
     const dm=parseFloat(tp.getElementsByTagName('DistanceMeters')[0]?.textContent||'NaN');
     const hrEl=tp.querySelector('HeartRateBpm > Value');
     const hr=hrEl?parseFloat(hrEl.textContent):null;
+    if(hr){ tpHrSum+=hr; tpHrN++; }   // collect HR from every trackpoint (incl. indoor, no distance)
     const cadEl=tp.getElementsByTagName('Cadence')[0] || [...tp.getElementsByTagName('*')].find(e=>/RunCadence$/i.test(e.tagName));
     const cad=cadEl?parseFloat(cadEl.textContent):null; if(cad){ cadSum+=cad; cadN++; }
     if (!isNaN(t)&&!isNaN(dm)) samples.push({ t, dist:dm, hr: hr||null });
@@ -6731,12 +6739,14 @@ function _parseTCX(text, fname) {
   if (dist===0 && elapsed===0) return { error:'no distance or time found in this TCX' };
   const splits=samples.length>1 ? _splitsFromSamples(samples) : [];
   const sportRaw=actEl?.getAttribute('Sport')||'';
+  // Prefer per-trackpoint HR (true average); fall back to averaging lap averages.
+  const avgHR = tpHrN ? tpHrSum/tpHrN : (hrN?hrSum/hrN:0);
   return {
     gid:_fileActId(startMs,dist), name:(fname||'Imported activity').replace(/\.tcx$/i,''),
     sport_type:_normalizeSportType(sportRaw), source:'File',
     start_date:new Date(startMs).toISOString(), start_date_local:new Date(startMs).toISOString(),
     distance:dist, elapsed_time:Math.max(1,elapsed), average_speed: dist>0&&elapsed>0?dist/elapsed:0,
-    average_heartrate: hrN?hrSum/hrN:0,
+    average_heartrate: avgHR,
     average_cadence: cadN? cadSum/cadN : 0,
     strava_splits:splits, strava_laps: lapObjs.length>1?lapObjs:undefined,
   };

@@ -57,6 +57,9 @@ check('Highlights include CADENCE when present', hl.includes('CADENCE'), JSON.st
 // Overview avg pace is the WHOLE-SESSION pace (s.pace 4:05), not the faster work-rep pace
 const apStat=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Avg pace')?.[1]);
 check('Overview Avg pace = overall session pace (not work-rep pace)', apStat==='4:05', apStat);
+// Avg HR is duration-weighted across segments (~153), not the raw stored s.hr (160)
+const hrStat=await page.evaluate(()=> parseInt(_shareLayout.grid.find(t=>t[0]==='Avg HR')?.[1]));
+check('Overview Avg HR is duration-weighted from segments (not raw s.hr)', hrStat>=150&&hrStat<=155, hrStat);
 
 // Purpose source: program week note → "THIS WEEK"; no program → KB "WHY THIS SESSION"
 const pLab=await page.evaluate(async()=>{
