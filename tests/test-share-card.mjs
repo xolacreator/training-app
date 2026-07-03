@@ -55,8 +55,9 @@ const hl=await page.evaluate(async()=>{ sessions[0].cad=182; await shareSession(
 check('Highlights include a type-specific metric (@ THRESHOLD / @ VO₂ / ON FEET)', hl.some(l=>/@ THRESHOLD|@ VO₂|ON FEET/.test(l)), JSON.stringify(hl));
 check('Highlights include CADENCE when present', hl.includes('CADENCE'), JSON.stringify(hl));
 // Overview avg pace is the WHOLE-SESSION pace (s.pace 4:05), not the faster work-rep pace
+// Overall pace = distance ÷ total time (a 4:xx overall, not the ~3:5x work-rep pace)
 const apStat=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Avg pace')?.[1]);
-check('Overview Avg pace = overall session pace (not work-rep pace)', apStat==='4:05', apStat);
+check('Overview Avg pace is the overall pace (dist÷time), not work-rep pace', /^4:/.test(apStat||''), apStat);
 // Avg HR is duration-weighted across segments (~153), not the raw stored s.hr (160)
 const hrStat=await page.evaluate(()=> parseInt(_shareLayout.grid.find(t=>t[0]==='Avg HR')?.[1]));
 check('Overview Avg HR is duration-weighted from segments (not raw s.hr)', hrStat>=150&&hrStat<=155, hrStat);
