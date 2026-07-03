@@ -4670,17 +4670,23 @@ function _buildShareLayout(s){
   const fastPace=segs.length?convertPaceStr(mpsToMinKm(Math.max(...segs.map(r=>r.speed)))):'';
   // Added content: a KB "why this session" line + a highlights row.
   const scratch2=document.createElement('canvas').getContext('2d');
+  const _wrap2=(txt)=>{ scratch2.font='500 22px Inter'; const maxW=W-2*P; const words=txt.split(' '); let ln='',pls=[];
+    for(const w of words){ const tt=ln?ln+' '+w:w; if(scratch2.measureText(tt).width>maxW && ln){pls.push(ln);ln=w;}else ln=tt; }
+    if(ln)pls.push(ln); if(pls.length>2){ pls=pls.slice(0,2); pls[1]=pls[1].replace(/\s\S*$/,'')+'…'; } return pls; };
   let purpose=null;
-  if((s.pace||s.dist) && typeof _enduranceCoaching==='function'){
+  // Program-specific "why" — preferred when the session is linked to a program week with a note.
+  if(plan && typeof savedProgram!=='undefined' && savedProgram){
+    const wp=(savedProgram.weeklyProgressions||[])[plan.week-1]||{};
+    const note = wp.deload ? 'Recover and consolidate — absorb the block before the next build.'
+      : (wp.note ? (wp.note.charAt(0).toUpperCase()+wp.note.slice(1)) : '');
+    if(note) purpose={ label:'THIS WEEK', adaptation:`WK ${plan.week}/${plan.weeks}${plan.phase?(' · '+plan.phase.toUpperCase()):''}`, lines:_wrap2(note) };
+  }
+  // Fallback: KB coaching purpose (the training principle for this session type).
+  if(!purpose && (s.pace||s.dist) && typeof _enduranceCoaching==='function'){
     let co=null; try{ co=_enduranceCoaching(_cardRunType(s,grouped)); }catch(e){}
     if(co && co.purpose){
-      // Punchy first clause only (before an em-dash or first sentence), wrapped to ≤2 lines.
       let ptext=co.purpose.split(/\s[—-]\s/)[0].split('. ')[0].replace(/\.$/,'').trim();
-      scratch2.font='500 22px Inter'; const maxW=W-2*P; const words=ptext.split(' '); let ln='',pls=[];
-      for(const w of words){ const tt=ln?ln+' '+w:w; if(scratch2.measureText(tt).width>maxW && ln){pls.push(ln);ln=w;}else ln=tt; }
-      if(ln)pls.push(ln);
-      if(pls.length>2){ pls=pls.slice(0,2); pls[1]=pls[1].replace(/\s\S*$/,'')+'…'; }
-      purpose={ adaptation:(co.adaptation||'').toUpperCase(), lines:pls };
+      purpose={ label:'WHY THIS SESSION', adaptation:(co.adaptation||'').toUpperCase(), lines:_wrap2(ptext) };
     }
   }
   const wr=(bd&&bd.grouped)?bd.rows.filter(r=>r.kind==='work'):[];
@@ -4834,7 +4840,7 @@ function _renderShareCard(x,t){
   // "why this session" — KB purpose, with a gold accent rail
   if(L.purpose){ const pa=seg(0.24,0.54); A(pa);
     const py=L.purposeTop; x.fillStyle=C.gold; roundRect(x,P,py+4,4,20,2); x.fill();
-    x.font='700 16px Inter'; x.fillStyle=C.gold; x.fillText('WHY THIS SESSION'+(L.purpose.adaptation?(' · '+L.purpose.adaptation):''),P+16,py+18);
+    x.font='700 16px Inter'; x.fillStyle=C.gold; x.fillText((L.purpose.label||'WHY THIS SESSION')+(L.purpose.adaptation?(' · '+L.purpose.adaptation):''),P+16,py+18);
     x.font='500 22px Inter'; x.fillStyle=_hexA(C.text,0.86);
     L.purpose.lines.forEach((ln,i)=> x.fillText(ln,P,py+52+i*32));
   }
