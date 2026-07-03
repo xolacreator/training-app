@@ -2662,16 +2662,24 @@ function normaliseSessions(arr) {
 }
 
 // Export all data (sessions + custom plan + templates) as a dated JSON file
+// Keys included in a full backup (everything that isn't a device-specific token/secret).
+const BACKUP_KEYS = ['ht-program','ht-program-week','ht-baselines','ht-recovery','ht-availability',
+  'ht-plan-start','ht-plan-type','ht-goal','ht-goal-category','ht-goal-race-type',
+  'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
+  'ht-coach-memory','ht-custom','ht-tmpl','ht-theme','ht-palette','ht-card-theme',
+  'ht-units-run','ht-units-strength','ht-pending-review'];
 function exportData() {
   try {
+    const storage={}; BACKUP_KEYS.forEach(k=>{ const v=localStorage.getItem(k); if(v!=null) storage[k]=v; });
     const blob = new Blob([JSON.stringify({
-      version: '4',
+      version: '5',
       exportedAt: new Date().toISOString(),
       appName: 'Rev3',
       sessions,
       custom: JSON.parse(localStorage.getItem('ht-custom') || '{}'),
       templates: JSON.parse(localStorage.getItem('ht-tmpl') || '[]'),
       settings: { theme: localStorage.getItem('ht-theme') || '' },
+      storage,  // full app state: program, baselines, recovery, goals, availability, prefs…
     }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2728,6 +2736,20 @@ function importDataFile(file) {
         } catch(e) {}
       }
 
+      // Restore full app state (program, baselines, recovery, goals, prefs) — only for
+      // keys not already present, so importing never clobbers current data.
+      let restored=0;
+      if (raw.storage && typeof raw.storage==='object') {
+        Object.entries(raw.storage).forEach(([k,v])=>{
+          if (k==='ht-custom'||k==='ht-tmpl') return; // merged above
+          try { if (localStorage.getItem(k)==null && typeof v==='string') { localStorage.setItem(k,v); restored++; } } catch(e){}
+        });
+      }
+      if (restored) {
+        toast(`Restored backup ✓ — reloading…`);
+        setTimeout(()=>location.reload(), 900); // re-init program/baselines/etc.
+        return;
+      }
       renderAll();
       toast(`Imported ${added.length} new session${added.length===1?'':'s'} ✓`);
     } catch(err) {
