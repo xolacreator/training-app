@@ -9,6 +9,11 @@ Usage (from repo root):
     python3 scripts/github-push.py [file] [owner] [repo] [branch]
 
 Defaults: index.html  bruces6  training-app  main
+
+The remote path defaults to [file]; override it with GH_REMOTE_PATH when the
+local file differs from the destination path — e.g. deploying the minified
+build artifact to the served path:
+    GH_REMOTE_PATH=index.html python3 scripts/github-push.py dist/index.html bruces6 training-app main
 """
 import json, os, sys, urllib.request, subprocess
 
@@ -17,6 +22,7 @@ OWNER        = sys.argv[2] if len(sys.argv) > 2 else 'bruces6'
 REPO         = sys.argv[3] if len(sys.argv) > 3 else 'training-app'
 BRANCH       = sys.argv[4] if len(sys.argv) > 4 else 'main'
 SHA_OVERRIDE = sys.argv[5] if len(sys.argv) > 5 else None
+REMOTE_PATH  = os.environ.get('GH_REMOTE_PATH', FILE)   # destination path on the remote
 
 def main():
     tok_file   = os.environ.get('CLAUDE_SESSION_INGRESS_TOKEN_FILE',
@@ -29,7 +35,7 @@ def main():
     tok     = open(tok_file).read().strip()
     mcp_url = f'https://api.anthropic.com/v2/ccr-sessions/{session_id}/github/mcp'
     content = open(FILE).read()
-    print(f'Pushing {FILE} ({len(content):,} chars) → {OWNER}/{REPO}:{BRANCH}')
+    print(f'Pushing {FILE} ({len(content):,} chars) → {OWNER}/{REPO}:{BRANCH}:{REMOTE_PATH}')
 
     HEADERS = {
         'Content-Type':    'application/json',
@@ -52,7 +58,7 @@ def main():
     else:
         r = mcp({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
             "name":"get_file_contents",
-            "arguments":{"owner":OWNER,"repo":REPO,"path":FILE,"branch":BRANCH}
+            "arguments":{"owner":OWNER,"repo":REPO,"path":REMOTE_PATH,"branch":BRANCH}
         }})
         txt = r['result']['content'][0]['text']
         sha = txt.split('SHA: ')[1].split(')')[0] if 'SHA: ' in txt else None
@@ -68,7 +74,7 @@ def main():
 
     # 3. Push
     args = {"owner":OWNER,"repo":REPO,"branch":BRANCH,
-            "path":FILE,"content":content,"message":msg}
+            "path":REMOTE_PATH,"content":content,"message":msg}
     if sha:
         args["sha"] = sha
     r2 = mcp({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{

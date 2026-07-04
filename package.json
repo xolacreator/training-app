@@ -1,0 +1,13 @@
+{
+  "name": "training-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:kb": "node scripts/build-knowledge.mjs",
+    "build": "node scripts/build-knowledge.mjs && node scripts/minify.mjs",
+    "minify": "node scripts/minify.mjs"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0"
+  }
+}
