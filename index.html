@@ -8291,12 +8291,19 @@ function recomputeAthleteState(){
     };
   }
 
-  // Availability (Locked/Preferred/Available/Avoid comes in Phase 5; raw for now).
-  let availability = null;
+  // Availability + Training Preferences (Locked/Preferred/Available/Avoid per day).
+  let availability = null, preferences = null;
   try {
     availability = (typeof athleteAvailability!=='undefined' && athleteAvailability)
       ? athleteAvailability
       : JSON.parse(localStorage.getItem('ht-availability')||'null');
+  } catch(e){}
+  try {
+    if (typeof availabilityForDay==='function' && typeof AVAIL_DAYS!=='undefined'){
+      preferences = {};
+      AVAIL_DAYS.forEach(d=>{ const g=availabilityForDay(d); if (g.locked.length||g.preferred.length||g.available.length||g.avoid.length) preferences[d]=g; });
+      if (!Object.keys(preferences).length) preferences = null;
+    }
   } catch(e){}
 
   const state = {
@@ -8312,6 +8319,7 @@ function recomputeAthleteState(){
     readiness,                            // 0–100 or null
     program,                              // {id,name,type,week,totalWeeks,phase} or null
     availability,                         // raw ht-availability or null
+    preferences,                          // per-day grouped {locked,preferred,available,avoid} or null
     equipment:  { shoes: [] },            // placeholder — Shoe Intelligence (Phase 7)
     events:     { nextRace: _asNextRace() },
     sessionCount: Array.isArray(sessions) ? sessions.length : 0,
@@ -8554,13 +8562,16 @@ function scheduleWeek(objectiveIds, opts={}){
       if (adp.hard) score -= adjHardConflict(day) * 6;   // fatigue spacing: avoid stacking hard days
       if (!best || score > best.score) best = { day, score, fit };
     }
-    // Fallback: allow an Avoid day only if no other free day exists — still bounded
-    // by allowedDays so objectives never leak onto days the athlete didn't choose.
+    // Fallback: place on any remaining free day — but Phase 5 makes AVOID a hard
+    // constraint, so never leak onto an Avoid day (leave the objective unplaced
+    // instead). Still bounded by allowedDays.
     if (!best){
       for (const day of DOW){
         if (assigned[day]) continue;
         if (opts.allowedDays && !opts.allowedDays.includes(day)) continue;
-        const fit=dayFit(day,adp); best={ day, score:-50, fit, forced:true }; break;
+        const fit=dayFit(day,adp);
+        if (fit.status==='avoid') continue;              // Avoid is never placed on
+        best={ day, score:-50, fit, forced:true }; break;
       }
     }
     if (!best){ unplaced.push(adp.label); continue; }
@@ -8659,8 +8670,22 @@ function _progPhaseName(slot){
   const p = savedProgram; if (p?.fitstopBlock && slot?.week) { const ph=_fitstopPhase(slot.week); return ph?.name; }
   return null;
 }
+// Map a program session → the Training-Preferences category it belongs to, so the
+// scheduler/rescheduler can check that day's Locked/Preferred/Available/Avoid tag.
+function _sessionCategoryId(sess){
+  if (!sess) return null;
+  const t = (typeof _sessType==='function') ? _sessType(sess) : (sess.type||'strength');
+  if (t==='endurance' || t==='run'){
+    const rt = sess.runType==='threshold' ? 'tempo' : (sess.runType||'easy');
+    return { easy:'easy-run', recovery:'recovery-run', long:'long-run', tempo:'workout-run', intervals:'track' }[rt] || 'easy-run';
+  }
+  if (t==='fitstop' || t==='conditioning' || t==='mixed') return 'fitstop';
+  return 'strength';
+}
 // Propose a reschedule for the active program's current week, given (low) readiness.
-// Returns { weekN, fromDay, toDay, sessionName, reason } or null.
+// Phase 5: honours Training Preferences — a Locked session is immovable, and a
+// session is never moved onto an Avoid day; among legal targets, prefer the
+// athlete's Preferred/Available days. Returns { weekN, fromDay, toDay, ... } or null.
 function suggestReschedule(opts={}){
   const prog = savedProgram; if (!prog || !Array.isArray(prog.dayMap)) return null;
   const weekN = opts.week || (typeof _progActualWeek==='function' ? _progActualWeek() : currentProgramWeek||1);
@@ -8671,20 +8696,36 @@ function suggestReschedule(opts={}){
   const byDay = Object.fromEntries(slots.map(s=>[s.day,s]));
   const todaySlot = byDay[todayDow];
   if (!todaySlot || !todaySlot.session || !_slotHard(todaySlot)) return null; // nothing hard to move today
-  // Candidate target: a rest day or easy session later this week, not adjacent to a hard day.
+  const movedCat = _sessionCategoryId(todaySlot.session);
+  // Locked is immovable — never propose moving a session the athlete locked to today.
+  if (typeof getDayStatus==='function' && getDayStatus(todayDow, movedCat) === 'locked') return null;
   const order = _ALL_DOW;
   const ti = order.indexOf(todayDow);
   const adjHard = (i)=>{ const p=byDay[order[(i+6)%7]], n=byDay[order[(i+1)%7]]; return _slotHard(p)||_slotHard(n); };
-  let target=null;
-  for (let k=1;k<7;k++){                                          // look forward through the week first
-    const i=(ti+k)%7, day=order[i], s=byDay[day];
-    const isEasyOrRest = !s.session || !_slotHard(s);
-    if (isEasyOrRest && !adjHard(i)){ target=day; break; }
+  const prefRank = { preferred:3, available:2, none:1 };
+  // A day is a legal target if it's easy/rest, not an Avoid day for this session,
+  // and not itself a Locked commitment (which we must not displace).
+  const legal = (day)=>{
+    const s = byDay[day]; if (!s) return false;
+    if (s.session && _slotHard(s)) return false;                 // target must be easy/rest
+    if (typeof getDayStatus==='function' && getDayStatus(day, movedCat) === 'avoid') return false;
+    if (typeof availabilityForDay==='function' && availabilityForDay(day).locked.length) return false;
+    return true;
+  };
+  // Prefer non-adjacent-to-hard legal days, ranked by the athlete's preference tag.
+  let target=null, bestRank=-1;
+  for (let k=1;k<7;k++){ const i=(ti+k)%7, day=order[i];
+    if (!legal(day) || adjHard(i)) continue;
+    const r = prefRank[(typeof getDayStatus==='function'?getDayStatus(day,movedCat):'none')] ?? 1;
+    if (r > bestRank){ bestRank=r; target=day; }
   }
-  if (!target){ for (let k=1;k<7;k++){ const i=(ti+k)%7, day=order[i], s=byDay[day]; if(!s.session||!_slotHard(s)){ target=day; break; } } }
+  // Relax the adjacency rule if nothing better exists (still legal — respects Avoid/Locked).
+  if (!target){ for (let k=1;k<7;k++){ const i=(ti+k)%7, day=order[i]; if (legal(day)){ target=day; break; } } }
   if (!target) return null;
+  const tgtStatus = (typeof getDayStatus==='function') ? getDayStatus(target, movedCat) : 'none';
+  const prefNote = tgtStatus==='preferred' ? ' (a day you prefer for it)' : tgtStatus==='available' ? ' (a day you marked available)' : '';
   return { weekN, fromDay:todayDow, toDay:target, sessionName:todaySlot.session.name,
-    reason:`Readiness is low today (${readiness}/100). Move ${todaySlot.session.name} to ${target} and keep today easy — the adaptation stays, the day shifts.` };
+    reason:`Readiness is low today (${readiness}/100). Move ${todaySlot.session.name} to ${target}${prefNote} and keep today easy — the adaptation stays, the day shifts.` };
 }
 // Apply a reschedule: swap the two days for that week via a per-week override.
 function applyReschedule(weekN, fromDay, toDay){
