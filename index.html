@@ -642,8 +642,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div id="plan-overview" style="display:none;margin-bottom:12px;"></div>
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
-    <div class="card" id="plan-days"></div>
-    <button id="plan-log-week-btn" class="btn" style="margin-top:4px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <div id="plan-days"></div>
+    <button id="plan-log-week-btn" class="btn" style="margin-top:10px;" onclick="logThisWeek()">+ Log session for this week</button>
     <div id="plan-archive-section" style="display:none;margin-top:20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;" onclick="togglePlanArchive(this)">
         <div class="sec-lbl" style="margin:0;">Previous plan</div>
@@ -3401,23 +3401,40 @@ function renderPlan(w){
   const ab=document.getElementById('assessment-banner');
   if (ab) { if(parseInt(w)===1){renderAssessmentBanner();}else{ab.style.display='none';} }
   const ph=pw.ph===2?'Phase 2 · ':'Phase 1 · ';
-  document.getElementById('plan-days').innerHTML=pw.sessions.map(p=>{
+  const todayDow3=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+  document.getElementById('plan-days').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">`+pw.sessions.map(p=>{
     const done=loggedDays.some(d=>d===p.day||d.slice(0,3)===p.day.slice(0,3));
-    const isRace=p.race;
-    return `<div class="prow" onclick="openPlanOverlay('${w}','${p.day}','${p.session.replace(/'/g,"\\'")}','${p.session.replace(/'/g,"\\'")}','${ph}W${w} · ${p.day} ${p.date}')">
-      <div>
-        <div class="pday-name">${p.day}</div>
-        <div class="pday-date">${p.date}</div>
-      </div>
-      <div class="prow-session ${isRace?'race':''}">
-        ${pip(p.intensity,11)}
-        <span>${p.session}</span>
-      </div>
-      <div>${done?`<span class="badge bd-done">done</span>`:isRace?`<span class="badge bd-race">race</span>`:''}</div>
-    </div>`;
-  }).join('');
+    const isToday=p.day.slice(0,3)===todayDow3;
+    const esc=s=>s.replace(/'/g,"\\'");
+    return _planRowKG({
+      color:_intCol(p.race?'race':p.intensity), isToday, done, race:p.race,
+      eyebrow:`${p.day} · ${p.date}`, name:p.session,
+      onclick:`openPlanOverlay('${w}','${p.day}','${esc(p.session)}','${esc(p.session)}','${ph}W${w} · ${p.day} ${p.date}')`,
+    });
+  }).join('')+`</div>`;
 }
 
+// Kinetic Gold intensity color for a plan row's left tab.
+function _intCol(x){ x=(x||'').toLowerCase();
+  if(/hard|peak|vo|threshold|tempo|interval|race/.test(x)) return 'var(--red)';
+  if(/mod/.test(x)) return 'var(--blue)';
+  return 'var(--green)'; }
+// Kinetic Gold plan session row — 3px intensity tab · mono day/date eyebrow · uppercase
+// headliner name · DONE pill; today = gold tint + gold border + "· TODAY".
+function _planRowKG(o){
+  const tab = o.isToday ? 'var(--accent)' : o.color;
+  const bg = o.isToday ? 'rgba(212,175,55,.1)' : 'var(--bg2)';
+  const border = o.isToday ? '#D4AF37' : 'var(--border)';
+  const eyeCol = o.isToday ? 'var(--accent)' : 'var(--text3)';
+  return `<div ${o.onclick?`onclick="${o.onclick}"`:''} style="display:flex;align-items:center;gap:12px;border-radius:14px;background:${bg};border:1px solid ${border};padding:13px 14px;cursor:${o.onclick?'pointer':'default'};${o.dim?'opacity:.5;':''}">
+    <div style="width:3px;height:34px;background:${tab};border-radius:2px;flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:var(--mono);font-weight:600;font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:${eyeCol};margin-bottom:3px;">${o.eyebrow}${o.isToday?' · Today':''}</div>
+      <div style="font-family:var(--headline);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${o.name}</div>
+    </div>
+    ${o.done?`<div style="font-family:var(--mono);font-weight:600;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);background:var(--green-dim);padding:4px 8px;border-radius:20px;flex-shrink:0;">Done</div>`:(o.race?`<div style="font-family:var(--mono);font-weight:600;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--red);background:var(--red-dim);padding:4px 8px;border-radius:20px;flex-shrink:0;">Race</div>`:'')}
+  </div>`;
+}
 function logThisWeek(){
   _setLogDate(todayISO());
   nav('log',document.querySelectorAll('.nb')[1]);
@@ -3965,20 +3982,21 @@ function _renderProgramPlan(w){
   const ab=document.getElementById('assessment-banner');
   if(ab) ab.style.display='none';
 
-  // Session rows
-  document.getElementById('plan-days').innerHTML=weekSess.map(({day,id,session})=>{
-    if(!session) return `<div class="prow" style="opacity:.38;">
-      <div><div class="pday-name">${day}</div><div class="pday-date">Rest</div></div>
-      <div class="prow-session"><span style="color:var(--text3);">Rest / Recovery</span></div>
-      <div></div></div>`;
+  // Session rows (Kinetic Gold)
+  const todayDow3=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+  const isActualWeek = (typeof _progActualWeek==='function') && _progActualWeek()===w;
+  document.getElementById('plan-days').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">`+weekSess.map(({day,id,session})=>{
+    const isToday = isActualWeek && day===todayDow3;
+    if(!session) return _planRowKG({ color:'var(--text3)', isToday, dim:!isToday,
+      eyebrow:`${day} · Rest`, name:'Rest / Recovery' });
     const done=_progSessionDone(w,id);
-    const meta=_sessSummary(session, w);
-    return `<div class="prow ${done?'done':''}" onclick="openProgramSessionOverlay('${id}',${w},'${day}')">
-      <div><div class="pday-name">${day}</div><div class="pday-date">${session.focus||_sessType(session)}</div></div>
-      <div class="prow-session"><span>${done?'<span style="color:var(--green,#34c759);">✓ </span>':_sessIcon(session)+' '}${session.name}</span></div>
-      <div style="font-family:var(--mono);font-size:9px;color:${done?'var(--green,#34c759)':'var(--text3)'};">${done?'done':(meta||'')}</div>
-    </div>`;
-  }).join('');
+    const intensity = session.intensity || session.runType || _sessType(session);
+    return _planRowKG({
+      color:_intCol(intensity), isToday, done,
+      eyebrow:`${day} · ${session.focus||_sessType(session)}`, name:session.name,
+      onclick:`openProgramSessionOverlay('${id}',${w},'${day}')`,
+    });
+  }).join('')+`</div>`;
 
   // Week-nav buttons (replace log-week-btn once, then update in-place)
   const prevBtn=currentProgramWeek>1?`<button class="btn" style="flex:1;" onclick="renderPlan(${w-1})">← W${w-1}</button>`:'<div style="flex:1;"></div>';
