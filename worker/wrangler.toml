@@ -3,12 +3,14 @@ main = "index.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-# Your Strava Client ID (a number — from strava.com/settings/api)
-STRAVA_CLIENT_ID = "REPLACE_WITH_CLIENT_ID"
 # The full URL of your deployed app
-APP_URL = "https://YOUR_GITHUB_USERNAME.github.io/training-app/"
+APP_URL = "https://bruces6.github.io/training-app"
+
+# STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET must be set as Secrets in the
+# Cloudflare dashboard (Settings → Variables and Secrets → Add → Secret).
+# Do NOT put them here — [vars] entries overwrite dashboard values on every deploy.
 
 [[kv_namespaces]]
-# Create a KV namespace named HEALTH_DATA in the Cloudflare dashboard and paste its ID below
+# KV namespace for health data — binding name must stay HEALTH_DATA
 binding = "HEALTH_DATA"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"

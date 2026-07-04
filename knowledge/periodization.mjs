@@ -1,0 +1,68 @@
+// Knowledge domain: PERIODIZATION — macro/meso/micro structure, phase sequencing,
+// deload, tapering. Established planning science.
+
+export const periodization = [
+  {
+    id: 'periodization.structure',
+    domain: 'periodization', version: 1,
+    title: 'Macro / Meso / Microcycle Structure',
+    summary: 'Training is organised in nested cycles: the season (macro), 3–6 week blocks (meso), and the week (micro), each with a clear job.',
+    principles: [
+      'Macrocycle: works back from the goal event date.',
+      'Mesocycle: 3–6 weeks with a single dominant adaptation + a deload.',
+      'Microcycle: distributes load within the week (hard/easy, sequencing).',
+    ],
+    prescription: { progression: 'Each mesocycle progresses load then deloads; blocks sequence toward event specificity.' },
+    cautions: ['A week with no structure (random hard days) is the default failure mode.'],
+    appliesTo: ['running','strength','hybrid','hyrox','deka'],
+    tags: ['structure','macro','meso','micro','planning'],
+    sources: ['Established science: Bompa periodisation; Issurin block periodisation.'],
+  },
+  {
+    id: 'periodization.phase_sequencing',
+    domain: 'periodization', version: 1,
+    title: 'Phase Sequencing & Potentiation',
+    summary: 'Blocks are ordered so each builds on the last: general capacity → specific capacity → realisation/peak.',
+    principles: [
+      'Endurance: base → threshold/strength → VO2/speed → race-specific → taper.',
+      'Strength: hypertrophy → strength → power/peaking.',
+      'Earlier phases potentiate later ones; don\'t skip the base.',
+    ],
+    prescription: { progression: 'Sequence dominant qualities; carry maintenance doses of prior qualities forward.' },
+    cautions: ['Peaking qualities decay — don\'t peak too early.'],
+    appliesTo: ['running','strength','hybrid','hyrox','deka'],
+    tags: ['sequencing','phases','potentiation'],
+    sources: ['Established science: phase-potentiation models; block periodisation.'],
+  },
+  {
+    id: 'periodization.deload',
+    domain: 'periodization', version: 1,
+    title: 'Deload Weeks',
+    summary: 'Planned low-load weeks dissipate accumulated fatigue so fitness can be expressed and the next block absorbed.',
+    principles: [
+      'Reduce volume (~40–60%) while largely maintaining intensity/movement.',
+      'Schedule proactively (every 3–5 weeks) or reactively on fatigue markers.',
+    ],
+    prescription: { intensity: 'Maintain some intensity; cut sets/volume.', frequency: 'Every 3–5 weeks, and before peak/taper.', progression: 'Resume progression after the deload.' },
+    cautions: ['Skipping deloads converts fatigue into stagnation or injury.'],
+    appliesTo: ['running','strength','hybrid','hyrox','deka','fitstop'],
+    tags: ['deload','recovery','fatigue'],
+    sources: ['Established science: fatigue management / deload rationale (fitness-fatigue model).'],
+  },
+  {
+    id: 'periodization.taper',
+    domain: 'periodization', version: 1,
+    title: 'Tapering for an Event',
+    summary: 'A short pre-event reduction in volume (intensity preserved) sheds fatigue and reveals fitness for peak performance.',
+    principles: [
+      'Cut volume ~40–60% over ~1–2 weeks; keep some intensity and specificity.',
+      'Maintain frequency to preserve feel; reduce duration.',
+      'Introduce nothing new in the taper.',
+    ],
+    prescription: { intensity: 'Retain race-pace touches.', duration: 'Volume down 40–60%.', frequency: 'Keep sessions/week; shorten them.', progression: 'Peak the day of the event.' },
+    cautions: ['Over-tapering (too long/too deep) flattens; under-tapering leaves fatigue.'],
+    appliesTo: ['running','hybrid','hyrox','deka'],
+    tags: ['taper','peak','race-prep'],
+    sources: ['Established science: Bosquet et al. taper meta-analysis; Mujika taper research.'],
+  },
+];

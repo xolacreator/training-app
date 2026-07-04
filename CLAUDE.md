@@ -1,25 +1,57 @@
 # Training App — Claude Code Session Notes
 
-## Pushing to GitHub
+## Current development branch
 
-**The git HTTP proxy in this environment returns HTTP 503 on `git push` for large files.**
-`git push origin main` will fail silently with a 503. Always use the script instead:
+**Always develop on:** `claude/training-app-updates-yOJGn`
 
 ```bash
-# Commit normally, then push via the MCP script:
-git add index.html && git commit -m "..."
-python3 scripts/github-push.py
+git checkout claude/training-app-updates-yOJGn
 ```
 
-The script reads `CLAUDE_CODE_REMOTE_SESSION_ID` and the session token automatically — no manual tokens needed.
+## Pushing to GitHub
 
-For small files (e.g. `worker/index.js`) you can still use `git push origin main`.
+**Prefer a normal `git push`. It works for `index.html` too** (the historical 503
+on large files appears to have been intermittent — test it before reaching for the
+script):
+
+```bash
+git add index.html && git commit -m "..."
+git push -u origin claude/training-app-updates-yOJGn
+```
+
+### Why `git push` is preferred over the MCP script
+
+The MCP push script (`scripts/github-push.py`) creates the commit **GitHub-side via
+the API**, which means:
+- It is authored/committed by `brucesarmento@gmail.com` (the session user), **not**
+  `noreply@anthropic.com`, and it is **unsigned** → GitHub marks it **Unverified**,
+  and the stop-hook git check flags it on every push.
+- It creates a divergent SHA from your local commit, causing the recurring
+  "local vs remote diverged" churn (force-resets, re-applying work, etc.).
+
+A plain `git push` pushes your **local** commit as-is, preserving its
+`noreply@anthropic.com` author **and** its SSH signature (signing is configured:
+`commit.gpgsign=true`, key at `~/.ssh/commit_signing_key.pub`) → GitHub shows it
+**Verified**, and local == remote with no divergence.
+
+### Fallback: only if `git push` actually 503s
+
+```bash
+# Commit normally, then push via the MCP script (specify branch!):
+python3 scripts/github-push.py index.html bruces6 training-app claude/training-app-updates-yOJGn
+```
+The script reads `CLAUDE_CODE_REMOTE_SESSION_ID` and the session token automatically.
+**After using it**, your local branch will diverge from remote — run
+`git fetch origin <branch>` and reconcile, and expect the stop-hook to flag the
+commit as Unverified (it's a GitHub-API commit, not your signed local one).
 
 ### Never use `mcp__github__push_files` for index.html
-Passing `"content": ""` to that tool wipes the file on GitHub. Use the Python script above.
+Passing `"content": ""` to that tool wipes the file on GitHub.
 
 ### If the script gets a SHA mismatch error
-The remote was updated by another process. Re-run the script — it always fetches the latest SHA first.
+The remote was updated by another process. Re-run the script — or pass the current
+SHA from the error message as the 5th arg:
+`python3 scripts/github-push.py index.html bruces6 training-app <branch> <currentSHA>`.
 
 ## Repo layout
 
