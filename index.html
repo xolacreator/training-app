@@ -2643,6 +2643,7 @@ function load() {
 
 function saveData() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch(e) {}
+  try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
   driveAutoSave();
 }
 
@@ -7378,6 +7379,7 @@ function loadSavedProgram() {
 function saveProgramData(data) {
   savedProgram = data;
   try { localStorage.setItem('ht-program', JSON.stringify(data)); } catch(e) {}
+  try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
 }
 
 function openProgramOverlay() {
@@ -7913,6 +7915,158 @@ function objectivesByAdaptationValue(type, goal, opts={}){
   for (const r of ranked){ const o = adaptation(r.id)?.schedulerObjective; if (o && !seen.has(o)){ seen.add(o); objs.push(o); } }
   return objs;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH EV v2 · PHASE 0 — Canonical Athlete State (read-through layer)
+// ---------------------------------------------------------------------------
+// A single, versioned, read-only snapshot of "who is this athlete today",
+// derived from the EXISTING localStorage/state via adapters. No migration and
+// no behaviour change: this sits alongside the current screens (Strangler
+// pattern) so they can progressively read through it in later phases. Nothing
+// here mutates app state or the DOM. See docs/ADR-0001-athlete-state.md.
+// ═══════════════════════════════════════════════════════════════════════════
+const ATHLETE_STATE_VERSION = 1;
+let AthleteState = null;   // last computed snapshot (null until first recompute)
+
+// Adapter: assemble the athlete's goal from the onboarding-era localStorage keys.
+function _asGoal(){
+  const g = (typeof trainGoal==='string' && trainGoal) ? trainGoal : (localStorage.getItem('ht-goal')||'');
+  const get = k => { try { return localStorage.getItem(k)||''; } catch(e){ return ''; } };
+  return {
+    text: g,
+    category:       get('ht-goal-category'),
+    raceType:       get('ht-goal-race-type'),
+    strengthType:   get('ht-goal-strength-type'),
+    strengthLift:   get('ht-goal-strength-lift'),
+    strengthTarget: get('ht-goal-strength-target'),
+  };
+}
+
+// Pure training-load metrics — mirrors renderTrainingLoad()'s final-day maths
+// (7-day acute vs 28-day chronic, expressed as 7-day-equivalent) with no DOM.
+function _computeLoadMetrics(){
+  const DAYS = 42;
+  const today = new Date(); today.setHours(12,0,0,0);
+  const daily = {};
+  for (let i=0;i<DAYS;i++){ const d=new Date(today); d.setDate(d.getDate()-(DAYS-1-i)); daily[d.toISOString().slice(0,10)]=0; }
+  (Array.isArray(sessions)?sessions:[]).forEach(s=>{ const iso=sessionDateISO(s); if(iso && iso in daily) daily[iso]+=computeSessionLoad(s); });
+  const loads = Object.values(daily);
+  const acute = loads.slice(-7).reduce((a,b)=>a+b,0);
+  const c28 = loads.slice(-28);
+  const chronic = Math.round(c28.reduce((a,b)=>a+b,0) * 7 / 28);
+  const acwr = chronic>0 ? +(acute/chronic).toFixed(2) : 0;
+  return { acute, chronic, acwr };
+}
+
+// Adapter: the next race/test from the static PLAN calendar (mirrors renderToday).
+function _asNextRace(){
+  try {
+    const now = new Date();
+    const races = [];
+    for (let w=1; w<=12; w++) (PLAN[w]?.sessions||[]).forEach(s=>{
+      if (s.race) try { races.push({ date:new Date(s.date+' 2026'), label:s.session, day:s.date }); } catch(e){}
+    });
+    const next = races.find(r=>r.date>=now) || races[races.length-1] || null;
+    if (!next) return null;
+    const daysTo = Math.max(0, Math.ceil((next.date-now)/86400000));
+    return { label:next.label, day:next.day, daysTo };
+  } catch(e){ return null; }
+}
+
+// Recompute the canonical AthleteState from current app state. Pure w.r.t. the
+// app: reads only, assigns the module-level snapshot, returns it.
+function recomputeAthleteState(){
+  const asOf = (typeof todayISO==='function') ? todayISO() : new Date().toISOString().slice(0,10);
+  const prog = (typeof savedProgram!=='undefined' && savedProgram) ? savedProgram : null;
+  const type = prog?.type
+    || (typeof programBuilderConfig!=='undefined' ? programBuilderConfig?.type : null)
+    || 'hybrid';
+  const goal = _asGoal();
+  const b = (typeof baselines==='object' && baselines) ? baselines : {};
+
+  // Adaptations — current decay status + highest-value target for the required set.
+  let adaptations = [], topAdaptation = null;
+  try {
+    const req = requiredAdaptationsFor(type, goal.text);
+    adaptations = adaptationStatus(req, asOf);
+    const ranked = rankAdaptationsByValue(req, { asOf });
+    topAdaptation = ranked.priority || null;
+  } catch(e){}
+
+  // Fatigue (training load) + readiness.
+  const load = _computeLoadMetrics();
+  const readiness = (typeof _readinessToday==='function') ? _readinessToday() : null;
+
+  // Program context.
+  let program = null;
+  if (prog){
+    const week = (typeof _progActualWeek==='function') ? _progActualWeek() : (typeof currentProgramWeek!=='undefined'?currentProgramWeek:1) || 1;
+    let phase = null;
+    try { const phases = (typeof _programPhases==='function') ? _programPhases(prog) : null; phase = phases ? (phases[week-1]?.phase || null) : null; } catch(e){}
+    program = {
+      id: prog.id || null,
+      name: prog.name || null,
+      type: prog.type || type,
+      week,
+      totalWeeks: prog.weeks || null,
+      phase,
+    };
+  }
+
+  // Availability (Locked/Preferred/Available/Avoid comes in Phase 5; raw for now).
+  let availability = null;
+  try {
+    availability = (typeof athleteAvailability!=='undefined' && athleteAvailability)
+      ? athleteAvailability
+      : JSON.parse(localStorage.getItem('ht-availability')||'null');
+  } catch(e){}
+
+  const state = {
+    v: ATHLETE_STATE_VERSION,
+    asOf,
+    computedAt: Date.now(),
+    identity:   { goal },
+    fitness:    { baselines: b },        // read-only reference to current baselines
+    adaptations,                          // [{id,name,status,since,urgency}]
+    topAdaptation,                        // highest-value adaptation right now (or null)
+    fatigue:    { acute:load.acute, chronic:load.chronic, acwr:load.acwr },
+    readiness,                            // 0–100 or null
+    program,                              // {id,name,type,week,totalWeeks,phase} or null
+    availability,                         // raw ht-availability or null
+    equipment:  { shoes: [] },            // placeholder — Shoe Intelligence (Phase 7)
+    events:     { nextRace: _asNextRace() },
+    sessionCount: Array.isArray(sessions) ? sessions.length : 0,
+    trends: null,                         // placeholder — Athlete Timeline (Phase 1)
+  };
+  AthleteState = state;
+  return state;
+}
+
+// Accessor: current snapshot, recomputing lazily if it hasn't been built yet.
+function athleteState(){ return AthleteState || recomputeAthleteState(); }
+
+// ---------------------------------------------------------------------------
+// DecisionRecord — the atomic unit of the coaching product: one decision + the
+// reasoning behind it, so the Decision Inspector (Phase 4) can answer "why this
+// prescription today". Defined now; the decision pipeline populates it later.
+// ---------------------------------------------------------------------------
+function makeDecisionRecord(partial={}){
+  return {
+    v: ATHLETE_STATE_VERSION,
+    id: partial.id || `dec-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+    at: partial.at != null ? partial.at : Date.now(),
+    asOf: partial.asOf || (typeof todayISO==='function' ? todayISO() : null),
+    athleteStateRef: partial.athleteStateRef != null ? partial.athleteStateRef : (AthleteState ? AthleteState.computedAt : null),
+    objective:    partial.objective    || null,   // adaptation/objective being targeted
+    adaptation:   partial.adaptation   || null,   // {id,name,status,value}
+    prescription: partial.prescription || null,   // the session prescribed
+    constraints:  partial.constraints  || [],     // constraints applied (readiness, availability…)
+    alternatives: partial.alternatives || [],     // options considered + why rejected
+    reason:       partial.reason       || '',     // human-readable rationale
+    confidence:   partial.confidence != null ? partial.confidence : null,
+  };
+}
+const DECISION_LOG = [];   // empty for now — Phase 4's pipeline will append records
 
 const ADAPTATIONS = [
   { id:'long-endurance', label:'Long endurance', categories:['long-run','trail'],                 hard:true,  prescription:'Long run — progress duration, mostly Zone 2' },
@@ -8973,6 +9127,7 @@ function todayISO() {
 }
 function saveRecovery() {
   try { localStorage.setItem('ht-recovery', JSON.stringify(recoveryLog)); } catch(e) {}
+  try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
 }
 
 
@@ -11200,6 +11355,8 @@ try { maybeShowMorningCheckin(); } catch(e) {}
 try { checkForUpdates(); } catch(e) {}
 // Weekly digest (Sunday/Monday, once per week)
 try { maybeShowWeeklyDigest(); } catch(e) {}
+// Coach EV v2 · Phase 0 — build the canonical athlete snapshot once data is loaded.
+try { recomputeAthleteState(); } catch(e) {}
 </script>
 </body>
 </html>
