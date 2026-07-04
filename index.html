@@ -8043,6 +8043,158 @@ function objectivesByAdaptationValue(type, goal, opts={}){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COACH EV v2 · PHASE 4 — Decision Pipeline + Decision Inspector
+// ---------------------------------------------------------------------------
+// The canonical planner: State → Objective → Adaptation → Constraint →
+// Prescription → Validation → a populated DecisionRecord. This is where
+// "reasoning is the product" becomes visible: every recommendation carries its
+// full rationale (chosen adaptation, alternatives + why rejected, constraints,
+// validation, confidence), surfaced in plain language via the Decision
+// Inspector ("Why this session?"). See docs/ADR-0005-decision-pipeline.md.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Per-decision validation (distinct from validateProgram, which is program-wide):
+// is today's single decision safe + appropriate for the athlete's state?
+function validateDecision(d, ctx={}){
+  const warnings = [], checks = [];
+  const pass = (rule, ok, msg) => { checks.push({ rule, ok, msg }); if (!ok) warnings.push(msg); };
+  const a = d.adaptation, b = d.budget, r = d.readiness;
+  pass('readiness',
+    !(r != null && r < 45 && a && a.id !== 'recovery'),
+    (r != null && r < 45 && a && a.id !== 'recovery')
+      ? 'Low readiness but a training adaptation is prioritised — consider recovery.'
+      : 'Readiness supports the prescribed stimulus.');
+  pass('fatigue-budget',
+    !(b && b.overBudget && a && a.id !== 'recovery'),
+    (b && b.overBudget && a && a.id !== 'recovery')
+      ? 'Weekly fatigue budget exceeded — recovery should take priority.'
+      : 'Within the weekly fatigue budget.');
+  return { ok: warnings.length === 0, warnings, checks };
+}
+
+// Run the full pipeline and return a populated DecisionRecord (+ push to log).
+function runDecisionPipeline(opts={}){
+  const state = (typeof athleteState==='function') ? athleteState() : null;
+  const type = opts.type || state?.program?.type || savedProgram?.type || (typeof programBuilderConfig!=='undefined'?programBuilderConfig?.type:null) || 'hybrid';
+  const goal = opts.goal || state?.identity?.goal?.text || '';
+  const phase = opts.phase || state?.program?.phase || null;
+  const readiness = opts.readiness != null ? opts.readiness : (state ? state.readiness : (typeof _readinessToday==='function'?_readinessToday():null));
+  const asOf = opts.asOf || (typeof todayISO==='function'?todayISO():null);
+
+  // ── Objective: what must be developed + current stock (achieved vs remaining)
+  const req = requiredAdaptationsFor(type, goal);
+  const stock = adaptationStatus(req, asOf);
+
+  // ── Adaptation: rank by value (adaptation ÷ fatigue), budget-gated
+  const ranked = rankAdaptationsByValue(req, { asOf, readiness, useBudget:true });
+  const chosen = ranked.priority;
+  if (!chosen) return null;
+  const chosenAdapt = adaptation(chosen.id);
+  const budget = ranked.budget || (typeof weeklyFatigueBudget==='function'?weeklyFatigueBudget(asOf):null);
+
+  // ── Constraint: the feasibility filters applied to the choice
+  const constraints = [];
+  if (readiness != null) constraints.push({ type:'readiness', detail:`Readiness ${readiness}${readiness<55?' — low, protective':''}`, limiting: readiness<55 });
+  if (budget) constraints.push({ type:'fatigue-budget', detail:`${Math.round((budget.worstPct||0)*100)}% of the ${budget.worstAxis} budget used this week${budget.overBudget?' — over budget':''}`, limiting: !!budget.overBudget });
+  if (state?.availability) constraints.push({ type:'availability', detail:'Weekly availability honoured', limiting:false });
+
+  // ── Prescription: the session that creates the chosen adaptation
+  const pstate = { readiness, phase, experience: opts.experience||'any' };
+  const options = prescriptionsFor(chosen.id);
+  const selected = selectPrescription(chosen.id, pstate);
+
+  // ── Alternatives: ranked runners-up + why they were not chosen
+  const alternatives = (ranked.ranked||[]).filter(r=>r.id!==chosen.id).slice(0,4).map(r=>({
+    id:r.id, name:r.name, value:r.value, status:r.status,
+    whyNot: r.value < chosen.value ? `Lower value (${r.value} vs ${chosen.value})` : 'Comparable — edged out by state/constraints',
+  }));
+
+  // ── Validation + confidence
+  const validation = validateDecision({ adaptation:chosenAdapt, readiness, budget, asOf });
+  let confidence = 0.6;
+  if (readiness==null || readiness>=55) confidence += 0.15;
+  if (!budget || !budget.overBudget) confidence += 0.15;
+  if (['decaying','lapsed','absent'].includes(chosen.status)) confidence += 0.1;
+  confidence -= 0.15 * (validation.warnings.length);
+  confidence = Math.max(0.2, Math.min(0.95, +confidence.toFixed(2)));
+
+  const reason = `${chosenAdapt.name} is the highest-value adaptation today (${chosen.status}, value ${chosen.value}) — the best return per unit of fatigue given ${readiness!=null?`readiness ${readiness}`:'current readiness'} and this week's fatigue budget. Create it with ${selected?selected.name:'the default session'}.`;
+
+  const record = makeDecisionRecord({
+    asOf,
+    objective:    { type, goal, primary: chosenAdapt.name, required: req },
+    adaptation:   { id:chosenAdapt.id, name:chosenAdapt.name, status:chosen.status, value:chosen.value },
+    prescription: selected ? { id:selected.id, name:selected.name, structure:selected.structure } : null,
+    constraints, alternatives, reason, confidence,
+  });
+  record.state = state ? { goal:state.identity.goal, program:state.program, readiness:state.readiness, fatigue:state.fatigue } : null;
+  record.adaptationStock = stock;
+  record.fatigueBudget = budget;
+  record.prescriptionOptions = options.map(p=>p.id);
+  record.validation = validation;
+  DECISION_LOG.push(record);
+  if (DECISION_LOG.length > 50) DECISION_LOG.shift();
+  return record;
+}
+
+// Map a DecisionRecord → the seven coaching questions, answered in plain language.
+function decisionQuestions(rec){
+  if (!rec) return [];
+  const s = rec.state || {}, prog = s.program;
+  const stock = rec.adaptationStock || [];
+  const achieved = stock.filter(x=>['fresh','maintained'].includes(x.status));
+  const remaining = stock.filter(x=>['decaying','lapsed','absent'].includes(x.status));
+  const b = rec.fatigueBudget, alt = rec.alternatives || [];
+  const goalText = (s.goal && s.goal.text) || 'No goal set';
+  return [
+    { q:'Who is this athlete today?',
+      a:`${goalText}${prog?` · ${prog.name||prog.type} (week ${prog.week}${prog.phase?`, ${prog.phase} phase`:''})`:''}. Readiness ${s.readiness!=null?s.readiness:'—'}.` },
+    { q:'What adaptations are achieved vs still needed?',
+      a:`Held: ${achieved.map(x=>x.name).join(', ')||'none yet'}. Needs work: ${remaining.map(x=>`${x.name} (${x.status})`).join(', ')||'none'}.` },
+    { q:'What fatigue exists?',
+      a: b ? `${FATIGUE_AXES.map(ax=>`${ax} ${Math.round((b.pct[ax]||0)*100)}%`).join(' · ')}. ${b.overBudget?'Over budget — recovery weighted up.':`Most-loaded: ${b.worstAxis} (${Math.round((b.worstPct||0)*100)}%).`}` : 'No load logged yet this week.' },
+    { q:'What is the highest-value adaptation available?',
+      a:`${rec.adaptation.name} — ${rec.adaptation.status}, value ${rec.adaptation.value} (adaptation earned per unit of fatigue).` },
+    { q:'Which prescription creates it?',
+      a: rec.prescription ? `${rec.prescription.name} — ${rec.prescription.structure}` : 'The default session for this adaptation.' },
+    { q:'What alternatives were considered — and why not them?',
+      a: alt.length ? alt.map(x=>`${x.name} (${x.value}) — ${x.whyNot}`).join(' · ') : 'No competing adaptations this cycle.' },
+    { q:'Why is this the best decision?',
+      a:`${rec.reason} Validation: ${rec.validation && rec.validation.ok ? 'passed all checks' : ((rec.validation && rec.validation.warnings.join('; ')) || 'flags raised')}. Confidence ${Math.round((rec.confidence||0)*100)}%.` },
+  ];
+}
+
+// Decision Inspector — render the seven answers in the insight sheet.
+function openDecisionInspector(){
+  const rec = runDecisionPipeline();
+  if (!rec){
+    openInsight('Coach EV — Decision', `<div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;padding:8px 0;">Set a goal or attach a program and Coach EV will explain the coaching decision behind each day — the adaptation, the prescription, and why.</div>`);
+    return;
+  }
+  const qs = decisionQuestions(rec);
+  const conf = Math.round((rec.confidence||0)*100);
+  const confCol = conf>=75 ? 'var(--green)' : conf>=50 ? 'var(--accent)' : 'var(--red)';
+  const head = `<div style="margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Coach EV · today's decision</div>
+      <div style="font-family:var(--display);font-size:22px;font-weight:900;color:var(--text);line-height:1.1;">${rec.adaptation.name}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:3px;">${rec.prescription?rec.prescription.name:'Default session'}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+        <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;"><div style="width:${conf}%;height:100%;background:${confCol};"></div></div>
+        <span style="font-family:var(--mono);font-size:10px;color:${confCol};font-weight:600;">${conf}% confident</span>
+      </div>
+    </div>`;
+  const body = qs.map((x,i)=>`
+      <div style="display:flex;gap:10px;padding:11px 0;border-bottom:.5px solid var(--border);">
+        <span style="font-family:var(--display);font-size:15px;font-weight:900;color:var(--accent);flex-shrink:0;line-height:1.3;">${i+1}</span>
+        <div style="min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${x.q}</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.55;">${x.a}</div>
+        </div>
+      </div>`).join('');
+  openInsight('Why this session?', head + body);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // COACH EV v2 · PHASE 0 — Canonical Athlete State (read-through layer)
 // ---------------------------------------------------------------------------
 // A single, versioned, read-only snapshot of "who is this athlete today",
@@ -8558,8 +8710,11 @@ function _renderAdaptationPriority(){
   const plan = (typeof planTodayAdaptation==='function') ? planTodayAdaptation({ type: savedProgram.type, goal:(coachProfile&&coachProfile.goal)||'' }) : null;
   if (!plan || !plan.adaptation) return;
   const top3 = (plan.ranked||[]).slice(0,3).map(r=>`${r.name} ${r.value}`).join(' · ');
-  el.innerHTML = `<div class="card" style="margin-bottom:16px;border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.06);">
-    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:4px;">Today's priority adaptation</div>
+  el.innerHTML = `<div class="card" onclick="openDecisionInspector()" style="cursor:pointer;margin-bottom:16px;border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.06);">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:4px;">Today's priority adaptation</div>
+      <span style="font-family:var(--mono);font-size:9px;color:var(--blue);">Why? ›</span>
+    </div>
     <div style="font-size:16px;font-weight:600;color:var(--text);">${plan.adaptation.name} <span style="font-size:11px;font-weight:400;color:var(--text3);">· ${plan.status}</span></div>
     <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:4px;">${plan.reason}</div>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">value/fatigue ranking: ${top3}</div>
