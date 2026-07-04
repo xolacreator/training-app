@@ -200,7 +200,8 @@ body{
 }
 .wnbackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:298;opacity:0;pointer-events:none;transition:opacity .25s;}
 .wnbackdrop.open{opacity:1;pointer-events:auto;}
-.wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);z-index:299;border-radius:18px 18px 0 0;border-top:1px solid var(--border2);max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;box-shadow:0 -8px 40px rgba(0,0,0,.45);}
+.wnsheet{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);z-index:299;border-radius:18px 18px 0 0;border-top:1px solid var(--border2);max-height:80vh;overflow-y:auto;overflow-x:hidden;transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);will-change:transform;box-shadow:0 -8px 40px rgba(0,0,0,.45);}
+.wnsheet, .wnsheet *{overflow-wrap:break-word;word-break:break-word;}
 .wnsheet.open{transform:translateY(0);}
 .wntag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-right:6px;flex-shrink:0;}
 .wntag-new{background:var(--accent-dim);color:var(--accent);}
@@ -859,13 +860,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <div class="wnbackdrop" id="ins-backdrop" onclick="closeInsight()"></div>
 <div class="wnsheet" id="ins-sheet">
-  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px)+16px);" id="ins-content"></div>
+  <div style="padding:20px calc(20px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 16px)) calc(20px + env(safe-area-inset-left, 0px));" id="ins-content"></div>
 </div>
 
 <!-- MEMORY PROPOSAL SHEET -->
 <div class="wnbackdrop" id="mem-backdrop" onclick="skipMemoryProposal()"></div>
 <div class="wnsheet" id="mem-sheet">
-  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px)+16px);">
+  <div style="padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <div style="font-size:15px;font-weight:600;color:var(--text);">Save to memory?</div>
@@ -960,7 +961,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- INTERVAL TIMER OVERLAY -->
 <div class="overlay" id="timer-overlay">
   <!-- Timer keeps back button at top: active-timer view uses Pause/Stop at bottom, no room for .of -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+16px),80px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px) + 16px),80px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <button class="back-btn" onclick="closeTimer()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
   <div id="timer-config" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 18px calc(var(--sab) + 24px);">
@@ -1165,7 +1166,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header — drag handle + safe-area spacer; back button lives in footer -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px) + 10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;justify-content:center;margin-bottom:10px;"><div class="drag-handle"></div></div>
     <div style="margin-bottom:10px;">
       <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
@@ -1214,7 +1215,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div id="hx-table" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px calc(16px+var(--sar)) 6px calc(16px+var(--sal));"></div>
 
   <!-- Fixed footer: summary + actions + back button -->
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+14px),44px) calc(16px+env(safe-area-inset-left,0px));">
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 14px),44px) calc(16px+env(safe-area-inset-left,0px));">
     <div id="hx-summary"></div>
     <button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);touch-action:manipulation;" onclick="hyroxPullTraining()">
       ↑ Pull run splits from training log
@@ -1285,7 +1286,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header — drag handle + safe-area spacer; back button is in the input row footer -->
-  <div style="flex-shrink:0;padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 8px calc(16px+env(safe-area-inset-left,0px));">
+  <div style="flex-shrink:0;padding:max(calc(env(safe-area-inset-top,0px) + 10px),58px) calc(16px+env(safe-area-inset-right,0px)) 8px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;justify-content:center;flex:1;"><div class="drag-handle"></div></div>
       <button onclick="openMemoryView()" title="What your coach remembers" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;">
@@ -1297,7 +1298,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Messages — this is the only scrolling region -->
   <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
   <!-- Input bar — always pinned to bottom, full width -->
-  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+12px),46px) calc(16px+env(safe-area-inset-left,0px));">
+  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 12px),46px) calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <textarea id="coach-input" rows="1" placeholder="Reply to your coach…"
         style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;max-height:80px;overflow-y:auto;line-height:1.45;"
@@ -1317,13 +1318,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px)+10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px) + 10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="drag-handle"></div></div>
     <div class="eyebrow">Strength</div>
     <div style="font-size:22px;font-weight:600;letter-spacing:-.02em;">Program Builder</div>
   </div>
   <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:20px;"></div>
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px)+14px),44px) calc(16px+env(safe-area-inset-left,0px));">
+  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 14px),44px) calc(16px+env(safe-area-inset-left,0px));">
     <button class="back-btn" onclick="closeOv('program-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
 </div>
