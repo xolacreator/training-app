@@ -4613,6 +4613,11 @@ function _cleanLaps(laps){
 }
 // Normalise em/en dashes to a standard hyphen in card text (per user preference).
 function _dash(v){ return typeof v==='string' ? v.replace(/[—–]/g,'-') : v; }
+// Running cadence → steps/min (both feet). Watches/Strava often report per-leg
+// (~85-95); anything that looks per-leg is doubled so the card matches the watch.
+// Safety net at display time — also corrects older sessions stored before import
+// normalised cadence.
+function _normCad(c){ c=parseInt(c)||0; return (c>0 && c<130) ? c*2 : c; }
 // Group raw laps into the workout's logical structure:
 // Warm-up (all leading easy laps) · Rep 1 · Rest 1 · Rep 2 · … · Cool-down.
 // Contiguous laps of the same kind merge into one summarized line (total dist/time,
@@ -4721,7 +4726,7 @@ function _buildShareLayout(s){
   if(overallPace) stats.push(['Avg pace', overallPace, '/'+paceUnit(), false]);
   if(overallHR) stats.push(['Avg HR', String(overallHR), 'bpm', false]);
   // Cadence is a first-class stat (big numeral) rather than a small pill.
-  const _cad=s.cad?parseInt(s.cad):0;
+  const _cad=_normCad(s.cad);
   if(_cad) stats.push(['Cadence', String(_cad), 'spm', false]);
   if(stats.length<4 && s.feel) stats.push(['Felt', String(s.feel), '/5', false]);
   const grid=stats.slice(0, Math.min(stats.length, _cad?5:4));
@@ -4828,10 +4833,14 @@ function _drawPaceChart(x,L,reveal){
   x.globalAlpha=1; x.fillStyle=C.panel; roundRect(x,boxX,boxY,boxW,boxH,20); x.fill();
   _carbon(x,boxX,boxY,boxW,boxH,20);
   x.strokeStyle=C.border; x.lineWidth=1; roundRect(x,boxX,boxY,boxW,boxH,20); x.stroke();
-  // lane labels
+  // lane labels + callouts (kept in the header, above the plot, so they don't clutter it)
   x.globalAlpha=Math.min(1,reveal*1.6); x.textAlign='left';
   x.font='700 22px Inter'; x.fillStyle=C.gold; x.fillText('■ PACE / REP', boxX+22, boxY+34);
-  x.textAlign='right'; x.fillStyle=C.purple2; x.fillText('HEART RATE', boxX+boxW-22, boxY+34); x.textAlign='left';
+  const _plw=x.measureText('■ PACE / REP').width;
+  x.font='700 20px Inter'; x.fillStyle=_hexA(C.gold,0.85); x.fillText('▲ '+L.fastPace+'/'+paceUnit(), boxX+22+_plw+16, boxY+34);
+  x.textAlign='right'; x.font='700 22px Inter'; x.fillStyle=C.purple2; x.fillText('HEART RATE', boxX+boxW-22, boxY+34);
+  if(L.hrMax){ const _hlw=x.measureText('HEART RATE').width; x.font='700 20px Inter'; x.fillStyle=_hexA(C.purple2,0.85); x.fillText('♥ '+L.hrMin+'-'+L.hrMax+' bpm', boxX+boxW-22-_hlw-16, boxY+34); }
+  x.textAlign='left';
   // plot region
   const padL=boxX+22, padR=boxX+boxW-22, plotTop=boxY+58, plotBottom=boxY+boxH-40;
   const plotW=padR-padL, plotH=plotBottom-plotTop, n=L.segs.length, slot=plotW/n, bw=slot*0.5;
@@ -4862,9 +4871,7 @@ function _drawPaceChart(x,L,reveal){
   x.globalAlpha=Math.min(1,reveal*1.5);
   x.font='600 18px Inter'; x.fillStyle=_hexA(C.text,0.5); x.textAlign='center';
   let _wc=0; L.segs.forEach((r,i)=>{ const lab=r.kind==='work'?('R'+(++_wc)):r.kind==='rest'?'·':(r.label||' ')[0]; x.fillText(lab,cx(i),boxY+boxH-16); });
-  x.textAlign='left'; x.font='700 20px Inter'; x.fillStyle=C.gold; x.fillText('▲ '+L.fastPace+'/'+paceUnit(), boxX+22, plotTop+2);
-  if(L.hrMax){ x.textAlign='right'; x.fillStyle=C.purple2; x.fillText('♥ '+L.hrMin+'-'+L.hrMax+' bpm', boxX+boxW-22, plotTop+2); x.textAlign='left'; }
-  x.globalAlpha=1;
+  x.textAlign='left'; x.globalAlpha=1;
 }
 function _renderShareCard(x,t){
   const L=_shareLayout; if(!L) return; const s=sessions[_shareIdx]; if(!s) return;
