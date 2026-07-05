@@ -50,10 +50,11 @@ const themes=await page.evaluate(()=>{ setCardTheme('graphite'); const g=_shareL
 check('Theme switch → graphite + midnight palettes build', themes.g==='graphite'&&themes.m==='midnight', JSON.stringify(themes));
 check('Selected theme persists to localStorage', themes.stored==='midnight', themes.stored);
 
-// Highlights: type-specific metric (@ THRESHOLD) + cadence pill
+// Highlights: type-specific metric (@ THRESHOLD); cadence now a prominent grid stat
 const hl=await page.evaluate(async()=>{ sessions[0].cad=182; await shareSession(0); return _shareLayout.hl.map(h=>h.lab); });
 check('Highlights include a type-specific metric (@ THRESHOLD / @ VO₂ / ON FEET)', hl.some(l=>/@ THRESHOLD|@ VO₂|ON FEET/.test(l)), JSON.stringify(hl));
-check('Highlights include CADENCE when present', hl.includes('CADENCE'), JSON.stringify(hl));
+const cadGrid=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Cadence'));
+check('Cadence shown as a prominent stat (grid) when present', !!cadGrid && cadGrid[1]==='182', JSON.stringify(cadGrid));
 // Overview avg pace is the WHOLE-SESSION pace (s.pace 4:05), not the faster work-rep pace
 // Overall pace = distance ÷ total time (a 4:xx overall, not the ~3:5x work-rep pace)
 const apStat=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Avg pace')?.[1]);

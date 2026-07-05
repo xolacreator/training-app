@@ -4602,12 +4602,23 @@ function _cardRunType(s, grouped){
   if(/easy|zone ?2|\bz2\b/.test(t)) return 'easy';
   return grouped?'tempo':'easy';
 }
+// Drop negligible "artifact" laps — e.g. the 1-2 s sliver logged when the watch is
+// stopped a beat after the workout actually ends. A real training lap is never both
+// this short in time AND this short in distance, so this removes only stop/split noise;
+// it keeps totals, the lap list and per-rep pace from being skewed by the sliver.
+function _cleanLaps(laps){
+  if(!Array.isArray(laps) || laps.length<2) return laps;
+  const kept=laps.filter(l=>{ const t=l.moving_time||l.elapsed_time||0, d=l.distance||0; return !(t<=6 && d<=40); });
+  return kept.length? kept : laps;   // never strip everything
+}
+// Normalise em/en dashes to a standard hyphen in card text (per user preference).
+function _dash(v){ return typeof v==='string' ? v.replace(/[—–]/g,'-') : v; }
 // Group raw laps into the workout's logical structure:
 // Warm-up (all leading easy laps) · Rep 1 · Rest 1 · Rep 2 · … · Cool-down.
 // Contiguous laps of the same kind merge into one summarized line (total dist/time,
 // avg pace, avg HR). Returns null if work/rest can't be detected (not an interval run).
 function _groupLaps(s){
-  const laps=s.strava_laps; if(!laps||laps.length<2) return null;
+  const laps=_cleanLaps(s.strava_laps); if(!laps||laps.length<2) return null;
   // Gate: only regroup when this is clearly an interval workout.
   const iv=(typeof getIntervalStats==='function')?getIntervalStats(s):null;
   if(!iv) return null;
@@ -4640,7 +4651,7 @@ function _groupLaps(s){
 }
 // Per-split / per-lap breakdown for the card, or null if none.
 function _cardBreakdown(s){
-  const laps=s.strava_laps, splits=s.strava_splits;
+  const laps=_cleanLaps(s.strava_laps), splits=s.strava_splits;
   if(laps && laps.length>1){
     // Prefer the logical structure: Warm-up · Rep 1 · Rest 1 · … · Cool-down,
     // merging any sub-laps within a segment into one summarized line.
@@ -4676,7 +4687,7 @@ function _buildShareLayout(s){
   // Title (Tanker, all-caps) — wrap to 2 lines
   const scratch=document.createElement('canvas').getContext('2d');
   const titleSize=58; scratch.font=`400 ${titleSize}px Tanker, system-ui`;
-  const words=(s.session||'Session').toUpperCase().split(' ');
+  const words=_dash((s.session||'Session').toUpperCase()).split(' ');
   let line='',lines=[]; for(const w of words){ const t=line?line+' '+w:w; if(scratch.measureText(t).width>W-2*P && line){lines.push(line);line=w;}else line=t; }
   if(line)lines.push(line); lines=lines.slice(0,2);
   // Grouping-derived rep stats
@@ -4709,8 +4720,11 @@ function _buildShareLayout(s){
   if(totalMin) stats.push(['Total time', fmtDurMin(totalMin), '', true]);
   if(overallPace) stats.push(['Avg pace', overallPace, '/'+paceUnit(), false]);
   if(overallHR) stats.push(['Avg HR', String(overallHR), 'bpm', false]);
+  // Cadence is a first-class stat (big numeral) rather than a small pill.
+  const _cad=s.cad?parseInt(s.cad):0;
+  if(_cad) stats.push(['Cadence', String(_cad), 'spm', false]);
   if(stats.length<4 && s.feel) stats.push(['Felt', String(s.feel), '/5', false]);
-  const grid=stats.slice(0,4);
+  const grid=stats.slice(0, Math.min(stats.length, _cad?5:4));
   // Breakdown rows — the card grows taller (below) to fit them, so this is only a
   // high safety cap for pathologically long workouts (avoids an absurd image).
   const MAXROWS=28; let rows=bd?bd.rows.slice():[]; let extra=0;
@@ -4724,7 +4738,7 @@ function _buildShareLayout(s){
   const fastPace=segs.length?convertPaceStr(mpsToMinKm(Math.max(...segs.map(r=>r.speed)))):'';
   // Added content: a KB "why this session" line + a highlights row.
   const scratch2=document.createElement('canvas').getContext('2d');
-  const _wrap2=(txt)=>{ scratch2.font='500 22px Inter'; const maxW=W-2*P; const words=txt.split(' '); let ln='',pls=[];
+  const _wrap2=(txt)=>{ scratch2.font='500 22px Inter'; const maxW=W-2*P; const words=_dash(txt).split(' '); let ln='',pls=[];
     for(const w of words){ const tt=ln?ln+' '+w:w; if(scratch2.measureText(tt).width>maxW && ln){pls.push(ln);ln=w;}else ln=tt; }
     if(ln)pls.push(ln); if(pls.length>2){ pls=pls.slice(0,2); pls[1]=pls[1].replace(/\s\S*$/,'')+'…'; } return pls; };
   let purpose=null;
@@ -4746,13 +4760,12 @@ function _buildShareLayout(s){
   const wr=(bd&&bd.grouped)?bd.rows.filter(r=>r.kind==='work'):[];
   const rt0=_cardRunType(s,grouped);
   const workSecs=wr.reduce((a,r)=>a+(r.secs||0),0);
-  const cad = s.cad? parseInt(s.cad) : 0;
   const highlights=[];
   // Type-specific headline metric (dynamic to the workout kind).
   if(workSecs>0 && rt0==='tempo')       highlights.push({lab:'@ THRESHOLD', val:fmtSecs(workSecs), c:'gold'});
   else if(workSecs>0 && rt0==='intervals') highlights.push({lab:'@ VO₂', val:fmtSecs(workSecs), c:'gold'});
   else if(rt0==='long' && totalMin)     highlights.push({lab:'ON FEET', val:fmtDurMin(totalMin), c:'gold'});
-  if(cad) highlights.push({lab:'CADENCE', val:cad+' spm', c:'purple'});
+  // (Cadence is now shown in the stats grid above, not as a pill.)
   if(bestRepPace) highlights.push({ic:'★',lab:'BEST', val:bestRepPace, c:'gold'});
   if(wr.length>=2){ const f=wr[0].speed,l=wr[wr.length-1].speed; const t=l>f*1.008?['↘','NEG SPLIT','gold']:(l<f*0.992?['↗','FADE','purple']:['→','EVEN','purple']); highlights.push({ic:t[0],lab:t[1],val:'',c:t[2]}); }
   if(hrMax) highlights.push({ic:'♥',lab:'PEAK HR',val:hrMax+' bpm',c:'purple'});
@@ -4818,7 +4831,7 @@ function _drawPaceChart(x,L,reveal){
   // lane labels
   x.globalAlpha=Math.min(1,reveal*1.6); x.textAlign='left';
   x.font='700 22px Inter'; x.fillStyle=C.gold; x.fillText('■ PACE / REP', boxX+22, boxY+34);
-  x.textAlign='right'; x.fillStyle=C.purple2; x.fillText('— HEART RATE', boxX+boxW-22, boxY+34); x.textAlign='left';
+  x.textAlign='right'; x.fillStyle=C.purple2; x.fillText('HEART RATE', boxX+boxW-22, boxY+34); x.textAlign='left';
   // plot region
   const padL=boxX+22, padR=boxX+boxW-22, plotTop=boxY+58, plotBottom=boxY+boxH-40;
   const plotW=padR-padL, plotH=plotBottom-plotTop, n=L.segs.length, slot=plotW/n, bw=slot*0.5;
@@ -4848,9 +4861,9 @@ function _drawPaceChart(x,L,reveal){
   // x labels + hi/lo
   x.globalAlpha=Math.min(1,reveal*1.5);
   x.font='600 18px Inter'; x.fillStyle=_hexA(C.text,0.5); x.textAlign='center';
-  L.segs.forEach((r,i)=>{ const lab=r.kind==='work'?('R'+Math.max(1,Math.round(i/2))):r.kind==='rest'?'·':(r.label||' ')[0]; x.fillText(lab,cx(i),boxY+boxH-16); });
+  let _wc=0; L.segs.forEach((r,i)=>{ const lab=r.kind==='work'?('R'+(++_wc)):r.kind==='rest'?'·':(r.label||' ')[0]; x.fillText(lab,cx(i),boxY+boxH-16); });
   x.textAlign='left'; x.font='700 20px Inter'; x.fillStyle=C.gold; x.fillText('▲ '+L.fastPace+'/'+paceUnit(), boxX+22, plotTop+2);
-  if(L.hrMax){ x.textAlign='right'; x.fillStyle=C.purple2; x.fillText('♥ '+L.hrMax+'–'+L.hrMin, boxX+boxW-22, plotTop+2); x.textAlign='left'; }
+  if(L.hrMax){ x.textAlign='right'; x.fillStyle=C.purple2; x.fillText('♥ '+L.hrMin+'-'+L.hrMax+' bpm', boxX+boxW-22, plotTop+2); x.textAlign='left'; }
   x.globalAlpha=1;
 }
 function _renderShareCard(x,t){
@@ -4954,7 +4967,7 @@ function _renderShareCard(x,t){
       x.font=`700 ${grouped?24:26}px Inter`; x.fillStyle= r.kind==='work'?C.text:(r.kind==='rest'?C.muted:C.purple2); x.fillText(r.label,cX.seg+24,ry+32);
       x.font='500 26px Inter'; x.fillStyle=C.text; x.fillText(_cardDist(r.distM),cX.dist,ry+32);
       x.fillStyle=C.muted; x.fillText(fmtSecs(r.secs),cX.time,ry+32);
-      x.font='700 26px Inter'; x.fillStyle= r.kind==='work'?C.gold:C.text; x.fillText(r.pace||(r.speed>0?fmtPaceFull(r.speed):'—'),cX.pace,ry+32);
+      x.font='700 26px Inter'; x.fillStyle= r.kind==='work'?C.gold:C.text; x.fillText(r.pace||(r.speed>0?fmtPaceFull(r.speed):'-'),cX.pace,ry+32);
       if(r.hr){ x.font='500 24px Inter'; x.fillStyle=C.muted; x.textAlign='right'; x.fillText(String(r.hr),cX.hr,ry+32); x.textAlign='left'; }
     });
     if(L.extra){ A(seg(0.72,0.95)); x.fillStyle=C.muted; x.font='600 22px Inter'; x.textAlign='center'; x.fillText('+ '+L.extra+' more',W/2,rowsTop+L.rows.length*L.rowH+26); x.textAlign='left'; }
@@ -9957,7 +9970,7 @@ function fmtSecs(s) {
 }
 
 function fmtPaceFull(mps) {
-  if (!mps || mps <= 0) return '—';
+  if (!mps || mps <= 0) return '-';
   const secsPerKm = 1000 / mps;
   const secsPerUnit = unitRun === 'mi' ? secsPerKm / MI_PER_KM : secsPerKm;
   const totalTenths = Math.round(secsPerUnit * 10);
@@ -9969,7 +9982,7 @@ function fmtPaceFull(mps) {
 }
 
 function renderStravaSplits(s) {
-  const laps   = s.strava_laps;
+  const laps   = (typeof _cleanLaps==='function') ? _cleanLaps(s.strava_laps) : s.strava_laps;
   const splits = s.strava_splits;
   if (!laps && !splits) return '';
 
@@ -10048,7 +10061,7 @@ async function loFetchSplits(idx) {
 }
 
 function getIntervalStats(sess) {
-  const laps = sess.strava_laps;
+  const laps = (typeof _cleanLaps==='function') ? _cleanLaps(sess.strava_laps) : sess.strava_laps;
   if (!laps || laps.length < 3) return null;
   const hasHidden = laps.some(l => l.is_hidden);
   let workLaps;
