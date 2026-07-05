@@ -4711,8 +4711,9 @@ function _buildShareLayout(s){
   if(overallHR) stats.push(['Avg HR', String(overallHR), 'bpm', false]);
   if(stats.length<4 && s.feel) stats.push(['Felt', String(s.feel), '/5', false]);
   const grid=stats.slice(0,4);
-  // Breakdown rows (cap)
-  const MAXROWS=12; let rows=bd?bd.rows.slice():[]; let extra=0;
+  // Breakdown rows — the card grows taller (below) to fit them, so this is only a
+  // high safety cap for pathologically long workouts (avoids an absurd image).
+  const MAXROWS=28; let rows=bd?bd.rows.slice():[]; let extra=0;
   if(rows.length>MAXROWS){ extra=rows.length-(MAXROWS-1); rows=rows.slice(0,MAXROWS-1); }
   const grouped=!!(bd&&bd.grouped);
   // Chart data: bars per segment + HR line
@@ -4756,9 +4757,10 @@ function _buildShareLayout(s){
   if(wr.length>=2){ const f=wr[0].speed,l=wr[wr.length-1].speed; const t=l>f*1.008?['↘','NEG SPLIT','gold']:(l<f*0.992?['↗','FADE','purple']:['→','EVEN','purple']); highlights.push({ic:t[0],lab:t[1],val:'',c:t[2]}); }
   if(hrMax) highlights.push({ic:'♥',lab:'PEAK HR',val:hrMax+' bpm',c:'purple'});
   const hl=highlights.slice(0,3);
-  // Vertical layout — fixed 9:16 frame. Cluster the header, add the "why" + highlights,
-  // let the chart take a modest share of remaining slack; the rest spreads across gaps.
-  const H = Math.round(W*16/9);   // 1920
+  // Vertical layout — a 9:16 frame that GROWS TALLER when the lap table needs more
+  // room, so every lap fits (rather than being cut off). Short workouts keep the
+  // standard 9:16 story shape; long interval sessions extend the card.
+  const H0 = Math.round(W*16/9);   // 1920 — base 9:16 story frame
   const stampH=64, statsH=170, repHeadH=46, rowH=54, titleLH=70;
   const titleH=lines.length*titleLH;
   const baseFig=hasChart?300:0;
@@ -4775,6 +4777,9 @@ function _buildShareLayout(s){
   if(bdH) blocks.push(['table',bdH,34]);
   blocks.push(['footer',34,36]);
   let natural=2*P; blocks.forEach((b,i)=> natural += b[1] + (i>0?b[2]:0));
+  // Grow the frame to fit the content (capped so a huge workout can't make an
+  // absurd image); short cards stay at the standard 9:16 height and spread slack.
+  const H = Math.min(Math.max(H0, natural), Math.round(H0*1.8));
   let leftover=H-natural, figH=baseFig;
   if(leftover>0 && hasChart){ const add=Math.min(leftover,150); figH+=add; leftover-=add; const ci=blocks.findIndex(b=>b[0]==='chart'); blocks[ci][1]=figH; }
   const nGaps=Math.max(1,blocks.length-1);
@@ -4936,7 +4941,11 @@ function _renderShareCard(x,t){
     x.textAlign='right'; x.fillText('HR',cX.hr,hy); x.textAlign='left';
     x.strokeStyle=C.hair; x.lineWidth=1; x.beginPath(); x.moveTo(P,L.bdTop+L.repHeadH-6); x.lineTo(W-P,L.bdTop+L.repHeadH-6); x.stroke();
     const rowsTop=L.bdTop+L.repHeadH;
-    L.rows.forEach((r,i)=>{ const a=seg(0.6+i*0.025,0.85+i*0.025); const ry=rowsTop+i*L.rowH;
+    // Stagger the row reveal but compress the step as the table grows so EVERY row
+    // is fully revealed by the final frame (t=1) — otherwise long tables fade out.
+    const _nR=L.rows.length, _rw=0.14, _rStart=0.58;
+    const _step=_nR>1 ? Math.min(0.025, (0.99-_rw-_rStart)/(_nR-1)) : 0;
+    L.rows.forEach((r,i)=>{ const _rs=_rStart+i*_step; const a=seg(_rs,_rs+_rw); const ry=rowsTop+i*L.rowH;
       x.globalAlpha=0.6*a; x.strokeStyle=C.hair; x.lineWidth=1; x.beginPath(); x.moveTo(P,ry+L.rowH-6); x.lineTo(W-P,ry+L.rowH-6); x.stroke();
       A(a); x.textAlign='left';
       // segment label + dot
