@@ -641,6 +641,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <div class="ptabs" id="plan-tabs"></div>
     <div id="plan-overview" style="display:none;margin-bottom:12px;"></div>
+    <div id="week-adaptations"></div>
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div id="plan-days"></div>
@@ -3404,6 +3405,7 @@ function renderPlanTabs(){
 }
 
 function renderPlan(w){
+  try{ renderWeekAdaptations(parseInt(w)||currentProgramWeek); }catch(e){}
   if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
   currentPlanWeek=parseInt(w);
   const ovEl=document.getElementById('plan-overview'); if(ovEl) ovEl.style.display='none';
@@ -8222,6 +8224,171 @@ function openDecisionInspector(){
         </div>
       </div>`).join('');
   openInsight('Why this session?', head + body);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH EV v2 · PHASE 6 — Weekly Adaptation Dashboard + Weekly Review
+// ---------------------------------------------------------------------------
+// The athlete's primary weekly surface is ADAPTATIONS, not checkboxes: for the
+// week, each required adaptation is Completed / Scheduled / Remaining / Missed.
+// The Weekly Review folds that together with consistency, recovery + fatigue
+// trends and next-week priorities. Pure engine; thin render. See
+// docs/ADR-0007-weekly-dashboard.md.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The Mon-Sun date window for a program week (or the trailing 7 days if no program).
+function _weekWindow(week){
+  const start = (typeof _progStartDate==='function') ? _progStartDate() : null;
+  if (start && week){
+    const s=new Date(start); s.setDate(s.getDate()+(week-1)*7); s.setHours(0,0,0,0);
+    const e=new Date(s); e.setDate(e.getDate()+6); e.setHours(23,59,59,999);
+    return { start:s, end:e };
+  }
+  const e=new Date(); e.setHours(23,59,59,999);
+  const s=new Date(e); s.setDate(s.getDate()-6); s.setHours(0,0,0,0);
+  return { start:s, end:e };
+}
+function _loggedInWindow(win){
+  return (Array.isArray(sessions)?sessions:[]).filter(s=>{ const iso=sessionDateISO(s); if(!iso) return false; const d=new Date(iso+'T12:00:00'); return d>=win.start && d<=win.end; });
+}
+// Adaptations a logged session created (uses the same translation as the engine).
+function _loggedAdaptations(s){
+  try { return translateSession({ type:s.cat, runType:(typeof _logRunType==='function'?_logRunType(s):null), name:s.session }).adaptations || []; }
+  catch(e){ return []; }
+}
+
+// The adaptation-first view of a week: each required adaptation's status.
+function weeklyAdaptationDashboard(week){
+  const prog = (typeof savedProgram!=='undefined') ? savedProgram : null;
+  const type = prog?.type || (typeof programBuilderConfig!=='undefined'?programBuilderConfig?.type:null) || 'hybrid';
+  const goal = (typeof trainGoal==='string'?trainGoal:'') || '';
+  const wk = week || (typeof _progActualWeek==='function'? _progActualWeek():1);
+  const win = _weekWindow(wk);
+  const req = requiredAdaptationsFor(type, goal);
+  const logged = _loggedInWindow(win);
+  const today = new Date(); today.setHours(12,0,0,0);
+
+  const completedIds = new Set();
+  logged.forEach(s=> _loggedAdaptations(s).forEach(id=>completedIds.add(id)));
+
+  const scheduledIds=new Set(), missedIds=new Set();
+  const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const slots = (prog && typeof _progWeekSessions==='function') ? _progWeekSessions(wk).filter(x=>x.session) : [];
+  slots.forEach(slot=>{
+    let ads=[]; try { ads = translateSession(slot.session).adaptations||[]; } catch(e){}
+    const done = (typeof _progSessionDone==='function') ? _progSessionDone(wk, slot.session.id||slot.id) : false;
+    const di=DOW.indexOf(slot.day); const sd=new Date(win.start); if(di>=0) sd.setDate(sd.getDate()+di); sd.setHours(12,0,0,0);
+    const isPast = sd < today;
+    ads.forEach(id=>{ if(done||completedIds.has(id)) return; if(isPast) missedIds.add(id); else scheduledIds.add(id); });
+  });
+
+  const rows = req.map(id=>{
+    const a=adaptation(id); if(!a) return null;
+    let status = completedIds.has(id) ? 'completed' : scheduledIds.has(id) ? 'scheduled' : missedIds.has(id) ? 'missed' : 'remaining';
+    return { id, name:a.name, status, priority:a.priority };
+  }).filter(Boolean);
+
+  const counts={completed:0,scheduled:0,remaining:0,missed:0}; rows.forEach(r=>counts[r.status]++);
+  return { week:wk, window:{ start:win.start.toISOString().slice(0,10), end:win.end.toISOString().slice(0,10) },
+    rows, counts, sessionCount:logged.length };
+}
+
+// Coach EV weekly review — adaptations + consistency + recovery/fatigue trend + next week.
+function weeklyReview(opts={}){
+  const wk = opts.week || (typeof _progActualWeek==='function'?_progActualWeek():1);
+  const dash = weeklyAdaptationDashboard(wk);
+  const win = _weekWindow(wk);
+  const logged = _loggedInWindow(win);
+  const prog = (typeof savedProgram!=='undefined') ? savedProgram : null;
+  const iso = d => d.toISOString().slice(0,10);
+
+  const planned = (prog && typeof _progWeekSessions==='function') ? _progWeekSessions(wk).filter(x=>x.session).length : null;
+
+  const readAvg=(a,b)=>{ const rs=(Array.isArray(recoveryLog)?recoveryLog:[]).filter(r=>r.date>=a&&r.date<=b).map(r=>r.sleepScore||r.recoveryScore).filter(v=>v!=null); return rs.length? Math.round(rs.reduce((x,y)=>x+y,0)/rs.length):null; };
+  const thisRead = readAvg(iso(win.start), iso(win.end));
+  const pS=new Date(win.start); pS.setDate(pS.getDate()-7); const pE=new Date(win.start); pE.setDate(pE.getDate()-1);
+  const prevRead = readAvg(iso(pS), iso(pE));
+
+  const budget = (typeof weeklyFatigueBudget==='function')? weeklyFatigueBudget(iso(win.end)) : null;
+  const km = logged.filter(s=>s.dist).reduce((a,s)=>a+parseFloat(s.dist||0),0);
+  const load = logged.reduce((a,s)=>a+(typeof computeSessionLoad==='function'?computeSessionLoad(s):0),0);
+
+  const type = prog?.type || 'hybrid';
+  let nextWeek=[]; try { nextWeek = rankAdaptationsByValue(requiredAdaptationsFor(type, trainGoal||''), {useBudget:true}).ranked.slice(0,3).map(r=>r.name); } catch(e){}
+
+  return {
+    week:wk,
+    achieved: dash.rows.filter(r=>r.status==='completed').map(r=>r.name),
+    missed: dash.rows.filter(r=>r.status==='missed').map(r=>r.name),
+    objectives: { completed:dash.counts.completed, total:dash.rows.length },
+    consistency: { done:logged.length, planned },
+    recovery: { thisWeek:thisRead, prevWeek:prevRead, trend:(thisRead!=null&&prevRead!=null)?(thisRead>prevRead?'up':thisRead<prevRead?'down':'flat'):null },
+    fatigue: budget,
+    volume: { km:+km.toFixed(1), load },
+    nextWeek, dashboard:dash,
+  };
+}
+
+const _ADAPT_STATUS_META = {
+  completed:{ label:'Completed', col:'var(--green)' },
+  scheduled:{ label:'Scheduled', col:'var(--blue)' },
+  missed:   { label:'Missed',    col:'var(--red)' },
+  remaining:{ label:'Remaining', col:'var(--text3)' },
+};
+// Render the weekly adaptation card into #week-adaptations (Plan screen).
+function renderWeekAdaptations(week){
+  const el=document.getElementById('week-adaptations'); if(!el) return;
+  if(!savedProgram){ el.innerHTML=''; return; }
+  const d=weeklyAdaptationDashboard(week);
+  if(!d.rows.length){ el.innerHTML=''; return; }
+  const pct=d.rows.length? Math.round(d.counts.completed/d.rows.length*100):0;
+  const chips=d.rows.map(r=>{ const m=_ADAPT_STATUS_META[r.status];
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 8px;">
+      <span style="width:7px;height:7px;border-radius:50%;background:${m.col};"></span>${r.name}</span>`; }).join(' ');
+  el.innerHTML=`<div class="card" onclick="openWeeklyDashboard(${d.week})" style="cursor:pointer;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">This week · adaptations</div>
+      <span style="font-family:var(--mono);font-size:9px;color:var(--blue);">Review ›</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <span style="font-family:var(--display);font-size:26px;font-weight:900;color:var(--text);line-height:1;">${d.counts.completed}<span style="font-size:15px;color:var(--text3);">/${d.rows.length}</span></span>
+      <span style="font-size:11px;color:var(--text2);">objectives hit</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">${chips}</div>
+  </div>`;
+}
+// Full weekly dashboard + Coach EV review in the insight sheet.
+function openWeeklyDashboard(week){
+  const r=weeklyReview(week?{week}:{});
+  const d=r.dashboard;
+  const rows=d.rows.map(x=>{ const m=_ADAPT_STATUS_META[x.status];
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--border);">
+      <span style="font-size:13px;color:var(--text);">${x.name}</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:${m.col};text-transform:uppercase;letter-spacing:.04em;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${m.col};"></span>${m.label}</span>
+    </div>`; }).join('');
+  const con=r.consistency, rec=r.recovery;
+  const trendGlyph = rec.trend==='up'?'▲':rec.trend==='down'?'▼':rec.trend==='flat'?'▬':'';
+  const trendCol = rec.trend==='up'?'var(--green)':rec.trend==='down'?'var(--red)':'var(--text2)';
+  const line=(label,val)=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:.5px solid var(--border);"><span style="font-size:12px;color:var(--text2);">${label}</span><span style="font-family:var(--mono);font-size:12px;color:var(--text);">${val}</span></div>`;
+  const review = `
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:18px 0 8px;">Coach EV · weekly review</div>
+    ${line('Objectives hit', `${r.objectives.completed}/${r.objectives.total}`)}
+    ${line('Sessions', con.planned!=null?`${con.done} of ${con.planned} planned`:`${con.done} logged`)}
+    ${line('Volume', `${r.volume.km} ${distUnit()} · load ${r.volume.load}`)}
+    ${rec.thisWeek!=null?line('Recovery', `${rec.thisWeek}${rec.prevWeek!=null?` <span style="color:${trendCol};">${trendGlyph} vs ${rec.prevWeek}</span>`:''}`):''}
+    ${r.fatigue?line('Fatigue budget', `${Math.round((r.fatigue.worstPct||0)*100)}% ${r.fatigue.worstAxis}${r.fatigue.overBudget?' · over':''}`):''}
+    ${r.missed.length?line('Missed', r.missed.join(', ')):''}
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:18px 0 8px;">Next week · priorities</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.6;">${r.nextWeek.length?r.nextWeek.join(' · '):'Keep building the base.'}</div>`;
+  const head=`<div style="margin-bottom:6px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Week ${d.week} · adaptations</div>
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <span style="font-family:var(--display);font-size:30px;font-weight:900;color:var(--text);line-height:1;">${d.counts.completed}<span style="font-size:18px;color:var(--text3);">/${d.rows.length}</span></span>
+        <span style="font-size:12px;color:var(--text2);">objectives hit</span>
+      </div>
+    </div>`;
+  openInsight('Weekly Adaptation Dashboard', head + `<div style="margin-top:12px;">${rows}</div>` + review);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
