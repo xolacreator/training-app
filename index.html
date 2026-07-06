@@ -645,7 +645,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     <div class="sec-lbl" id="plan-vol"></div>
     <div id="assessment-banner" style="display:none;margin-bottom:8px;"></div>
     <div id="plan-days"></div>
-    <button id="plan-log-week-btn" class="btn" style="margin-top:10px;" onclick="logThisWeek()">+ Log session for this week</button>
+    <div class="btn-row" style="margin-top:10px;">
+      <button id="plan-log-week-btn" class="btn" onclick="logThisWeek()">+ Log session</button>
+      <button id="plan-add-session-btn" class="btn" style="display:none;" onclick="openAddToPlan()">+ Add to plan</button>
+    </div>
     <div id="plan-archive-section" style="display:none;margin-top:20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;" onclick="togglePlanArchive(this)">
         <div class="sec-lbl" style="margin:0;">Previous plan</div>
@@ -3406,6 +3409,7 @@ function renderPlanTabs(){
 
 function renderPlan(w){
   try{ renderWeekAdaptations(parseInt(w)||currentProgramWeek); }catch(e){}
+  try{ const ab=document.getElementById('plan-add-session-btn'); if(ab) ab.style.display=savedProgram?'':'none'; }catch(e){}
   if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
   currentPlanWeek=parseInt(w);
   const ovEl=document.getElementById('plan-overview'); if(ovEl) ovEl.style.display='none';
@@ -4163,7 +4167,7 @@ function openProgramSessionOverlay(id,week,day){
       ${ex.alternatives?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;">${ex.alternatives}</div>`:''}</div>`;
   }
 
-  document.getElementById('po-breakdown').innerHTML=`${whyBanner}${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}`;
+  document.getElementById('po-breakdown').innerHTML=`${whyBanner}${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}${(typeof _planAdjustControls==='function'?_planAdjustControls(day):'')}`;
 
   const alreadyDone=_progSessionDone(week,id);
   document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
@@ -8489,6 +8493,82 @@ function coachAddSuggestedToPlan(day){
   const sug = coachSuggestSession(); if(!sug){ toast('Set a goal/program first'); return null; }
   const d = day || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][(new Date().getDay()+6)%7];
   return addSessionToProgram(sug.session, d);
+}
+
+// ── On-demand plan edits (move a session between days; remove a day) ──────────
+const _PLAN_DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// Move a scheduled session from one day to another (permanent edit to the plan's
+// weekly template). Moving onto a rest day is a plain move; onto another session
+// swaps the two.
+function moveProgramSession(fromDay, toDay, opts={}){
+  if (typeof savedProgram==='undefined' || !savedProgram){ if(!opts.silent) toast('No active program'); return false; }
+  const prog=savedProgram; const fi=_PLAN_DOW.indexOf(fromDay), ti=_PLAN_DOW.indexOf(toDay);
+  if (fi<0||ti<0||fi===ti) return false;
+  if (!Array.isArray(prog.dayMap)||prog.dayMap.length!==7){ if(!opts.silent) toast("This program can't be edited by day"); return false; }
+  const moving=prog.dayMap[fi], occupied=prog.dayMap[ti];
+  prog.dayMap[ti]=moving; prog.dayMap[fi]=occupied;   // swap (occupied may be null = plain move)
+  saveProgramData(prog);
+  try{ recomputeAthleteState(); }catch(e){}
+  try{ renderAll(); }catch(e){}
+  if(!opts.silent) toast(`Moved ${fromDay} → ${toDay}${occupied?` (swapped with ${toDay}'s session)`:''}`);
+  return true;
+}
+function removeProgramSessionFromDay(day, opts={}){
+  if (typeof savedProgram==='undefined' || !savedProgram) return false;
+  const prog=savedProgram; const di=_PLAN_DOW.indexOf(day);
+  if (di<0||!Array.isArray(prog.dayMap)) return false;
+  prog.dayMap[di]=null;
+  saveProgramData(prog);
+  try{ recomputeAthleteState(); }catch(e){}
+  try{ renderAll(); }catch(e){}
+  if(!opts.silent) toast(`Removed ${day}'s session from the plan`);
+  return true;
+}
+// The move/remove controls appended to a program session's detail (tap a session).
+function _planAdjustControls(day){
+  if (!day) return '';
+  const opts=_PLAN_DOW.filter(d=>d!==day).map(d=>`<option value="${d}">${d}</option>`).join('');
+  return `<div style="margin-top:16px;padding-top:14px;border-top:.5px solid var(--border);">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Adjust in plan</div>
+    <div style="display:flex;gap:8px;">
+      <select id="po-move-day" style="flex:1;padding:9px;border-radius:9px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:12px;"><option value="">Move to…</option>${opts}</select>
+      <button onclick="var t=document.getElementById('po-move-day').value; if(t){moveProgramSession('${day}',t); closeOv('plan-overlay');}" style="padding:9px 14px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#0C0820;font-weight:600;font-size:12px;cursor:pointer;">Move</button>
+      <button onclick="if(confirm('Remove ${day}\\'s session from the plan?')){removeProgramSessionFromDay('${day}'); closeOv('plan-overlay');}" style="padding:9px 14px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--red);font-weight:600;font-size:12px;cursor:pointer;">Remove</button>
+    </div>
+  </div>`;
+}
+// ── Add a session to any day (day + type picker in the insight sheet) ─────────
+let _addPlan={day:null,type:null};
+const _ADD_PLAN_TYPES=[['easy','Easy run'],['tempo','Tempo run'],['intervals','Intervals'],['long','Long run'],['recovery','Recovery run'],['strength','Strength'],['fitstop','Conditioning']];
+function openAddToPlan(day){
+  if (typeof savedProgram==='undefined' || !savedProgram){ toast('Build or attach a program first'); return; }
+  _addPlan={ day:day||null, type:null };
+  _renderAddToPlan();
+}
+function _renderAddToPlan(){
+  const chip=(sel,label,onclick)=>`<button onclick="${onclick}" style="padding:8px 12px;border-radius:9px;border:1px solid ${sel?'var(--accent)':'var(--border2)'};background:${sel?'var(--accent)':'var(--bg2)'};color:${sel?'#0C0820':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;margin:0 6px 6px 0;">${label}</button>`;
+  const dayChips=_PLAN_DOW.map(d=>chip(_addPlan.day===d,d,`_addPlan.day='${d}';_renderAddToPlan()`)).join('');
+  const typeChips=_ADD_PLAN_TYPES.map(([v,l])=>chip(_addPlan.type===v,l,`_addPlan.type='${v}';_renderAddToPlan()`)).join('');
+  const ready=!!(_addPlan.day&&_addPlan.type);
+  const occ = _addPlan.day && Array.isArray(savedProgram.dayMap) ? savedProgram.dayMap[_PLAN_DOW.indexOf(_addPlan.day)] : null;
+  const warn = occ ? `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:10px;">${_addPlan.day} already has a session — adding will replace it.</div>` : '';
+  const body=`
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Which day</div>
+    <div style="display:flex;flex-wrap:wrap;">${dayChips}</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 8px;">What session</div>
+    <div style="display:flex;flex-wrap:wrap;">${typeChips}</div>${warn}
+    <button ${ready?'':'disabled'} onclick="_confirmAddToPlan()" style="width:100%;margin-top:18px;padding:12px;border:none;border-radius:10px;background:${ready?'var(--accent)':'var(--bg3)'};color:${ready?'#0C0820':'var(--text3)'};font-weight:700;font-size:14px;cursor:${ready?'pointer':'default'};">＋ Add to plan</button>`;
+  openInsight('Add a session to the plan', body);
+}
+function _confirmAddToPlan(){
+  if (!_addPlan.day||!_addPlan.type) return;
+  const runDef=rt=>({type:'endurance', name:{easy:'Easy Run',tempo:'Tempo Run',intervals:'Intervals',long:'Long Run',recovery:'Recovery Run'}[rt], runType:rt, focus:_adaptationForRunType(rt)||''});
+  let def;
+  if (_addPlan.type==='strength') def=(typeof _genericStrengthSession==='function'?_genericStrengthSession():{type:'strength',name:'Strength'});
+  else if (_addPlan.type==='fitstop') def={type:'fitstop', name:'Conditioning', format:'Circuit', focus:'work_capacity'};
+  else def=runDef(_addPlan.type);
+  addSessionToProgram(def, _addPlan.day);
+  closeInsight();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
