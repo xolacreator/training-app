@@ -7859,7 +7859,9 @@ function sessionLoadVector(session, ctx={}){
 // Values are evidence-informed ceilings (assumed, not measured); tune with data.
 const WEEKLY_FATIGUE_BUDGET = { mechanical:32, metabolic:38, neurological:34, connective:32 };
 function weeklyFatigueUsed(asOf){
-  const end = asOf ? new Date(asOf+'T23:59:59') : new Date();
+  // Window ends at END of today (not the current clock time) so a session logged
+  // today always counts, regardless of the hour the budget is computed.
+  const end = asOf ? new Date(asOf+'T23:59:59') : (()=>{ const d=new Date(); d.setHours(23,59,59,999); return d; })();
   const start = new Date(end.getTime() - 7*86400000);
   const used = { mechanical:0, metabolic:0, neurological:0, connective:0, recoveryHours:0 };
   (Array.isArray(sessions)?sessions:[]).forEach(s=>{
@@ -8214,6 +8216,7 @@ function openDecisionInspector(){
         <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;"><div style="width:${conf}%;height:100%;background:${confCol};"></div></div>
         <span style="font-family:var(--mono);font-size:10px;color:${confCol};font-weight:600;">${conf}% confident</span>
       </div>
+      ${(typeof savedProgram!=='undefined'&&savedProgram)?`<button onclick="coachAddSuggestedToPlan(); closeInsight();" style="width:100%;margin-top:12px;padding:11px;background:var(--accent);color:#0C0820;border:none;border-radius:10px;font-family:var(--headline,inherit);font-weight:700;font-size:13px;letter-spacing:.02em;cursor:pointer;">＋ Add this session to today's plan</button>`:''}
     </div>`;
   const body = qs.map((x,i)=>`
       <div style="display:flex;gap:10px;padding:11px 0;border-bottom:.5px solid var(--border);">
@@ -8389,6 +8392,103 @@ function openWeeklyDashboard(week){
       </div>
     </div>`;
   openInsight('Weekly Adaptation Dashboard', head + `<div style="margin-top:12px;">${rows}</div>` + review);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH EV v2 · ECOSYSTEM INTEGRATION — one shared context; sessions ↔ plan
+// ---------------------------------------------------------------------------
+// The Coach Chat, the Session Builder and the Plan were three silos. This layer
+// gives them ONE shared coaching context (AthleteState + real program + weekly
+// progress + results + fatigue + today's decision), and lets sessions LOAD INTO
+// the plan (builder / Coach EV suggestion → a real program slot the engine then
+// analyses). See docs/ADR-0008-ecosystem-integration.md.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The single ecosystem snapshot every surface reads from.
+function coachingContext(opts={}){
+  const st = (typeof athleteState==='function') ? athleteState() : null;
+  const prog = (typeof savedProgram!=='undefined') ? savedProgram : null;
+  const wk = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
+  let dash=null, review=null, decision=null;
+  try { dash = (typeof weeklyAdaptationDashboard==='function') ? weeklyAdaptationDashboard(wk) : null; } catch(e){}
+  try { review = (typeof weeklyReview==='function') ? weeklyReview({week:wk}) : null; } catch(e){}
+  try { decision = (typeof runDecisionPipeline==='function') ? runDecisionPipeline(opts.decision||{}) : null; } catch(e){}
+  let planWeek=[];
+  if (prog && typeof _progWeekSessions==='function'){
+    try { planWeek = _progWeekSessions(wk).filter(s=>s.session).map(s=>({
+      day:s.day, name:s.session.name, type:(typeof _sessType==='function'?_sessType(s.session):s.session.type),
+      done:(typeof _progSessionDone==='function')?_progSessionDone(wk, s.session.id||s.id):false })); } catch(e){}
+  }
+  const recent = (Array.isArray(sessions)?sessions:[]).slice(0,6).map(s=>({
+    date:sessionDateISO(s), name:s.session, dist:s.dist||null, pace:s.pace||null, hr:s.hr||null, feel:s.feel||null }));
+  return {
+    athlete: st,
+    program: prog ? { name:prog.name, type:prog.type, week:wk, totalWeeks:prog.weeks||null, phase:st?.program?.phase||null, thisWeek:planWeek } : null,
+    progress: dash ? { objectives:`${dash.counts.completed}/${dash.rows.length}`, rows:dash.rows, missed:dash.rows.filter(r=>r.status==='missed').map(r=>r.name) } : null,
+    review, decision: decision ? { adaptation:decision.adaptation.name, status:decision.adaptation.status,
+      prescription:decision.prescription?.name, reason:decision.reason, confidence:decision.confidence } : null,
+    fatigue: st?.fatigue?.budget || null, recent,
+  };
+}
+// Compact plain-language version of the ecosystem — injected into the coach prompt.
+function coachingContextText(opts={}){
+  const c = coachingContext(opts); const L=[];
+  if (c.program){
+    L.push(`CURRENT PROGRAM: ${c.program.name} (${c.program.type}), week ${c.program.week}/${c.program.totalWeeks||'?'}${c.program.phase?` · ${c.program.phase} phase`:''}.`);
+    if (c.program.thisWeek.length) L.push(`This week's plan: ${c.program.thisWeek.map(s=>`${s.day} ${s.name}${s.done?' (done)':''}`).join(' · ')}.`);
+  } else { L.push('No structured program attached yet.'); }
+  if (c.progress){
+    L.push(`Adaptation progress this week: ${c.progress.objectives} objectives hit — ${c.progress.rows.map(r=>`${r.name}=${r.status}`).join(', ')}.`);
+    if (c.progress.missed.length) L.push(`Missed so far: ${c.progress.missed.join(', ')}.`);
+  }
+  if (c.decision) L.push(`Coach EV's data-driven focus today: ${c.decision.adaptation} (${c.decision.status})${c.decision.prescription?` via ${c.decision.prescription}`:''} — ${c.decision.reason} (confidence ${Math.round((c.decision.confidence||0)*100)}%).`);
+  if (c.fatigue && typeof FATIGUE_AXES!=='undefined') L.push(`Weekly fatigue budget: ${FATIGUE_AXES.map(a=>`${a} ${Math.round((c.fatigue.pct[a]||0)*100)}%`).join(', ')}${c.fatigue.overBudget?' — OVER budget, bias to recovery':''}.`);
+  if (c.review && c.review.nextWeek && c.review.nextWeek.length) L.push(`Next-week priorities: ${c.review.nextWeek.join(', ')}.`);
+  return L.join('\n');
+}
+
+// Load a session INTO the active program as a real slot (builder / Coach EV → plan).
+function addSessionToProgram(sessionDef, day, opts={}){
+  if (typeof savedProgram==='undefined' || !savedProgram){ if(!opts.silent) toast('No active program — build or attach one first'); return null; }
+  const prog = savedProgram; prog.sessions = prog.sessions || [];
+  let base = sessionDef.id || (sessionDef.type||'session'), id=base, n=1;
+  while (prog.sessions.some(s=>s.id===id)) id = base+'-'+(++n);
+  const sess = { ...sessionDef, id };
+  prog.sessions.push(sess);
+  if (day){
+    const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const di=DOW.indexOf(day);
+    if (di>=0){ if(!Array.isArray(prog.dayMap)||prog.dayMap.length!==7) prog.dayMap=[null,null,null,null,null,null,null]; prog.dayMap[di]=id; }
+  }
+  saveProgramData(prog);
+  try{ recomputeAthleteState(); }catch(e){}
+  try{ renderAll(); }catch(e){}
+  if(!opts.silent) toast(`Added "${sess.name||'session'}" to the plan${day?` · ${day}`:''}`);
+  return sess;
+}
+// Turn a library prescription + adaptation into a concrete program-session def.
+function _prescriptionToSession(rxId, adaptId){
+  const rx = (typeof prescription==='function') ? prescription(rxId) : null;
+  const name = (rx&&rx.name) || (typeof adaptation==='function' && adaptation(adaptId)?.name) || 'Session';
+  if ((rx&&rx.mode==='strength') || (!rx && ['force_production','strength_maintenance','power'].includes(adaptId))){
+    const s = (typeof _genericStrengthSession==='function') ? _genericStrengthSession() : {id:'strength',type:'strength',name:'Strength',exercises:[]};
+    s.name = name; s.focus = adaptId; return s;
+  }
+  if (rx&&rx.mode==='conditioning') return { id:'conditioning', type:'fitstop', name, focus:adaptId, format:(rx.structure||'Conditioning') };
+  const runType = (rx&&rx.rxRunType) || 'easy';
+  return { id:'run-'+runType, type:'endurance', name, focus:adaptId, runType, cue:(rx&&rx.structure)||'' };
+}
+// Coach EV's suggested session for today (deterministic, from the decision pipeline).
+function coachSuggestSession(opts={}){
+  let rec=null; try{ rec = runDecisionPipeline(opts); }catch(e){}
+  if (!rec || !rec.adaptation) return null;
+  const session = _prescriptionToSession(rec.prescription&&rec.prescription.id, rec.adaptation.id);
+  return { session, adaptation:rec.adaptation.name, prescription:rec.prescription?rec.prescription.name:null, reason:rec.reason, decision:rec };
+}
+// One-tap: add Coach EV's suggested session to a day in the plan (default: today).
+function coachAddSuggestedToPlan(day){
+  const sug = coachSuggestSession(); if(!sug){ toast('Set a goal/program first'); return null; }
+  const d = day || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][(new Date().getDay()+6)%7];
+  return addSessionToProgram(sug.session, d);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -11059,8 +11159,8 @@ function buildCoachSystemPrompt() {
 
   const modeInstructions = {
     checkin:  `\nMODE: DAILY CHECK-IN\nStructure your response as: (1) Recovery status based on today's data, (2) What's coming up next in training, (3) One specific focus point for the athlete today. Be personal, specific, and energizing. Under 200 words.`,
-    review:   `\nMODE: TRAINING REVIEW\nAnalyze the athlete's recent sessions. Cover: what's working, what needs attention, one tactical adjustment. Reference specific data. Under 200 words.`,
-    program:  `\nMODE: PROGRAMMING DISCUSSION\nYou're having a deep-dive conversation about the athlete's training program. Be strategic, reference the plan week and goals. Answer questions thoroughly.`,
+    review:   `\nMODE: TRAINING REVIEW\nAnalyze the athlete's recent sessions AGAINST the plan and this week's adaptation progress (see COACH EV ANALYSIS). Cover: which adaptations are on track vs missed, what's working, one tactical adjustment. Reference specific data. Under 200 words.`,
+    program:  `\nMODE: PROGRAMMING DISCUSSION\nDeep-dive on the athlete's ACTUAL program (see COACH EV ANALYSIS — the real week, phase, adaptation progress, fatigue budget and today's recommended focus). Be strategic and reference the real plan. If you recommend a specific session, describe it concretely (type, adaptation it targets, structure) so the athlete can add it to their plan — but suggest, don't assume; they confirm before it changes the plan.`,
     motivate: `\nMODE: MOTIVATIONAL\nFocus entirely on mindset, belief and energy. Reference the athlete's goal and what it means. No technical detail unless they ask. Fire them up.`,
     ask:      '',
   };
@@ -11071,6 +11171,11 @@ function buildCoachSystemPrompt() {
     ? `\nWHAT I KNOW ABOUT THIS ATHLETE (learned across ${mem.sessionCount} session${mem.sessionCount!==1?'s':''}): ${mem.notes}`
     : '';
 
+  // Coach EV ecosystem — the SAME structured view the app's engine works from
+  // (real program, weekly adaptation progress, fatigue budget, today's decision).
+  let ecoCtx=''; try { ecoCtx = (typeof coachingContextText==='function') ? coachingContextText() : ''; } catch(e){}
+  const planLine = ecoCtx || `Plan week: ${currentPlanWeek}/12`;
+
   return `You are ${p.name}, a personal performance coach. Athletic background of athlete: ${bgStr}. Goal: ${resolvedGoal}. Next race/key date: ${raceDate}.
 
 ${styleMap[p.style||'balanced']} Focus especially on ${focusMap[p.focus||'all']}.
@@ -11078,7 +11183,8 @@ ${detailMap[p.detail||'short']}${priority}${limits}${memCtx}${modeCtx}
 ${strengthCtx ? '\n'+strengthCtx+'\n' : ''}
 ATHLETE DATA:
 ${blCtx}
-Plan week: ${currentPlanWeek}/12${hxGoal?' · '+hxGoal:''}
+COACH EV ANALYSIS (the app's own engine — align your advice with this shared view of the plan, progress and today's best decision; you and the app are one system):
+${planLine}${hxGoal?'\n'+hxGoal:''}
 Best tempo: ${bestPace||'not yet logged'}
 ${pbStr}
 ${recStr}

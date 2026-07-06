@@ -56,7 +56,7 @@ const view=await page.evaluate(()=>{ openTimeline(); const html=document.getElem
 check('openTimeline opens sheet with grouped story', view.open && view.hasTitle && view.hasToday && view.hasLong && view.hasReadiness, JSON.stringify(view));
 
 // ── Reconstructs for the live account after a fresh save (build stays in sync)
-const live=await page.evaluate(()=>{ sessions.unshift({session:'Recovery Jog',dist:'6',dur:'32',pace:'6:10',date:todayISO(),ts:Date.now(),gid:'z'}); saveData(); const ev=buildAthleteTimeline(); return ev[0].title; });
+const live=await page.evaluate(()=>{ const ts=new Date(todayISO()+'T23:30:00').getTime(); sessions.unshift({session:'Recovery Jog',dist:'6',dur:'32',pace:'6:10',date:todayISO(),ts,gid:'z'}); saveData(); const ev=buildAthleteTimeline(); return ev[0].title; });
 check('New session appears at the top after saveData + rebuild', live==='Recovery Jog', live);
 
 // ── limit option is honoured
