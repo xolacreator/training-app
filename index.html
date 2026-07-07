@@ -2910,15 +2910,24 @@ function _renderProgramProgressCard(el){
   const note = prog.weeklyProgressions?.[wk-1]?.note || '';
   const phaseLabel = (note.split('·')[0] || '').trim() || `Week ${wk}`;
   const pct = Math.round((wk/totalWk)*100);
-  const pips = Array.from({length: totalWk},(_,i)=>{ const w=i+1, filled=w<wk, cur=w===wk;
-    const col = cur?'var(--accent)':filled?'var(--blue)':'var(--bg4)';
-    return `<div style="flex:1;height:4px;border-radius:2px;background:${col};${cur?'box-shadow:0 0 0 1px var(--accent);':''}"></div>`; }).join('');
   const typeLabel = (prog.type||'program').toUpperCase();
+  // Hero number = forward-looking (days remaining to the program's finish),
+  // not a repeat of "Week X / Y" which already sits in the footer.
+  const start = (typeof _progStartDate==='function') ? _progStartDate() : null;
+  let bigText, bigSub='', eyebrow;
+  if (start){
+    const end = new Date(start); end.setDate(end.getDate() + totalWk*7);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysToGo = Math.max(0, Math.ceil((end - today)/86400000));
+    bigText = String(daysToGo); eyebrow = daysToGo<=7 ? 'Days to finish' : 'Days remaining';
+  } else {
+    bigText = String(Math.max(0, totalWk - wk)); bigSub = 'wks'; eyebrow = 'Weeks remaining';
+  }
   _kineticHero(el, {
     onclick: 'openProgramOverlay()',
-    eyebrow: 'Current program',
+    eyebrow,
     topRight: prog.name || 'Training Program',
-    bigText: 'W'+wk, bigSub: 'of '+totalWk, bigSize: 74,
+    bigText, bigSub, bigSize: 88,
     fillPct: pct,
     footL: `Week ${wk} / ${totalWk}`,
     footR: phaseLabel || typeLabel,
