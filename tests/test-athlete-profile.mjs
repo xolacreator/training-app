@@ -71,6 +71,41 @@ check('No VO₂ data → shows how to add it (splits or Cooper test)', empty);
 const entry=await page.evaluate(()=>{ nav('stats',document.querySelectorAll('.nb')[3]); const el=document.getElementById('profile-entry'); return !!el && /openAthleteProfile/.test(el.getAttribute('onclick')||''); });
 check('Stats screen exposes the Athlete Profile entry', entry);
 
+// ── RACE ESTIMATOR
+check('Race estimator API exists', await page.evaluate(()=>typeof raceEstimates==='function' && typeof _riegel==='function'));
+// From a 20:00 5K PR → 10K/Half/Marathon predictions via Riegel
+const race=await page.evaluate(()=>{
+  sessions.length=0;
+  const splits=[]; for(let i=0;i<5;i++) splits.push({distance:1000,moving_time:240,average_speed:1000/240});
+  sessions.push({week:'1',day:'Sat',session:'5K TT',dist:'5',pace:'4:00',date:todayISO(),ts:Date.now(),gid:'tt',strava_splits:splits});
+  localStorage.setItem('ht-goal-race-type','marathon');
+  return raceEstimates();
+});
+check('Race estimates from 5K PR (reference labelled)', race && /5K PR/.test(race.reference.label) && race.predictions.length===4, JSON.stringify(race&&race.reference));
+const byLabel=Object.fromEntries((race?.predictions||[]).map(p=>[p.label,p.secs]));
+check('10K predicted ~41-43 min from a 20:00 5K (Riegel)', byLabel['10K']>=2460 && byLabel['10K']<=2640, byLabel['10K']);
+check('Marathon predicted ~3:05-3:20 from a 20:00 5K', byLabel['Marathon']>=11100 && byLabel['Marathon']<=12300, byLabel['Marathon']);
+check('Predictions increase with distance (5K<10K<Half<Marathon)', byLabel['5K']<byLabel['10K']&&byLabel['10K']<byLabel['Half']&&byLabel['Half']<byLabel['Marathon']);
+check('Goal distance (marathon) is flagged', race.predictions.find(p=>p.label==='Marathon')?.isGoal===true && race.goalDist===42195, JSON.stringify({g:race.goalDist}));
+// Falls back to VO2 estimate when no PB in the log
+const fromVo2=await page.evaluate(()=>{ sessions.length=0; baselines={'run-cooper':{vo2max_predicted:50}}; baselines.vo2max_composite=computeVO2maxComposite(); return raceEstimates(); });
+check('Race estimator falls back to VO₂ when no race logged', fromVo2 && /VO₂max estimate/.test(fromVo2.reference.label) && fromVo2.predictions.length===4, JSON.stringify(fromVo2&&fromVo2.reference));
+// Profile renders the race section
+const raceUI=await page.evaluate(()=>{ sessions.length=0; const splits=[]; for(let i=0;i<5;i++) splits.push({distance:1000,moving_time:240,average_speed:1000/240}); sessions.push({dist:'5',pace:'4:00',date:todayISO(),ts:Date.now(),gid:'tt',strava_splits:splits}); baselines={}; openAthleteProfile(); return /Race predictions/.test(document.getElementById('ins-content').innerHTML); });
+check('Profile sheet shows the Race predictions section', raceUI);
+
+// ── Today baselines card surfaces VO₂ WITHOUT an assessment
+const card=await page.evaluate(()=>{
+  baselines={};                       // no assessment at all
+  sessions.length=0; const splits=[]; for(let i=0;i<5;i++) splits.push({distance:1000,moving_time:240,average_speed:1000/240});
+  sessions.push({dist:'5',pace:'4:00',date:todayISO(),ts:Date.now(),gid:'tt',strava_splits:splits});
+  renderBaselinesCard();
+  const el=document.getElementById('baselines-card');
+  return { shown: el.style.display!=='none', hasVO2: /VO₂max/.test(el.innerHTML), estTag: /est\./.test(el.innerHTML), toProfile:/openAthleteProfile/.test(el.innerHTML) };
+});
+check('Today baselines card shows VO₂ from runs (no assessment) + est. tag', card.shown && card.hasVO2 && card.estTag, JSON.stringify(card));
+check('Baselines card links to the full profile', card.toProfile);
+
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
 await browser.close();

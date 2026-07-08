@@ -2527,18 +2527,20 @@ function computeVO2maxComposite() {
     : sorted[mid];
   return { value, sources, dataPoints: estimates.length };
 }
-// VO2max from a best race effort using the Daniels/Gilbert model (pace only).
-// Prefers the athlete's fastest 5K, else 10K, from per-km splits.
+// VDOT / VO2max for a race effort (Daniels/Gilbert model, pace only).
+function _vdotForEffort(distM, secs){
+  const v=distM/(secs/60), t=secs/60;
+  const vo2=-4.60 + 0.182258*v + 0.000104*v*v;
+  const pct=0.8 + 0.1894393*Math.exp(-0.012778*t) + 0.2989558*Math.exp(-0.1932605*t);
+  return vo2/pct;
+}
+// VO2max from a best race effort. Prefers the athlete's fastest 5K, else 10K.
 function _vdotFromBestRun(){
   let pb=null; try { pb=computePersonalBests().pb; } catch(e){ return null; }
   if (!pb) return null;
-  const vdot=(distM,secs)=>{ const v=distM/(secs/60), t=secs/60;
-    const vo2=-4.60 + 0.182258*v + 0.000104*v*v;
-    const pct=0.8 + 0.1894393*Math.exp(-0.012778*t) + 0.2989558*Math.exp(-0.1932605*t);
-    return vo2/pct; };
   let val=null, src=null;
-  if (pb.k5 && pb.k5.secs>=600 && pb.k5.secs<=2400){ val=vdot(5000, pb.k5.secs); src='5K PR'; }
-  else if (pb.k10 && pb.k10.secs>=1500 && pb.k10.secs<=5400){ val=vdot(10000, pb.k10.secs); src='10K PR'; }
+  if (pb.k5 && pb.k5.secs>=600 && pb.k5.secs<=2400){ val=_vdotForEffort(5000, pb.k5.secs); src='5K PR'; }
+  else if (pb.k10 && pb.k10.secs>=1500 && pb.k10.secs<=5400){ val=_vdotForEffort(10000, pb.k10.secs); src='10K PR'; }
   if (val==null) return null;
   const value=Math.round(val);
   return (value>=25 && value<=90) ? { value, source:src } : null;
@@ -4472,17 +4474,21 @@ function assLogSession(id) {
 
 function renderBaselinesCard() {
   const el = document.getElementById('baselines-card'); if (!el) return;
-  const hasAny = ASSESSMENT_SESSIONS.some(a=>baselines[a.id]);
-  if (!hasAny) { el.style.display='none'; return; }
-  el.style.display='';
   const r=baselines['run-cooper'], st=baselines['strength-base'], rw=baselines['row-tt'];
-  const rows=[];
-  if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'–'+r.run_zone2_hi_pace,c:''});
-  const vo2c = baselines.vo2max_composite;
+  // VO₂max: prefer the (assessment/HR/run) composite, else the Cooper value,
+  // else estimate from run data on the fly — so it shows even without an assessment.
+  let vo2c = baselines.vo2max_composite;
+  if (!vo2c && typeof computeVO2maxComposite==='function'){ try { vo2c = computeVO2maxComposite(); } catch(e){} }
   const vo2val = vo2c?.value || r?.vo2max_predicted;
+  const hasAny = ASSESSMENT_SESSIONS.some(a=>baselines[a.id]);
+  if (!hasAny && !vo2val) { el.style.display='none'; return; }   // nothing to show yet
+  el.style.display='';
+  const rows=[];
+  if (r?.run_threshold_pace) rows.push({l:'Threshold',v:r.run_threshold_pace+'/km',c:'am'},{l:'Zone 2',v:r.run_zone2_lo_pace+'-'+r.run_zone2_hi_pace,c:''});
   if (vo2val) {
-    const vo2sub = vo2c?.sources?.length ? vo2c.sources.join(' + ') : 'Cooper Test';
-    rows.push({l:'VO₂max est.',v:vo2val+' ml/kg/min',c:'bl',s:vo2sub});
+    const measured = !!(vo2c?.sources?.includes('Cooper Test') || r?.vo2max_predicted);
+    const vo2sub = (vo2c?.sources?.length ? vo2c.sources.join(' + ') : 'Cooper Test') + (measured?'':' · est.');
+    rows.push({l:'VO₂max',v:vo2val+' ml/kg/min',c:'bl',s:vo2sub});
   }
   if (st?.squat_1rm_est)     rows.push({l:'Squat 1RM',v:'~'+st.squat_1rm_est+'kg',c:'bl'});
   if (st?.bench_1rm_est)     rows.push({l:'Bench 1RM',v:'~'+st.bench_1rm_est+'kg',c:'bl'});
@@ -4491,10 +4497,10 @@ function renderBaselinesCard() {
     <div style="margin-bottom:4px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div class="sec-lbl" style="margin:0;">Your baselines</div>
-        <button class="btn" style="font-size:9px;padding:3px 8px;" onclick="nav('plan',document.querySelectorAll('.nb')[2]);renderPlan(1)">Update →</button>
+        <button class="btn" style="font-size:9px;padding:3px 8px;" onclick="openAthleteProfile()">Profile →</button>
       </div>
       <div class="mg">
-        ${rows.map(x=>`<div class="metric ${x.c}"><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div>${x.s?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px;">${x.s}</div>`:''}</div>`).join('')}
+        ${rows.map(x=>`<div class="metric ${x.c}" ${x.l==='VO₂max'?'onclick="openAthleteProfile()" style="cursor:pointer;"':''}><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div>${x.s?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px;">${x.s}</div>`:''}</div>`).join('')}
       </div>
     </div>`;
 }
@@ -8641,6 +8647,38 @@ function _progressTrends(){
   if (rlo||plo){ t.push({metric:'Longest run', dir:rlo>plo?'up':rlo<plo?'down':'flat', better:rlo>=plo, detail:`${rlo.toFixed(1)} vs ${plo.toFixed(1)} km`}); }
   return t;
 }
+// ── Race predictor ───────────────────────────────────────────────────────────
+// Riegel equivalent-performance model (T2 = T1·(D2/D1)^1.06) from the athlete's
+// best effort; if no race in the log, derive an equivalent 5K time from VO2/VDOT.
+function _riegel(t1, d1, d2){ return t1 * Math.pow(d2/d1, 1.06); }
+function _timeForVdotAtDist(vdot, distM){
+  let lo=distM*0.16, hi=distM*0.42;   // ~2:40–7:00 /km bounds (secs)
+  for (let i=0;i<44;i++){ const mid=(lo+hi)/2; (_vdotForEffort(distM,mid) > vdot) ? (lo=mid) : (hi=mid); }
+  return Math.round((lo+hi)/2);
+}
+const _RACE_DISTS=[['5K',5000],['10K',10000],['Half',21097],['Marathon',42195]];
+const _GOAL_DIST={'5k':5000,'10k':10000,'half':21097,'half-marathon':21097,'halfmarathon':21097,'marathon':42195,'full':42195};
+// Predicted race times across distances, with the athlete's goal distance flagged.
+function raceEstimates(){
+  let refT=null, refD=null, refLabel=null;
+  try { const {pb}=computePersonalBests();
+    if (pb.k5)  { refT=pb.k5.secs;  refD=5000;  refLabel='from your 5K PR'; }
+    else if (pb.k10){ refT=pb.k10.secs; refD=10000; refLabel='from your 10K PR'; }
+  } catch(e){}
+  if (!refT){
+    const vdot = (typeof baselines==='object'&&baselines) ? (baselines.vo2max_composite?.value || baselines['run-cooper']?.vo2max_predicted) : null;
+    if (vdot){ refT=_timeForVdotAtDist(vdot, 5000); refD=5000; refLabel='from your VO₂max estimate'; }
+  }
+  if (!refT) return null;
+  let goalType=''; try { goalType=(localStorage.getItem('ht-goal-race-type')||'').toLowerCase().replace(/\s+/g,'-'); } catch(e){}
+  const goalD=_GOAL_DIST[goalType]||null;
+  const predictions=_RACE_DISTS.map(([label,d])=>({ label, dist:d, secs:Math.round(_riegel(refT,refD,d)), isGoal:goalD===d }));
+  // If the goal distance isn't a standard one, still flag nothing (predictions stand).
+  return { reference:{label:refLabel, secs:refT, dist:refD}, predictions, goalDist:goalD };
+}
+function _fmtRaceTime(secs){ secs=Math.round(secs); const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+  return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`; }
+
 // The consolidated athlete profile object (fitness + PBs + trends + adaptations).
 function athleteProfile(){
   const b=(typeof baselines==='object'&&baselines)?baselines:{};
@@ -8666,7 +8704,8 @@ function athleteProfile(){
   const st2=(typeof athleteState==='function')?athleteState():null;
   const adaptations=(st2?.adaptations)||[];
   const progressed=trends.filter(x=>x.dir==='up'&&x.better).map(x=>x.metric);
-  return { vo2, fitness, pbs, trends, adaptations, progressed };
+  let races=null; try { races=raceEstimates(); } catch(e){}
+  return { vo2, fitness, pbs, trends, adaptations, progressed, races };
 }
 function _adaptStatusColor(s){ return s==='fresh'?'var(--green)':s==='maintained'?'var(--blue)':s==='decaying'?'var(--accent)':s==='lapsed'?'var(--red)':'var(--text3)'; }
 // Render the Athlete Profile in the insight sheet.
@@ -8695,7 +8734,19 @@ function openAthleteProfile(){
     : `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Log a few more weeks to see trends.</div>`;
   const adaptHtml = p.adaptations.length ? p.adaptations.map(a=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 8px;margin:0 6px 6px 0;"><span style="width:7px;height:7px;border-radius:50%;background:${_adaptStatusColor(a.status)};"></span>${a.name} · ${a.status}</span>`).join('') : '';
   const summary = p.progressed.length ? `<div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:12px;padding:11px 13px;margin-top:16px;font-size:12px;color:var(--text);line-height:1.5;">You've progressed in <b>${p.progressed.join(', ')}</b> over the last 4 weeks. Keep it going.</div>` : '';
-  const body = vo2Html + summary
+  // Race predictions (featured; goal distance highlighted)
+  let racesHtml='';
+  if (p.races){
+    const r=p.races;
+    racesHtml = secLbl(`Race predictions · ${r.reference.label}`) + r.predictions.map(x=>{
+      const goal = x.isGoal;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:.5px solid var(--border);${goal?'':''}">
+        <span style="font-size:13px;color:${goal?'var(--accent)':'var(--text2)'};font-weight:${goal?'700':'400'};">${x.label}${goal?' · your goal':''}</span>
+        <span style="font-family:var(--display);font-size:${goal?'22':'16'}px;font-weight:${goal?'900':'700'};color:${goal?'var(--accent)':'var(--text)'};">${_fmtRaceTime(x.secs)}</span>
+      </div>`; }).join('')
+      + `<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:6px;line-height:1.5;">Equivalent-performance estimate (Riegel). Real race times depend on course, conditions and race-specific training.</div>`;
+  }
+  const body = vo2Html + summary + racesHtml
     + (p.fitness.length?secLbl('Fitness baselines')+p.fitness.map(f=>row(f[0],f[1])).join(''):'')
     + (p.pbs.length?secLbl('Personal bests')+p.pbs.map(f=>row(f[0],f[1])).join(''):'')
     + secLbl('Progress · 4 wk vs prior') + trendsHtml
