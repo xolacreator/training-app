@@ -679,6 +679,17 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Analysis</div><div class="screen-title">Stats</div></div>
     <div class="mg" id="stats-metrics"></div>
+    <div class="sec-lbl">Your progress</div>
+    <div class="card" id="profile-entry" onclick="openAthleteProfile()" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#34d399,var(--accent));display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:500;color:var(--text);">Athlete Profile</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">VO₂max, baselines &amp; where you've progressed</div>
+      </div>
+      <div style="font-size:18px;color:var(--text3);">›</div>
+    </div>
     <div class="sec-lbl">Your story</div>
     <div class="card" id="timeline-entry" onclick="openTimeline()" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:8px;">
       <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -2501,6 +2512,13 @@ function computeVO2maxComposite() {
     }
   }
 
+  // Source 4: race-performance VDOT from best efforts (Daniels/Gilbert) — pace only,
+  // no HR needed, so VO2max is estimable from run data alone.
+  try {
+    const est = (typeof _vdotFromBestRun==='function') ? _vdotFromBestRun() : null;
+    if (est){ estimates.push(est.value, est.value); sources.push(est.source); }
+  } catch(e){}
+
   if (!estimates.length) return null;
   const sorted = [...estimates].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -2508,6 +2526,22 @@ function computeVO2maxComposite() {
     ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
     : sorted[mid];
   return { value, sources, dataPoints: estimates.length };
+}
+// VO2max from a best race effort using the Daniels/Gilbert model (pace only).
+// Prefers the athlete's fastest 5K, else 10K, from per-km splits.
+function _vdotFromBestRun(){
+  let pb=null; try { pb=computePersonalBests().pb; } catch(e){ return null; }
+  if (!pb) return null;
+  const vdot=(distM,secs)=>{ const v=distM/(secs/60), t=secs/60;
+    const vo2=-4.60 + 0.182258*v + 0.000104*v*v;
+    const pct=0.8 + 0.1894393*Math.exp(-0.012778*t) + 0.2989558*Math.exp(-0.1932605*t);
+    return vo2/pct; };
+  let val=null, src=null;
+  if (pb.k5 && pb.k5.secs>=600 && pb.k5.secs<=2400){ val=vdot(5000, pb.k5.secs); src='5K PR'; }
+  else if (pb.k10 && pb.k10.secs>=1500 && pb.k10.secs<=5400){ val=vdot(10000, pb.k10.secs); src='10K PR'; }
+  if (val==null) return null;
+  const value=Math.round(val);
+  return (value>=25 && value<=90) ? { value, source:src } : null;
 }
 function refreshVO2maxComposite() {
   baselines.vo2max_composite = computeVO2maxComposite();
@@ -8578,6 +8612,95 @@ function _confirmAddToPlan(){
   else def=runDef(_addPlan.type);
   addSessionToProgram(def, _addPlan.day);
   closeInsight();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ATHLETE PROFILE / PROGRESS — one place for VO2, baselines, PBs, trends,
+// adaptation stock, and "where you've progressed". Reads AthleteState + the
+// engine; VO2max is estimated from run data when no assessment exists.
+// ═══════════════════════════════════════════════════════════════════════════
+function _fmtPaceSecs(secs){ return `${Math.floor(secs/60)}:${String(Math.round(secs%60)).padStart(2,'0')}`; }
+// Progression over the last 4 weeks vs the prior 4 weeks.
+function _progressTrends(){
+  const now=Date.now(), day=86400000;
+  const win=(s,a,b)=>{ const iso=sessionDateISO(s); if(!iso) return false; const t=new Date(iso+'T12:00:00').getTime(); return t>=now-b*day && t<now-a*day; };
+  const recent=(Array.isArray(sessions)?sessions:[]).filter(s=>win(s,0,28));
+  const prior =(Array.isArray(sessions)?sessions:[]).filter(s=>win(s,28,56));
+  const avgPace=arr=>{ const ps=arr.filter(s=>s.pace&&/:/.test(s.pace)&&parseFloat(s.dist)>2).map(s=>{const p=String(s.pace).split(':');return parseInt(p[0])*60+parseFloat(p[1]);}); return ps.length? ps.reduce((a,b)=>a+b,0)/ps.length:null; };
+  const vol=arr=>arr.filter(s=>s.dist).reduce((a,s)=>a+parseFloat(s.dist||0),0);
+  const load=arr=>arr.reduce((a,s)=>a+(typeof computeSessionLoad==='function'?computeSessionLoad(s):0),0);
+  const longest=arr=>arr.filter(s=>s.dist).reduce((m,s)=>Math.max(m,parseFloat(s.dist||0)),0);
+  const t=[];
+  const rp=avgPace(recent), pp=avgPace(prior);
+  if (rp&&pp){ const d=pp-rp; t.push({metric:'Avg run pace', dir:d>2?'up':d<-2?'down':'flat', better:d>=0, detail:`${_fmtPaceSecs(rp)} vs ${_fmtPaceSecs(pp)}/km`}); }
+  const rv=vol(recent), pv=vol(prior);
+  if (rv||pv){ t.push({metric:'Volume · 4 wk', dir:rv>pv*1.05?'up':rv<pv*0.95?'down':'flat', better:rv>=pv, detail:`${Math.round(rv)} vs ${Math.round(pv)} km`}); }
+  const rl=load(recent), pl=load(prior);
+  if (rl||pl){ t.push({metric:'Training load', dir:rl>pl*1.05?'up':rl<pl*0.95?'down':'flat', better:rl>=pl, detail:`${rl} vs ${pl}`}); }
+  const rlo=longest(recent), plo=longest(prior);
+  if (rlo||plo){ t.push({metric:'Longest run', dir:rlo>plo?'up':rlo<plo?'down':'flat', better:rlo>=plo, detail:`${rlo.toFixed(1)} vs ${plo.toFixed(1)} km`}); }
+  return t;
+}
+// The consolidated athlete profile object (fitness + PBs + trends + adaptations).
+function athleteProfile(){
+  const b=(typeof baselines==='object'&&baselines)?baselines:{};
+  const r=b['run-cooper']||{}, st=b['strength-base']||{};
+  const comp=b.vo2max_composite || (typeof computeVO2maxComposite==='function'?computeVO2maxComposite():null);
+  const vo2val = comp?.value || r.vo2max_predicted || null;
+  const measured = !!(comp?.sources?.includes('Cooper Test') || r.vo2max_predicted);
+  const vo2 = vo2val ? { value:vo2val, sources:(comp?.sources||['Cooper Test']), measured } : null;
+  const fitness=[];
+  if (r.run_threshold_pace) fitness.push(['Threshold', r.run_threshold_pace+'/km']);
+  if (r.run_zone2_lo_pace)  fitness.push(['Zone 2', r.run_zone2_lo_pace+'-'+r.run_zone2_hi_pace+'/km']);
+  if (r.run_vo2max_pace)    fitness.push(['VO₂ interval', r.run_vo2max_pace+'/km']);
+  if (st.squat_1rm_est)     fitness.push(['Squat 1RM', '~'+st.squat_1rm_est+' kg']);
+  if (st.bench_1rm_est)     fitness.push(['Bench 1RM', '~'+st.bench_1rm_est+' kg']);
+  let pbs=[]; try { const {pb,fmt}=computePersonalBests();
+    if(pb.km)pbs.push(['Fastest km',fmt(pb.km.secs)]);
+    if(pb.k5)pbs.push(['Fastest 5K',fmt(pb.k5.secs)]);
+    if(pb.k10)pbs.push(['Fastest 10K',fmt(pb.k10.secs)]);
+    if(pb.rep)pbs.push(['Best rep',pb.rep.pace+'/km']);
+    if(pb.longest)pbs.push(['Longest run',pb.longest.km.toFixed(1)+' km']);
+  } catch(e){}
+  const trends=_progressTrends();
+  const st2=(typeof athleteState==='function')?athleteState():null;
+  const adaptations=(st2?.adaptations)||[];
+  const progressed=trends.filter(x=>x.dir==='up'&&x.better).map(x=>x.metric);
+  return { vo2, fitness, pbs, trends, adaptations, progressed };
+}
+function _adaptStatusColor(s){ return s==='fresh'?'var(--green)':s==='maintained'?'var(--blue)':s==='decaying'?'var(--accent)':s==='lapsed'?'var(--red)':'var(--text3)'; }
+// Render the Athlete Profile in the insight sheet.
+function openAthleteProfile(){
+  const p=athleteProfile();
+  const secLbl=t=>`<div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:18px 0 8px;">${t}</div>`;
+  const row=(l,v,sub)=>`<div style="display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:.5px solid var(--border);"><span style="font-size:13px;color:var(--text2);">${l}</span><span style="text-align:right;"><span style="font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600;">${v}</span>${sub?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);">${sub}</div>`:''}</span></div>`;
+  // VO2 hero
+  let vo2Html;
+  if (p.vo2){
+    const tag = p.vo2.measured ? 'measured' : 'estimated from runs';
+    vo2Html=`<div style="display:flex;align-items:baseline;gap:10px;">
+        <span style="font-family:var(--display);font-size:38px;font-weight:900;color:var(--text);line-height:1;">${p.vo2.value}</span>
+        <div><div style="font-size:12px;color:var(--text2);">ml/kg/min VO₂max</div>
+        <div style="font-family:var(--mono);font-size:9px;color:${p.vo2.measured?'var(--green)':'var(--blue)'};">${tag} · ${p.vo2.sources.join(' + ')}</div></div>
+      </div>`;
+  } else {
+    vo2Html=`<div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;">No VO₂max yet. Log a few runs <b>with per-km splits</b> (open a run → Fetch Strava splits) or do the <b>Cooper 12-min test</b> on the Plan tab, and it'll appear here.</div>`;
+  }
+  const trendGlyph=d=>d==='up'?'▲':d==='down'?'▼':'▬';
+  const trendsHtml = p.trends.length ? p.trends.map(x=>{
+    const col = x.dir==='flat'?'var(--text2)':(x.better?'var(--green)':'var(--red)');
+    return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:.5px solid var(--border);">
+      <span style="font-size:13px;color:var(--text2);">${x.metric}</span>
+      <span style="font-family:var(--mono);font-size:12px;color:${col};">${trendGlyph(x.dir)} ${x.detail}</span></div>`; }).join('')
+    : `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Log a few more weeks to see trends.</div>`;
+  const adaptHtml = p.adaptations.length ? p.adaptations.map(a=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);background:var(--bg2);border:.5px solid var(--border);border-radius:8px;padding:4px 8px;margin:0 6px 6px 0;"><span style="width:7px;height:7px;border-radius:50%;background:${_adaptStatusColor(a.status)};"></span>${a.name} · ${a.status}</span>`).join('') : '';
+  const summary = p.progressed.length ? `<div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:12px;padding:11px 13px;margin-top:16px;font-size:12px;color:var(--text);line-height:1.5;">You've progressed in <b>${p.progressed.join(', ')}</b> over the last 4 weeks. Keep it going.</div>` : '';
+  const body = vo2Html + summary
+    + (p.fitness.length?secLbl('Fitness baselines')+p.fitness.map(f=>row(f[0],f[1])).join(''):'')
+    + (p.pbs.length?secLbl('Personal bests')+p.pbs.map(f=>row(f[0],f[1])).join(''):'')
+    + secLbl('Progress · 4 wk vs prior') + trendsHtml
+    + (adaptHtml?secLbl('Adaptation stock')+`<div style="display:flex;flex-wrap:wrap;">${adaptHtml}</div>`:'');
+  openInsight('Athlete Profile', body);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
