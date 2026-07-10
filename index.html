@@ -4495,9 +4495,9 @@ function renderBaselinesCard() {
   if (rw?.row_500m_race_split) rows.push({l:'Row split',v:rw.row_500m_race_split+'/500',c:''});
   el.innerHTML=`
     <div style="margin-bottom:4px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="sec-lbl" style="margin:0;">Your baselines</div>
-        <button class="btn" style="font-size:9px;padding:3px 8px;" onclick="openAthleteProfile()">Profile →</button>
+      <div class="sec-lbl" style="margin:0 0 6px;">
+        <span>Your baselines</span>
+        <span onclick="openAthleteProfile()" style="margin-left:auto;font-family:var(--mono);font-size:9px;font-weight:600;color:var(--blue);cursor:pointer;letter-spacing:.04em;text-transform:none;">Profile ›</span>
       </div>
       <div class="mg">
         ${rows.map(x=>`<div class="metric ${x.c}" ${x.l==='VO₂max'?'onclick="openAthleteProfile()" style="cursor:pointer;"':''}><div class="mlbl">${x.l}</div><div class="mval ${x.c}" style="font-size:16px;">${x.v}</div>${x.s?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px;">${x.s}</div>`:''}</div>`).join('')}
