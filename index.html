@@ -5507,57 +5507,75 @@ function loadTemplate(i){
 // ═══════════════════════════════════════════════════════════════════════════
 // STATS
 // ═══════════════════════════════════════════════════════════════════════════
+// Date-driven rolling weeks (Mon-start) — the shared time axis for Stats. Buckets
+// by actual session dates, so charts evolve with new data and never stay pinned to
+// a previous program's week numbering.
+function _rollingWeeks(n){
+  const today=new Date(); today.setHours(12,0,0,0);
+  const mon=new Date(today); mon.setDate(mon.getDate()-((mon.getDay()+6)%7)); mon.setHours(0,0,0,0);
+  const weeks=[];
+  for(let i=n-1;i>=0;i--){ const s=new Date(mon); s.setDate(s.getDate()-i*7); const e=new Date(s); e.setDate(e.getDate()+7); weeks.push({start:s,end:e}); }
+  return weeks;
+}
+function _statsBuckets(n){
+  const weeks=_rollingWeeks(n);
+  const idxFor=iso=>{ const d=new Date(iso+'T12:00:00'); for(let i=0;i<n;i++){ if(d>=weeks[i].start && d<weeks[i].end) return i; } return -1; };
+  const cnt=Array(n).fill(0), vol=Array(n).fill(0), pS=Array(n).fill(0), pN=Array(n).fill(0), fS=Array(n).fill(0), fN=Array(n).fill(0);
+  (Array.isArray(sessions)?sessions:[]).forEach(s=>{ const iso=sessionDateISO(s); if(!iso) return; const i=idxFor(iso); if(i<0) return;
+    cnt[i]++;
+    if(s.dist){ const km=parseFloat(s.dist)||0; vol[i]+=unitRun==='mi'?km*MI_PER_KM:km; }
+    if(s.pace&&/:/.test(String(s.pace))){ const p=String(s.pace).split(':'); pS[i]+=parseInt(p[0])*60+parseFloat(p[1]); pN[i]++; }
+    if(s.feel){ fS[i]+=parseFloat(s.feel)||0; fN[i]++; }
+  });
+  return { weeks, cnt,
+    volData: vol.map(v=>Math.round(v*10)/10),
+    paceData: pS.map((v,i)=>pN[i]?Math.round(v/pN[i]):null),
+    feelData: fS.map((v,i)=>fN[i]?Math.round(v/fN[i]*10)/10:null) };
+}
 function renderStats(){
   const volLbl = document.getElementById('vol-unit-lbl');
   if (volLbl) volLbl.textContent = distUnit();
-  const wc={};for(let w=1;w<=12;w++)wc[w]=0;
-  sessions.forEach(s=>{if(s.week)wc[parseInt(s.week)]=(wc[parseInt(s.week)]||0)+1;});
-  const total=Object.values(wc).reduce((a,b)=>a+b,0);
+
+  const total=(Array.isArray(sessions)?sessions:[]).length;
   const runs=sessions.filter(s=>s.dist&&parseFloat(s.dist)>0);
   const totalKm=runs.reduce((a,s)=>a+parseFloat(s.dist||0),0);
   const feels=sessions.filter(s=>s.feel);
-  const avgFeel=feels.length?feels.reduce((a,s)=>a+s.feel,0)/feels.length:0;
+  const avgFeel=feels.length?feels.reduce((a,s)=>a+parseFloat(s.feel),0)/feels.length:0;
+
+  const N=12;
+  const B=_statsBuckets(N);
+  const activeWeeks=B.cnt.filter(c=>c>0).length;
+  const wkLabel=w=>w.start.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const labels=B.weeks.map((w,i)=> i===N-1?'Now' : (i%3===0?wkLabel(w):''));
 
   document.getElementById('stats-metrics').innerHTML=`
     <div class="metric" onclick="openInsight('Sessions Breakdown',insightCategoryBreakdown())"><div class="mlbl">Sessions</div><div class="mval">${total}</div><div class="msub">by type ›</div></div>
-    <div class="metric" onclick="openInsight('Distance Breakdown',insightDistanceBreakdown())"><div class="mlbl">Distance</div><div class="mval">${unitRun==='mi'?Math.round(totalKm*MI_PER_KM):Math.round(totalKm)}<span class="munit">${distUnit()}</span></div><div class="msub">by week ›</div></div>
+    <div class="metric" onclick="openInsight('Distance Breakdown',insightDistanceBreakdown())"><div class="mlbl">Distance</div><div class="mval">${unitRun==='mi'?Math.round(totalKm*MI_PER_KM):Math.round(totalKm)}<span class="munit">${distUnit()}</span></div><div class="msub">all time ›</div></div>
     <div class="metric am" onclick="openInsight('Feel Breakdown',insightFeelBreakdown())"><div class="mlbl">Avg feel</div><div class="mval am">${avgFeel?avgFeel.toFixed(1):'—'}</div><div class="msub">by rating ›</div></div>
-    <div class="metric bl" onclick="openInsight('Sessions Logged',insightSessions())"><div class="mlbl">Weeks active</div><div class="mval bl">${Object.values(wc).filter(v=>v>0).length}<span class="munit">/12</span></div><div class="msub">week detail ›</div></div>
+    <div class="metric bl" onclick="openInsight('Sessions Logged',insightSessions())"><div class="mlbl">Active weeks</div><div class="mval bl">${activeWeeks}<span class="munit">/12</span></div><div class="msub">last 12 wk ›</div></div>
   `;
 
-  const labels=['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12'];
-  const volData=[];const paceData=[];const feelData=[];
-  for(let w=1;w<=12;w++){
-    const km=sessions.filter(s=>s.week===String(w)&&s.dist).reduce((a,s)=>a+parseFloat(s.dist||0),0);
-    const vol=unitRun==='mi'?km*MI_PER_KM:km;
-    volData.push(Math.round(vol*10)/10);
-    const paced=sessions.filter(s=>s.week===String(w)&&s.pace&&s.pace.includes(':'));
-    if(paced.length){
-      const avg=paced.reduce((a,s)=>{const p=s.pace.split(':');return a+(parseInt(p[0])*60+parseFloat(p[1]));},0)/paced.length;
-      paceData.push(Math.round(avg));
-    }else{paceData.push(null);}
-    const wf=sessions.filter(s=>s.week===String(w)&&s.feel);
-    feelData.push(wf.length?Math.round(wf.reduce((a,s)=>a+s.feel,0)/wf.length*10)/10:null);
-  }
+  try {
+    drawChart('chart-volume',labels,B.volData,'bar','#4D9EFF');
+    drawChart('chart-pace',labels,B.paceData,'line','#34d399',true);
+    drawChart('chart-feel',labels,B.feelData,'bar','#FF6B35');
+  } catch(e){ /* charts need Chart.js (CDN); the rest of Stats still renders */ }
 
-  drawChart('chart-volume',labels,volData,'bar','#4D9EFF');
-  drawChart('chart-pace',labels,paceData,'line','#34d399',true);
-  drawChart('chart-feel',labels,feelData,'bar','#FF6B35');
-
+  // Sessions per week over the last 12 weeks (target = program's sessions/week, else 5).
+  const target=(savedProgram&&savedProgram.sessionsPerWeek)?savedProgram.sessionsPerWeek:5;
   let cb='';
-  for(let w=1;w<=12;w++){
-    const d=wc[w],p=Math.min(100,Math.round(d/7*100));
-    const col=w<=6?'#4D9EFF':'#a78bfa';
-    cb+=`<div style="display:grid;grid-template-columns:26px 1fr 28px;gap:8px;align-items:center;padding:4px 0;border-bottom:${w<12?'.5px solid var(--border)':'none'};">
-      <div style="font-family:var(--mono);font-size:8px;color:var(--text3);">W${w}</div>
+  B.weeks.forEach((w,i)=>{ const d=B.cnt[i], p=Math.min(100,Math.round(d/target*100));
+    const col=i>=N-4?'#a78bfa':'#4D9EFF';
+    cb+=`<div style="display:grid;grid-template-columns:44px 1fr 34px;gap:8px;align-items:center;padding:4px 0;border-bottom:${i<N-1?'.5px solid var(--border)':'none'};">
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text3);">${i===N-1?'This wk':wkLabel(w)}</div>
       <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.max(d===0?0:3,p)}%;background:${col};"></div></div>
-      <div style="font-family:var(--mono);font-size:8px;text-align:right;color:var(--text3);">${d}/7</div>
+      <div style="font-family:var(--mono);font-size:8px;text-align:right;color:var(--text3);">${d}/${target}</div>
     </div>`;
-  }
+  });
   document.getElementById('completion-bars').innerHTML=cb;
 
-  renderTrainingLoad();
-  renderPersonalBests();
+  try { renderTrainingLoad(); } catch(e){ /* ACWR chart needs Chart.js */ }
+  try { renderPersonalBests(); } catch(e){}
 }
 
 // Auto-detect personal bests from Strava per-km splits + interval laps
