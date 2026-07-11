@@ -6531,10 +6531,22 @@ function renderDriveCard() {
 // PWA
 // ═══════════════════════════════════════════════════════════════════════════
 if('serviceWorker'in navigator){
-  // Single real service worker (sw.js) — a blob-URL SW can't claim the site scope,
-  // so it never controlled navigations. sw.js is network-first with cache:'no-store'
-  // for the document, so a fresh deploy reaches the device on the next load.
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  // Single real service worker (sw.js), network-first with cache:'no-store' for the
+  // document. Plus AUTO-UPDATE: check for a new build whenever the app returns to the
+  // foreground (covers iOS Home-Screen resume) and reload once when it activates — so
+  // deploys apply themselves, no manual refresh / cache-clear needed.
+  const _hadCtrl = !!navigator.serviceWorker.controller;
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if (_swReloaded || !_hadCtrl) return;   // only on a genuine update, not first install
+    _swReloaded = true; try { location.reload(); } catch(e){}
+  });
+  navigator.serviceWorker.register('./sw.js').then(reg=>{
+    const check = ()=>{ try { reg.update(); } catch(e){} };
+    check();
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) check(); });
+    setInterval(check, 60*60*1000);
+  }).catch(()=>{});
 }
 const mf={name:'Rev3',short_name:'Rev3',start_url:'.',display:'standalone',background_color:'#0C0820',theme_color:'#1E0A4A',icons:[
   {src:'R%20Star%20App%20Icon.png',sizes:'192x192',type:'image/png'},
