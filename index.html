@@ -558,13 +558,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
     </div>
     <div id="race-countdown"></div>
     <div id="reschedule-banner"></div>
-    <div id="adaptation-priority"></div>
     <div class="card" id="today-session" style="cursor:pointer;margin-bottom:12px;"></div>
+    <div id="adaptation-priority"></div>
     <div id="today-metrics" style="margin-bottom:16px;"></div>
     <div class="wstrip" id="week-strip"></div>
-    <div id="review-banner"></div>
-    <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
     <div id="recovery-card" style="margin-bottom:4px;"></div>
+    <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
+    <div id="review-banner"></div>
     <div class="sec-lbl" id="phase-bars-label">12-week progress</div>
     <div class="card" id="phase-bars"></div>
   </div>
@@ -2884,14 +2884,14 @@ function renderAll() {
 function _kineticHero(el, o){
   const bigSize = o.bigSize || 88;
   el.innerHTML = `
-    <div class="card" ${o.onclick?`onclick="${o.onclick}"`:''} style="cursor:pointer;border:none;border-radius:20px;background:linear-gradient(150deg,#e8c95a,#D4AF37);color:#0C0820;padding:18px 20px 16px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 10px 30px -10px rgba(212,175,55,.45);">
+    <div class="card" ${o.onclick?`onclick="${o.onclick}"`:''} style="cursor:pointer;border:none;border-radius:18px;background:linear-gradient(150deg,#e8c95a,#D4AF37);color:#0C0820;padding:13px 18px 12px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 8px 24px -12px rgba(212,175,55,.45);">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;">
         <div style="font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;">${o.eyebrow}</div>
         <div style="font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.topRight||''}</div>
       </div>
-      <div style="font-family:var(--display);font-weight:900;font-size:${bigSize}px;line-height:.86;letter-spacing:-.04em;margin:6px 0 6px;">${o.bigText}${o.bigSub?`<span style="font-family:var(--display);font-weight:800;font-size:${Math.round(bigSize*0.3)}px;letter-spacing:-.02em;"> ${o.bigSub}</span>`:''}</div>
-      <div style="height:7px;background:rgba(12,8,32,.18);border-radius:4px;overflow:hidden;"><div class="pbar-fill" style="height:100%;width:${Math.max(2,Math.min(100,o.fillPct||0))}%;background:#0C0820;border-radius:4px;"></div></div>
-      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.08em;text-transform:uppercase;margin-top:7px;"><span>${o.footL||''}</span><span>${o.footR||''}</span></div>
+      <div style="font-family:var(--display);font-weight:900;font-size:${bigSize}px;line-height:.9;letter-spacing:-.04em;margin:2px 0 4px;">${o.bigText}${o.bigSub?`<span style="font-family:var(--display);font-weight:800;font-size:${Math.round(bigSize*0.32)}px;letter-spacing:-.02em;"> ${o.bigSub}</span>`:''}</div>
+      <div style="height:6px;background:rgba(12,8,32,.18);border-radius:4px;overflow:hidden;"><div class="pbar-fill" style="height:100%;width:${Math.max(2,Math.min(100,o.fillPct||0))}%;background:#0C0820;border-radius:4px;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.08em;text-transform:uppercase;margin-top:6px;"><span>${o.footL||''}</span><span>${o.footR||''}</span></div>
     </div>`;
 }
 // Kinetic Gold "today's session" bar — gold eyebrow, uppercase headliner, play button.
@@ -2931,7 +2931,7 @@ function renderRaceCountdown(nextRace, daysTo) {
     eyebrow: isRaceDay ? 'Race day' : 'Days to race',
     topRight: raceName,
     bigText: isRaceDay ? 'TODAY' : String(daysTo),
-    bigSize: isRaceDay ? 58 : 88,
+    bigSize: isRaceDay ? 46 : 64,
     fillPct: pct,
     footL: `Week ${wk} / ${totalWk}`,
     footR: phase,
@@ -2963,7 +2963,7 @@ function _renderProgramProgressCard(el){
     onclick: 'openProgramOverlay()',
     eyebrow,
     topRight: prog.name || 'Training Program',
-    bigText, bigSub, bigSize: 88,
+    bigText, bigSub, bigSize: 60,
     fillPct: pct,
     footL: `Week ${wk} / ${totalWk}`,
     footR: phaseLabel || typeLabel,
