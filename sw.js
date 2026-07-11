@@ -1,4 +1,4 @@
-const CACHE = 'rev3-v2';
+const CACHE = 'rev3-v3';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -15,7 +15,14 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('./')));
+    // Network-first, bypassing the browser HTTP cache so a fresh deploy reaches the
+    // device on the next load. GitHub Pages sets max-age=600, which otherwise served
+    // a stale index.html for ~10 min even with a "network-first" fetch.
+    e.respondWith(
+      fetch(e.request.url, { cache: 'no-store' })
+        .then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./', cp)); return r; })
+        .catch(() => caches.match('./'))
+    );
   }
 });
 

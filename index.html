@@ -6531,11 +6531,10 @@ function renderDriveCard() {
 // PWA
 // ═══════════════════════════════════════════════════════════════════════════
 if('serviceWorker'in navigator){
-  // Network-first for the document so deploys reach users immediately (the old
-  // cache-first SW served a stale index.html and hid updates). Cache is offline fallback.
-  const sw=`const C='ht-v5';self.addEventListener('install',e=>{self.skipWaiting();});self.addEventListener('activate',e=>{e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)));await self.clients.claim();})());});self.addEventListener('fetch',e=>{const req=e.request;if(req.method!=='GET')return;if(req.mode==='navigate'){e.respondWith(fetch(req).then(r=>{const cp=r.clone();caches.open(C).then(c=>c.put(req,cp));return r;}).catch(()=>caches.match(req).then(r=>r||caches.match('./'))));return;}e.respondWith(caches.match(req).then(r=>r||fetch(req)));});`;
-  const blob=new Blob([sw],{type:'application/javascript'});
-  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+  // Single real service worker (sw.js) — a blob-URL SW can't claim the site scope,
+  // so it never controlled navigations. sw.js is network-first with cache:'no-store'
+  // for the document, so a fresh deploy reaches the device on the next load.
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 const mf={name:'Rev3',short_name:'Rev3',start_url:'.',display:'standalone',background_color:'#0C0820',theme_color:'#1E0A4A',icons:[
   {src:'R%20Star%20App%20Icon.png',sizes:'192x192',type:'image/png'},
