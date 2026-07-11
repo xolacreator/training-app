@@ -2945,7 +2945,9 @@ function _renderProgramProgressCard(el){
   const totalWk = prog.weeklyProgressions?.length || prog.weeks || 12;
   const wk = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
   const note = prog.weeklyProgressions?.[wk-1]?.note || '';
-  const phaseLabel = (note.split('·')[0] || '').trim() || `Week ${wk}`;
+  // Footer-right is the phase label from the week note; never fall back to a second
+  // "Week X" (footer-left already carries "Week X / Y") — use the program type instead.
+  const phaseLabel = (note.split('·')[0] || '').trim();
   const pct = Math.round((wk/totalWk)*100);
   const typeLabel = (prog.type||'program').toUpperCase();
   // Hero number = forward-looking (days remaining to the program's finish),
@@ -2994,31 +2996,26 @@ function renderToday() {
   const total=sessions.length;
   const tempo=sessions.filter(s=>s.session&&s.session.toLowerCase().includes('tempo')&&s.pace)
     .sort((a,b)=>{ const p=x=>{ const q=x.split(':');return q.length===2?parseInt(q[0])*60+parseFloat(q[1]):999; }; return p(a.pace)-p(b.pace); })[0];
-  // When the tempo session carries a real date, show it instead of a PLAN week label.
-  const tempoSub = tempo
-    ? (tempo.date ? new Date(tempo.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
-                  : ('W'+tempo.week+' · '+tempo.day))
-    : 'no tempo yet';
 
-  // Kinetic Gold metric rows — colored left tab · Archivo value · mono label · meta link.
-  const _mrow=(tab,val,valSub,label,meta,onclick)=>`
-    <div class="card" ${onclick?`onclick="${onclick}"`:''} style="cursor:pointer;display:flex;align-items:center;gap:12px;border-radius:14px;padding:13px 15px;margin:0;">
-      <div style="width:3px;height:30px;background:${tab};border-radius:2px;flex-shrink:0;"></div>
-      <div style="font-family:var(--display);font-weight:700;font-size:26px;line-height:1;color:var(--text);white-space:nowrap;">${val}${valSub?`<span style="font-size:12px;color:var(--text3);">${valSub}</span>`:''}</div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);flex:1;min-width:0;">${label}</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);white-space:nowrap;flex-shrink:0;">${meta} ›</div>
+  // Kinetic Gold metric tiles — compact 3-up grid: colored accent · Archivo value · mono label.
+  // Tapping a tile opens its insight (the meta/"›" context now lives inside the insight).
+  const _mtile=(tab,val,valSub,label,onclick)=>`
+    <div class="card" ${onclick?`onclick="${onclick}"`:''} style="cursor:pointer;display:flex;flex-direction:column;border-radius:14px;padding:12px 12px 11px;margin:0;min-width:0;">
+      <div style="width:16px;height:2px;background:${tab};border-radius:2px;margin-bottom:9px;"></div>
+      <div style="font-family:var(--display);font-weight:700;font-size:23px;line-height:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${val}${valSub?`<span style="font-size:11px;color:var(--text3);">${valSub}</span>`:''}</div>
+      <div style="font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
     </div>`;
-  const thirdRow = savedProgram ? (()=>{
+  const thirdTile = savedProgram ? (()=>{
       const pw=(typeof _progActualWeek==='function')?_progActualWeek():(currentProgramWeek||1);
       const slots=(typeof _progWeekSessions==='function')?_progWeekSessions(pw).filter(s=>s.session):[];
       const done=slots.filter(s=>typeof _progSessionDone==='function'&&_progSessionDone(pw,s.id)).length;
-      return _mrow('var(--green)', done, '/'+(slots.length||0), 'Week '+pw+' done', 'Program week', null);
+      return _mtile('var(--green)', done, '/'+(slots.length||0), 'Week '+pw+' done', null);
     })()
-    : _mrow('var(--green)', wc[currentPlanWeek]||0, '/7', 'W'+currentPlanWeek+' logged', 'This week', `openInsight('Week ${currentPlanWeek}',insightWeekLog())`);
-  document.getElementById('today-metrics').innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">
-    ${_mrow('var(--accent)', total, '', 'Sessions logged', 'All time', `openInsight('Sessions Logged',insightSessions())`)}
-    ${_mrow('var(--blue)', tempo?convertPaceStr(tempo.pace):'—', tempo?('/'+paceUnit().replace('/','')):'', 'Peak tempo', tempo?tempoSub:'—', `openInsight('Tempo Pace Trend',insightTempo())`)}
-    ${thirdRow}
+    : _mtile('var(--green)', wc[currentPlanWeek]||0, '/7', 'W'+currentPlanWeek+' logged', `openInsight('Week ${currentPlanWeek}',insightWeekLog())`);
+  document.getElementById('today-metrics').innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+    ${_mtile('var(--accent)', total, '', 'Sessions', `openInsight('Sessions Logged',insightSessions())`)}
+    ${_mtile('var(--blue)', tempo?convertPaceStr(tempo.pace):'-', tempo?('/'+paceUnit().replace('/','')):'', 'Peak tempo', `openInsight('Tempo Pace Trend',insightTempo())`)}
+    ${thirdTile}
   </div>`;
 
   // Legacy "12-week progress" phase bars are PLAN-specific — hide when a program is active.
@@ -8146,7 +8143,7 @@ function planTodayAdaptation(opts={}){
     prescriptionOptions,                                 // candidate prescription ids (many)
     selectedPrescription,                                // the one chosen for this state
     fatigueBudget: budget || null,                       // weekly budget snapshot (Phase 3)
-    reason:`Highest value today: ${a.name} (${priority.status}${priority.since!=null?`, ${priority.since}d since last`:''}) — best adaptation per unit of fatigue right now.`,
+    reason:`Best adaptation per unit of fatigue right now${priority.since!=null?`, and ${priority.since}d since you last trained it`:''}.`,
     ranked };
 }
 
@@ -9340,7 +9337,6 @@ function _renderAdaptationPriority(){
   if (!savedProgram) return;
   const plan = (typeof planTodayAdaptation==='function') ? planTodayAdaptation({ type: savedProgram.type, goal:(coachProfile&&coachProfile.goal)||'' }) : null;
   if (!plan || !plan.adaptation) return;
-  const top3 = (plan.ranked||[]).slice(0,3).map(r=>`${r.name} ${r.value}`).join(' · ');
   el.innerHTML = `<div class="card" onclick="openDecisionInspector()" style="cursor:pointer;margin-bottom:16px;border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.06);">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:4px;">Today's priority adaptation</div>
@@ -9348,7 +9344,6 @@ function _renderAdaptationPriority(){
     </div>
     <div style="font-size:16px;font-weight:600;color:var(--text);">${plan.adaptation.name} <span style="font-size:11px;font-weight:400;color:var(--text3);">· ${plan.status}</span></div>
     <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:4px;">${plan.reason}</div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">value/fatigue ranking: ${top3}</div>
   </div>`;
 }
 function _renderRescheduleBanner(){
