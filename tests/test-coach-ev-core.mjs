@@ -61,6 +61,12 @@ check('diagnostics() reports the last decision', dg && dg.decisions>=1 && dg.las
 // ── Learning + Feedback engines are declared stubs (knowledge-first) ─────────
 check('learning + feedback are inert stubs awaiting spec', await page.evaluate(()=>CoachEV.learning._status==='stub' && CoachEV.feedback._status==='stub' && CoachEV.learning.observe()===null));
 
+// ── explain.trace reshapes an existing record (no second pipeline pass) ──────
+check('explain.trace(record) explains an existing decision', await page.evaluate(()=>{ const rec=CoachEV.decision.pipeline({type:'endurance',goal:'marathon'}); const t=CoachEV.explain.trace(rec); return !!(t&&t.available&&t.decisionId===rec.id&&t.adaptationsRanked.length); }));
+
+// ── The Decision Inspector surfaces the trace in the UI (Cycle 2) ────────────
+check('Decision Inspector renders value-ranking + missing-data sections', await page.evaluate(()=>{ openDecisionInspector(); const h=document.getElementById('ins-content').innerHTML; return /Why this one/.test(h)&&/sharpen this call/.test(h); }));
+
 // ── DURABILITY: the decision memory survives a reload ────────────────────────
 const beforeReload=await page.evaluate(()=>{ CoachEV.decision.pipeline({type:'endurance',goal:'marathon'}); return { stored: !!localStorage.getItem('ht-decision-log'), n: JSON.parse(localStorage.getItem('ht-decision-log')||'[]').length }; });
 check('A decision persists to localStorage', beforeReload.stored && beforeReload.n>=1, JSON.stringify(beforeReload));

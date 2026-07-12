@@ -740,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev6</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev7</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -8489,7 +8489,47 @@ function openDecisionInspector(){
           <div style="font-size:12px;color:var(--text2);line-height:1.55;">${x.a}</div>
         </div>
       </div>`).join('');
-  openInsight('Why this session?', head + body);
+  // Explainability Engine (Coach EV Core) — render the ranked "why this won" view
+  // and the "what would sharpen this" missing-data section from the same record.
+  const trace = (typeof CoachEV!=='undefined') ? CoachEV.explain.trace(rec) : null;
+  openInsight('Why this session?', head + body + _decisionTraceHtml(trace));
+}
+// Visual explainability: value ranking (why this adaptation won) + the data gaps
+// that would sharpen the call. Reads a Coach EV explanation trace; degrades to ''.
+function _decisionTraceHtml(trace){
+  if (!trace || !trace.available) return '';
+  let html = '';
+  const ranked = (trace.adaptationsRanked||[]).slice(0,5);
+  const maxV = ranked.reduce((m,r)=>Math.max(m, r.value||0), 0) || 1;
+  if (ranked.length){
+    html += `<div style="margin-top:16px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:9px;">Why this one · value per unit of fatigue</div>
+      ${ranked.map(r=>{
+        const w = Math.max(4, Math.round((r.value||0)/maxV*100));
+        const col = r.chosen ? 'var(--accent)' : 'var(--bg3)';
+        const txt = r.chosen ? 'var(--text)' : 'var(--text2)';
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <div style="width:118px;flex-shrink:0;font-size:11px;font-weight:${r.chosen?600:400};color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.chosen?'▸ ':''}${r.name}</div>
+          <div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${col};border-radius:4px;"></div></div>
+          <div style="width:30px;text-align:right;font-family:var(--mono);font-size:10px;color:${r.chosen?'var(--accent)':'var(--text3)'};">${(r.value||0)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+  const gaps = (trace.missingData||[]).filter(g=>g.impact==='high'||g.impact==='medium');
+  if (gaps.length){
+    html += `<div style="margin-top:18px;border:1px solid rgba(77,158,255,.28);background:rgba(77,158,255,.05);border-radius:12px;padding:13px 14px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);margin-bottom:8px;">What would sharpen this call</div>
+      ${gaps.map(g=>`<div style="display:flex;gap:8px;padding:5px 0;">
+        <span style="color:${g.impact==='high'?'var(--red)':'var(--accent)'};font-size:11px;flex-shrink:0;line-height:1.5;">●</span>
+        <div style="min-width:0;"><div style="font-size:12px;color:var(--text);line-height:1.4;">${g.gap}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:1px;">${g.fix}</div></div>
+      </div>`).join('')}
+    </div>`;
+  } else {
+    html += `<div style="margin-top:16px;font-family:var(--mono);font-size:10px;color:var(--green);">✓ Coach EV has the data it needs for a confident call.</div>`;
+  }
+  return html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -12693,6 +12733,12 @@ function coachExplainToday(opts = {}){
   const rec = _cevCall(typeof runDecisionPipeline !== 'undefined' ? runDecisionPipeline : null, opts);
   if (rec) _persistDecisionLog();
   if (!rec) return { available:false, reason:'No program / adaptation to plan for yet.', missingData:_coachMissingData() };
+  return _coachTraceFromRecord(rec);
+}
+// Reshape a (already-computed) DecisionRecord into the explanation trace — lets the
+// UI explain a decision it already ran without triggering a second pipeline pass.
+function _coachTraceFromRecord(rec){
+  if (!rec) return { available:false, reason:'No decision to explain.', missingData:_coachMissingData() };
   const chosenId = rec.adaptation && rec.adaptation.id;
   // rules fired = validation checks + the feasibility constraints applied
   const rulesFired = [];
@@ -12777,6 +12823,7 @@ const CoachEV = {
   },
   explain: {
     today:       (...a) => coachExplainToday(...a),
+    trace:       (rec)  => rec ? _coachTraceFromRecord(rec) : null,
     record:      ()     => (typeof DECISION_LOG !== 'undefined' && DECISION_LOG.length) ? DECISION_LOG[DECISION_LOG.length-1] : null,
     missingData: ()     => _coachMissingData(),
     context:     (...a) => _cevCall(typeof coachingContext !== 'undefined' ? coachingContext : null, ...a),
