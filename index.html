@@ -740,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev5</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev6</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -2980,14 +2980,12 @@ function _renderProgramProgressCard(el){
     const w = Math.max(0, totalWk - wk);
     footR = `${w} ${w===1?'wk':'wks'} left`;
   }
+  const subL = `Week ${wk} / ${totalWk}${phaseLabel ? ` · ${phaseLabel}` : (typeLabel ? ` · ${typeLabel}` : '')}`;
   el.innerHTML = `
     <div class="card" onclick="openProgramOverlay()" style="cursor:pointer;border:none;border-radius:16px;background:linear-gradient(150deg,#e8c95a,#D4AF37);color:#0C0820;padding:14px 16px;margin-bottom:12px;box-shadow:0 8px 24px -14px rgba(212,175,55,.45);">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:11px;">
-        <div style="font-family:var(--headline);font-weight:800;font-size:16px;letter-spacing:-.01em;text-transform:uppercase;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prog.name || 'Training Program'}</div>
-        <div style="font-family:var(--mono);font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;">Week ${wk} / ${totalWk}</div>
-      </div>
+      <div style="font-family:var(--headline);font-weight:800;font-size:16px;letter-spacing:-.01em;text-transform:uppercase;line-height:1.15;margin-bottom:11px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${prog.name || 'Training Program'}</div>
       <div style="height:6px;background:rgba(12,8,32,.18);border-radius:4px;overflow:hidden;"><div class="pbar-fill" style="height:100%;width:${pct}%;background:#0C0820;border-radius:4px;"></div></div>
-      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.08em;text-transform:uppercase;margin-top:8px;"><span>${phaseLabel || typeLabel}</span><span>${footR}</span></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.08em;text-transform:uppercase;margin-top:8px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${subL}</span><span style="flex-shrink:0;">${footR}</span></div>
     </div>`;
 }
 
