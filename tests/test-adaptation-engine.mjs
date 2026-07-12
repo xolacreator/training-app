@@ -55,7 +55,7 @@ check('Low readiness → high-fatigue VO₂max not the priority', lowR.top!=='vo
 
 // 6) planTodayAdaptation returns a priority + a prescription (workout to create it)
 const plan = await page.evaluate(()=>{ sessions.length=0; return planTodayAdaptation({type:'endurance',goal:'marathon',readiness:80}); });
-check('planTodayAdaptation returns adaptation + prescription + reason', plan&&plan.adaptation&&plan.prescription&&/Highest value today/.test(plan.reason), JSON.stringify({a:plan?.adaptation?.id,rx:plan?.prescription}));
+check('planTodayAdaptation returns adaptation + prescription + reason', plan&&plan.adaptation&&plan.prescription&&/adaptation per unit of fatigue/i.test(plan.reason), JSON.stringify({a:plan?.adaptation?.id,rx:plan?.prescription,reason:plan?.reason}));
 
 // 7) Scheduler objectives ordered by adaptation value (adaptation-first)
 const objs = await page.evaluate(()=>{ sessions.length=0; return objectivesByAdaptationValue('endurance','marathon'); });
@@ -65,7 +65,7 @@ check('objectivesByAdaptationValue returns scheduler objectives in value order',
 await page.evaluate(()=>{ sessions.length=0; programBuilderConfig.type='endurance'; buildFromSchedule(['Mon','Wed','Fri','Sun'],'Sun','marathon',6); nav('today',document.querySelectorAll('.nb')[0]); renderToday(); });
 await page.waitForTimeout(300);
 const banner = await page.locator('#adaptation-priority').innerText().catch(()=>'');
-check('Today shows the priority adaptation card', /priority adaptation/i.test(banner)&&/value\/fatigue/i.test(banner), JSON.stringify(banner.slice(0,80)));
+check('Today shows the priority adaptation card', /priority adaptation/i.test(banner)&&/adaptation per unit of fatigue|Why\?/i.test(banner), JSON.stringify(banner.slice(0,80)));
 
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));

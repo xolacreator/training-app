@@ -556,16 +556,35 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       </div>
       <button onclick="toggleTheme()" style="width:36px;height:36px;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;" id="theme-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     </div>
+    <!-- ── ZONE 1 · YOUR GOAL (program timeline / focus) ── -->
+    <div class="sec-lbl" id="lbl-goal" style="margin-top:2px;">Your goal</div>
     <div id="race-countdown"></div>
+
+    <!-- ── ZONE 2 · READINESS (recovery data / prompt if due) ── -->
+    <div class="sec-lbl" id="lbl-readiness" style="margin-top:18px;">Readiness</div>
+    <div id="recovery-card" style="margin-bottom:4px;"></div>
+
+    <!-- ── ZONE 3 · COACH'S READ (adaptive coaching + data-driven points) ── -->
+    <div class="sec-lbl" id="lbl-coach" style="margin-top:18px;">Coach's read</div>
+    <div id="coach-read"></div>
     <div id="reschedule-banner"></div>
     <div class="card" id="today-session" style="cursor:pointer;margin-bottom:12px;"></div>
-    <div id="adaptation-priority"></div>
-    <div id="today-metrics" style="margin-bottom:16px;"></div>
     <div class="wstrip" id="week-strip"></div>
-    <div id="recovery-card" style="margin-bottom:4px;"></div>
+    <div id="adaptation-priority"></div>
+    <div id="coach-insight"></div>
+
+    <!-- ── ZONE 4 · YOUR PROGRESS (athlete metrics / stats) ── -->
+    <div class="sec-lbl" id="lbl-progress" style="margin-top:18px;">Your progress</div>
+    <div id="today-metrics" style="margin-bottom:8px;"></div>
     <div id="baselines-card" style="display:none;margin-bottom:4px;"></div>
+    <div id="profile-link-card"></div>
+
+    <!-- ── ZONE 5 · COACH & ACTIONS (interactions) ── -->
+    <div class="sec-lbl" id="lbl-actions" style="margin-top:18px;">Coach &amp; actions</div>
+    <div id="coach-actions"></div>
+
     <div id="review-banner"></div>
-    <div class="sec-lbl" id="phase-bars-label">12-week progress</div>
+    <div class="sec-lbl" id="phase-bars-label" style="margin-top:18px;">12-week progress</div>
     <div class="card" id="phase-bars"></div>
   </div>
 </div>
@@ -721,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-11 · rev4</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev5</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -2940,37 +2959,36 @@ function renderRaceCountdown(nextRace, daysTo) {
 }
 
 // Home card for an active custom program — replaces the legacy 12-week race countdown.
+// Compact by design: the program name leads and progress is a slim bar; days-remaining
+// is a modest footer stat, not a giant hero numeral (which read as tacky / low-value).
 function _renderProgramProgressCard(el){
   const prog = savedProgram;
   const totalWk = prog.weeklyProgressions?.length || prog.weeks || 12;
   const wk = (typeof _progActualWeek==='function') ? _progActualWeek() : (currentProgramWeek||1);
   const note = prog.weeklyProgressions?.[wk-1]?.note || '';
-  // Footer-right is the phase label from the week note; never fall back to a second
-  // "Week X" (footer-left already carries "Week X / Y") — use the program type instead.
   const phaseLabel = (note.split('·')[0] || '').trim();
-  const pct = Math.round((wk/totalWk)*100);
   const typeLabel = (prog.type||'program').toUpperCase();
-  // Hero number = forward-looking (days remaining to the program's finish),
-  // not a repeat of "Week X / Y" which already sits in the footer.
+  const pct = Math.max(2, Math.min(100, Math.round((wk/totalWk)*100)));
   const start = (typeof _progStartDate==='function') ? _progStartDate() : null;
-  let bigText, bigSub='', eyebrow;
+  let footR;
   if (start){
     const end = new Date(start); end.setDate(end.getDate() + totalWk*7);
     const today = new Date(); today.setHours(0,0,0,0);
     const daysToGo = Math.max(0, Math.ceil((end - today)/86400000));
-    bigText = String(daysToGo); eyebrow = daysToGo<=7 ? 'Days to finish' : 'Days remaining';
+    footR = `${daysToGo} ${daysToGo===1?'day':'days'} left`;
   } else {
-    bigText = String(Math.max(0, totalWk - wk)); bigSub = 'wks'; eyebrow = 'Weeks remaining';
+    const w = Math.max(0, totalWk - wk);
+    footR = `${w} ${w===1?'wk':'wks'} left`;
   }
-  _kineticHero(el, {
-    onclick: 'openProgramOverlay()',
-    eyebrow,
-    topRight: prog.name || 'Training Program',
-    bigText, bigSub, bigSize: 60,
-    fillPct: pct,
-    footL: `Week ${wk} / ${totalWk}`,
-    footR: phaseLabel || typeLabel,
-  });
+  el.innerHTML = `
+    <div class="card" onclick="openProgramOverlay()" style="cursor:pointer;border:none;border-radius:16px;background:linear-gradient(150deg,#e8c95a,#D4AF37);color:#0C0820;padding:14px 16px;margin-bottom:12px;box-shadow:0 8px 24px -14px rgba(212,175,55,.45);">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:11px;">
+        <div style="font-family:var(--headline);font-weight:800;font-size:16px;letter-spacing:-.01em;text-transform:uppercase;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prog.name || 'Training Program'}</div>
+        <div style="font-family:var(--mono);font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;">Week ${wk} / ${totalWk}</div>
+      </div>
+      <div style="height:6px;background:rgba(12,8,32,.18);border-radius:4px;overflow:hidden;"><div class="pbar-fill" style="height:100%;width:${pct}%;background:#0C0820;border-radius:4px;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.08em;text-transform:uppercase;margin-top:8px;"><span>${phaseLabel || typeLabel}</span><span>${footR}</span></div>
+    </div>`;
 }
 
 function renderToday() {
@@ -3027,6 +3045,16 @@ function renderToday() {
   try { _renderRescheduleBanner(); } catch(e) {}
   // Adaptation-first: show today's highest-value adaptation (the "why" behind the plan).
   try { _renderAdaptationPriority(); } catch(e) {}
+
+  // Coaching layer — make every open feel like being coached / gaining value.
+  try { renderCoachRead(); }        catch(e) {}
+  try { renderCoachInsight(); }     catch(e) {}
+  try { renderProfileLinkCard(); }  catch(e) {}
+  try { renderCoachActions(); }     catch(e) {}
+  // The coaching-zone labels are program-only; hide them (and keep the layout clean)
+  // for legacy/no-program users whose coaching cards render empty.
+  const _coachVis = savedProgram ? '' : 'none';
+  ['lbl-coach','lbl-actions'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display=_coachVis; });
 
   // Week strip and today's session — AI program or default PLAN
   if (savedProgram) {
@@ -3088,6 +3116,160 @@ function renderToday() {
     </div>`;
   }
   document.getElementById('phase-bars').innerHTML=bars;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HOME · COACHING LAYER
+// The home screen should feel like being coached on every open. These render the
+// "Coach's read" (a synthesized sentence for today), a rotating data-driven insight,
+// the athlete-profile door, and the coach/action buttons.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// One plain-language clause describing where the athlete's training is trending.
+function _trendClause(){
+  try {
+    const t = (typeof _progressTrends==='function') ? _progressTrends() : [];
+    const pace = t.find(x=>/pace/i.test(x.metric));
+    if (pace && pace.dir==='up' && pace.better) return 'your pace is trending faster';
+    const vol = t.find(x=>/volume/i.test(x.metric));
+    if (vol && vol.dir==='up') return 'your volume is building';
+    const load = t.find(x=>/load/i.test(x.metric));
+    if (load && load.dir==='up') return "you're absorbing more load";
+    const long = t.find(x=>/longest/i.test(x.metric));
+    if (long && long.dir==='up') return 'your long run is stretching out';
+  } catch(e){}
+  return "you're building steadily";
+}
+// Short word for a session's training kind (for the coach's-read sentence).
+function _kindWord(sess){
+  const rt = (sess && (sess.runType||'')) + '';
+  if (/tempo|threshold/i.test(rt)) return 'tempo';
+  if (/interval|vo2/i.test(rt))    return 'intervals';
+  if (/long/i.test(rt))            return 'long run';
+  if (/easy|recovery/i.test(rt))   return 'easy run';
+  return (sess && sess.name) || 'session';
+}
+// Coach's read — synthesizes goal + today's session + readiness + trend into one
+// sentence. Regenerates from live state, so a rest day coaches recovery, a quality
+// day coaches execution, and a low-readiness day coaches backing off.
+function _coachReadText(){
+  if (typeof savedProgram==='undefined' || !savedProgram) return '';
+  const order=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const todayIdx=(new Date().getDay()+6)%7, todayDow=order[todayIdx];
+  let week=1, weekSess=[];
+  try { week=_progActualWeek(); weekSess=_progWeekSessions(week)||[]; } catch(e){}
+  const slot=weekSess.find(s=>s.day===todayDow);
+  const sess=slot&&slot.session;
+  const totalWk=(savedProgram.weeklyProgressions&&savedProgram.weeklyProgressions.length)||savedProgram.weeks||12;
+  let days=null;
+  try { const start=_progStartDate(); if(start){ const end=new Date(start); end.setDate(end.getDate()+totalWk*7); const t=new Date(); t.setHours(0,0,0,0); days=Math.max(0,Math.ceil((end-t)/86400000)); } } catch(e){}
+  const dayClause = days!=null ? `You're ${days} days out` : `Week ${week} of ${totalWk}`;
+  const trend=_trendClause();
+  // next quality day this week (for the "protect today so X lands" line)
+  const isQ=s=>{ const rt=(s&&(s.runType||''))+''; return /tempo|threshold|interval|vo2|long/i.test(rt); };
+  let nextQ=null;
+  for(let i=1;i<=6;i++){ const d=order[(todayIdx+i)%7]; const sl=weekSess.find(x=>x.day===d); if(sl&&sl.session&&isQ(sl.session)){ nextQ={day:d, kind:_kindWord(sl.session)}; break; } }
+  const rt=(sess&&(sess.runType||''))+'';
+  let done=false; try{ done=slot&&_progSessionDone(week,slot.id); }catch(e){}
+  let caution='';
+  try{ const rd=_readinessToday(); if(rd!=null && rd<55) caution=`Readiness is low today - keep effort honest and cut it short if the legs don't come around. `; }catch(e){}
+  let body;
+  if (done && sess){
+    body=`${dayClause}. Today's ${_kindWord(sess)} is in the bank - ${trend}. Refuel, hydrate, and let the adaptation happen.`;
+  } else if (!sess){
+    body=`${dayClause} and ${trend}. Today is rest - protect it${nextQ?` so ${nextQ.day}'s ${nextQ.kind} lands`:''}. Absorb now, sharpen next.`;
+  } else if (/tempo|threshold/i.test(rt)){
+    body=`${dayClause}. Today's tempo is where the gains are - ${trend}. Hit the paces, don't overreach.`;
+  } else if (/interval|vo2/i.test(rt)){
+    body=`${dayClause}. Today's intervals are your top-end work - ${trend}. Commit to the fast reps, jog the recoveries.`;
+  } else if (/long/i.test(rt)){
+    body=`${dayClause}. Today's long run builds the durability your goal needs - ${trend}. Steady and controlled beats fast.`;
+  } else {
+    body=`${dayClause}. Easy day - keep it conversational. This aerobic base is what makes the hard days work, and ${trend}.`;
+  }
+  return caution+body;
+}
+function renderCoachRead(){
+  const el=document.getElementById('coach-read'); if(!el) return;
+  const txt=_coachReadText();
+  if(!txt){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="card" style="border:1px solid rgba(212,175,55,.28);border-radius:16px;background:linear-gradient(135deg,rgba(212,175,55,.11),rgba(212,175,55,.02));margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+      <div style="width:22px;height:22px;border-radius:7px;background:var(--accent);color:#0C0820;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">◆</div>
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);">Coach's read · today</div>
+    </div>
+    <div style="font-size:15px;color:var(--text);line-height:1.5;font-weight:500;">${txt}</div>
+  </div>`;
+}
+// A rotating, data-driven coaching insight — cycles through the athlete's data
+// dimensions by day so there's a fresh, earned observation on every open.
+function _coachInsights(){
+  const out=[];
+  try {
+    const t=(typeof _progressTrends==='function')?_progressTrends():[];
+    const pace=t.find(x=>/pace/i.test(x.metric));
+    if(pace) out.push({tone:pace.better?'good':'warn', label:pace.better?'▲ trending':'▼ watch', text:`Avg run pace ${pace.detail} over 4 weeks - ${pace.better?'you’re getting faster.':'a touch slower; check fatigue or terrain.'}`});
+    const vol=t.find(x=>/volume/i.test(x.metric));
+    if(vol) out.push({tone:vol.better?'good':'neutral', label:vol.dir==='up'?'▲ building':'steady', text:`Volume ${vol.detail} - ${vol.better?'building your aerobic base.':'down vs the prior block; not a bad thing near a taper.'}`});
+    const load=t.find(x=>/load/i.test(x.metric));
+    if(load) out.push({tone:'neutral', label:'load', text:`Training load ${load.detail} across the last 4 vs prior 4 weeks - the number the plan balances against fatigue.`});
+    const long=t.find(x=>/longest/i.test(x.metric));
+    if(long) out.push({tone:long.better?'good':'neutral', label:long.dir==='up'?'▲ durability':'hold', text:`Longest run ${long.detail} - ${long.better?'durability is climbing.':'hold or extend to keep building durability.'}`});
+  } catch(e){}
+  try {
+    const r=(typeof raceEstimates==='function')?raceEstimates():null;
+    if(r&&r.predictions&&r.predictions.length){ const g=r.predictions.find(p=>p.isGoal)||r.predictions[r.predictions.length-1];
+      if(g) out.push({tone:'good', label:'projection', text:`Current fitness projects about ${_fmtRaceTime(g.secs)} for the ${g.label} (${r.reference.label}).`}); }
+  } catch(e){}
+  try {
+    const v=(typeof baselines==='object'&&baselines)?baselines.vo2max_composite:null;
+    if(v&&v.value) out.push({tone:'good', label:v.measured?'measured':'estimated', text:`VO₂max ${v.value} ml/kg/min ${v.measured?'from your assessment.':'estimated from your recent runs.'}`});
+  } catch(e){}
+  return out;
+}
+function _coachInsight(){
+  const list=_coachInsights(); if(!list.length) return null;
+  const d=new Date(); const doy=Math.floor((d-new Date(d.getFullYear(),0,0))/86400000);
+  return list[doy % list.length];
+}
+function renderCoachInsight(){
+  const el=document.getElementById('coach-insight'); if(!el) return;
+  if(typeof savedProgram==='undefined' || !savedProgram){ el.innerHTML=''; return; }
+  const ins=_coachInsight();
+  if(!ins){ el.innerHTML=''; return; }
+  const tones={good:['rgba(52,211,153,.25)','rgba(52,211,153,.05)','#34d399'],
+               warn:['rgba(240,180,41,.28)','rgba(240,180,41,.06)','#f0b429'],
+               neutral:['rgba(167,139,250,.25)','rgba(167,139,250,.05)','#a78bfa']};
+  const [bd,bg,c]=tones[ins.tone]||tones.neutral;
+  el.innerHTML=`<div class="card" style="border-color:${bd};background:${bg};margin-bottom:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:10px;">
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Coaching insight · from your data</div>
+      <span style="font-family:var(--mono);font-size:9px;color:${c};flex-shrink:0;">${ins.label}</span>
+    </div>
+    <div style="font-size:13px;color:var(--text);line-height:1.55;">${ins.text}</div>
+  </div>`;
+}
+function renderProfileLinkCard(){
+  const el=document.getElementById('profile-link-card'); if(!el) return;
+  el.innerHTML=`<div class="card" onclick="openAthleteProfile()" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin-top:8px;">
+    <div style="width:3px;height:30px;background:#a78bfa;border-radius:2px;flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;color:var(--text);">Athlete profile</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">VO₂max · PBs · race predictions · progress trends</div>
+    </div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--blue);flex-shrink:0;">Open ›</div>
+  </div>`;
+}
+function renderCoachActions(){
+  const el=document.getElementById('coach-actions'); if(!el) return;
+  if(typeof savedProgram==='undefined' || !savedProgram){ el.innerHTML=''; return; }
+  const btn=(icon,label,onclick)=>`<button class="btn" onclick="${onclick}" style="justify-content:flex-start;gap:8px;padding:14px;">${icon} ${label}</button>`;
+  el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    ${btn('💬','Ask your coach','openCoach()')}
+    ${btn('📋','Adjust plan','openAddToPlan()')}
+    ${btn('📊','Weekly review','openWeeklyDashboard()')}
+    ${btn('＋','Add a session','openBuilder(null,null)')}
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
