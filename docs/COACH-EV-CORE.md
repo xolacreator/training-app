@@ -56,17 +56,20 @@ explanation an elite coach would give — one object answering every Developer-M
 
 ---
 
-## 3. Flywheel state
+## 3. Cycle history
 
-| Step | Status this cycle |
+**Cycle 1 — Coach EV Core + Explainability Engine** *(shipped, rev7)*
+Additive `CoachEV` facade over the existing engines; `coachExplainToday` trace;
+decision-log durability (`ht-decision-log`). `test-coach-ev-core` 26/26.
+
+**Cycle 2 — Explainability in the UI** *(shipped, rev7)*
+Decision Inspector now renders the trace: a value-ranking "why this one" bar view
+and a "what would sharpen this call" missing-data section. Inspector routed through
+`CoachEV` (first Core adoption). Added `CoachEV.explain.trace(record)`.
+
+| Step (latest cycle) | Status |
 |---|---|
-| 1 Understand | ✅ Full architecture map produced (coaching-intelligence surface + coupling points) |
-| 2 Identify | ✅ Opportunity list generated |
-| 3 Score | ✅ Weighted for "behaves like an elite coach"; winner = Core facade + Explainability |
-| 4 Design | ✅ Additive facade + Explainability Engine + decision-log durability |
-| 5 Implement | ✅ `CoachEV` + `coachExplainToday` + persistence |
-| 6 Validate | ✅ `test-coach-ev-core` 24/24; pipeline/adaptation/state regressions clean |
-| 7 Reflect | ✅ This document |
+| 1 Understand → 7 Reflect | ✅ complete; both cycles deployed to production |
 
 ---
 
@@ -81,10 +84,11 @@ explanation an elite coach would give — one object answering every Developer-M
   budget, Constraint scheduler, Progress trends, Race estimator, VO₂max composite, Weekly review.
 
 ### Outstanding components
-- **Explainability → UI**: surface `explain.missingData()` + `alternatives` in the Decision Inspector
-  and a "what would sharpen this" nudge on Today. *(next cycle, top item)*
-- **Route call-sites through Core**: migrate `renderToday` coaching calls to `CoachEV.*` (incremental).
-- **Developer panel**: a hidden diagnostics view rendering `CoachEV.diagnostics()`.
+- **Route remaining call-sites through Core**: migrate `renderToday` coaching calls
+  (`_renderAdaptationPriority`, `_coachInsights`, `_coachReadText`) to `CoachEV.*` (incremental).
+- **Developer panel**: a hidden diagnostics view rendering `CoachEV.diagnostics()` + decision history.
+- **Coaching-copy hygiene**: replace em dashes with hyphens in decision copy (`decisionQuestions`,
+  pipeline `reason`, prescription `structure`) — standing product rule, now prominent in the inspector.
 - **Learning Engine**: activate once the outcome→priority spec lands.
 - **Feedback Engine**: activate once the post-session feedback schema lands.
 
@@ -112,9 +116,11 @@ When these specs land, the `learning` / `feedback` stubs become live services wi
 
 ---
 
-## 7. Next highest-leverage opportunity
+## 7. Next highest-leverage opportunity (Cycle 3)
 
-**Surface the Explainability Engine in the UI** — wire `explain.today().missingData` and
-`alternatives` into the Decision Inspector, and add a single "log X to sharpen today's call"
-nudge on Today when a high-impact gap exists. Highest coaching value (makes the reasoning visible
-to the athlete), builds directly on this cycle, low risk (reads the Core, one additive UI touch).
+**Developer/Coach diagnostics panel + Core adoption.** Add a hidden diagnostics view (from More)
+that renders `CoachEV.diagnostics()` and the persisted decision history — making the mandate's
+"developer transparency" real and giving a window into the brain's state, confidence over time,
+and data gaps. Bundle the low-risk coaching-copy em-dash hygiene while touching this surface, and
+migrate one more `renderToday` call-site to `CoachEV.*`. High alignment with Developer Mode, low
+risk, advances Core adoption.
