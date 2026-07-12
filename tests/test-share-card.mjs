@@ -50,11 +50,14 @@ const themes=await page.evaluate(()=>{ setCardTheme('graphite'); const g=_shareL
 check('Theme switch → graphite + midnight palettes build', themes.g==='graphite'&&themes.m==='midnight', JSON.stringify(themes));
 check('Selected theme persists to localStorage', themes.stored==='midnight', themes.stored);
 
-// Highlights: type-specific metric (@ THRESHOLD); cadence now a prominent grid stat
+// Highlights: type-specific metric (@ THRESHOLD); cadence is intentionally OFF the share card
 const hl=await page.evaluate(async()=>{ sessions[0].cad=182; await shareSession(0); return _shareLayout.hl.map(h=>h.lab); });
 check('Highlights include a type-specific metric (@ THRESHOLD / @ VO₂ / ON FEET)', hl.some(l=>/@ THRESHOLD|@ VO₂|ON FEET/.test(l)), JSON.stringify(hl));
 const cadGrid=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Cadence'));
-check('Cadence shown as a prominent stat (grid) when present', !!cadGrid && cadGrid[1]==='182', JSON.stringify(cadGrid));
+check('Cadence is NOT shown on the share card (removed by request)', !cadGrid, JSON.stringify(cadGrid));
+// …but cadence IS kept in the log's session detail (normalised per-leg → both-feet)
+const cadLog=await page.evaluate(()=>{ sessions[0].cad=90; openLogOverlay(0); const h=document.getElementById('lo-stats').innerHTML; return { hasCad:/Cadence/.test(h), val:(h.match(/Cadence<\/div>\s*<div[^>]*>(\d+)/)||[])[1] }; });
+check('Cadence kept in the log session detail (per-leg 90 → 180 spm)', cadLog.hasCad && cadLog.val==='180', JSON.stringify(cadLog));
 // Overview avg pace is the WHOLE-SESSION pace (s.pace 4:05), not the faster work-rep pace
 // Overall pace = distance ÷ total time (a 4:xx overall, not the ~3:5x work-rep pace)
 const apStat=await page.evaluate(()=> _shareLayout.grid.find(t=>t[0]==='Avg pace')?.[1]);

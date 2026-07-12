@@ -4517,6 +4517,8 @@ function openLogOverlay(idx){
   if(s.dist)sc.push({l:'Distance',v:unitRun==='mi'?+(parseFloat(s.dist)*MI_PER_KM).toFixed(2):s.dist,u:distUnit(),c:''});
   if(s.hr)sc.push({l:'Avg HR',v:s.hr,u:'bpm',c:'am'});
   if(s.dur)sc.push({l:'Duration',v:fmtDurMin(s.dur),u:'',c:''});
+  // Cadence stays in the log's session detail (removed from the share card only).
+  if(s.cad){const _c=_normCad(s.cad); if(_c)sc.push({l:'Cadence',v:_c,u:'spm',c:''});}
   document.getElementById('lo-stats').innerHTML=sc.map(x=>`
     <div class="stat-box ${x.c}"><div class="stat-lbl">${x.l}</div>
       <div class="stat-val ${x.c}">${x.v}<span class="stat-unit"> ${x.u}</span></div>
@@ -4778,11 +4780,10 @@ function _buildShareLayout(s){
   if(totalMin) stats.push(['Total time', fmtDurMin(totalMin), '', true]);
   if(overallPace) stats.push(['Avg pace', overallPace, '/'+paceUnit(), false]);
   if(overallHR) stats.push(['Avg HR', String(overallHR), 'bpm', false]);
-  // Cadence is a first-class stat (big numeral) rather than a small pill.
-  const _cad=_normCad(s.cad);
-  if(_cad) stats.push(['Cadence', String(_cad), 'spm', false]);
+  // Cadence is intentionally NOT shown on the share card (it lives in the log's
+  // session detail instead — kept out of the shareable summary by request).
   if(stats.length<4 && s.feel) stats.push(['Felt', String(s.feel), '/5', false]);
-  const grid=stats.slice(0, Math.min(stats.length, _cad?5:4));
+  const grid=stats.slice(0, Math.min(stats.length, 4));
   // Breakdown rows — the card grows taller (below) to fit them, so this is only a
   // high safety cap for pathologically long workouts (avoids an absurd image).
   const MAXROWS=28; let rows=bd?bd.rows.slice():[]; let extra=0;
@@ -4823,7 +4824,7 @@ function _buildShareLayout(s){
   if(workSecs>0 && rt0==='tempo')       highlights.push({lab:'@ THRESHOLD', val:fmtSecs(workSecs), c:'gold'});
   else if(workSecs>0 && rt0==='intervals') highlights.push({lab:'@ VO₂', val:fmtSecs(workSecs), c:'gold'});
   else if(rt0==='long' && totalMin)     highlights.push({lab:'ON FEET', val:fmtDurMin(totalMin), c:'gold'});
-  // (Cadence is now shown in the stats grid above, not as a pill.)
+  // (Cadence is not shown on the share card; it lives in the log session detail.)
   if(bestRepPace) highlights.push({ic:'★',lab:'BEST', val:bestRepPace, c:'gold'});
   if(wr.length>=2){ const f=wr[0].speed,l=wr[wr.length-1].speed; const t=l>f*1.008?['↘','NEG SPLIT','gold']:(l<f*0.992?['↗','FADE','purple']:['→','EVEN','purple']); highlights.push({ic:t[0],lab:t[1],val:'',c:t[2]}); }
   if(hrMax) highlights.push({ic:'♥',lab:'PEAK HR',val:hrMax+' bpm',c:'purple'});
