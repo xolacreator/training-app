@@ -8429,6 +8429,8 @@ function runDecisionPipeline(opts={}){
   record.validation = validation;
   DECISION_LOG.push(record);
   if (DECISION_LOG.length > 50) DECISION_LOG.shift();
+  // Persist the reasoning trail so the coaching memory survives reloads.
+  try { if (typeof _persistDecisionLog === 'function') _persistDecisionLog(); } catch (e) {}
   return record;
 }
 
@@ -12626,6 +12628,193 @@ function confirmFactoryReset() {
   localStorage.clear();
   location.reload();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH EV CORE — the central intelligence facade.
+// ---------------------------------------------------------------------------
+// A thin, ADDITIVE namespace over the existing engines. No coaching logic is
+// moved, rewritten, or duplicated here — every method delegates to the bare
+// globals that already implement it. The point is architectural: give the
+// coaching brain ONE API surface so features consume `CoachEV.*` instead of
+// reaching into internals, and so the brain can evolve independently of the UI.
+//
+//   CoachEV.athlete      — Athlete Model (state, timeline, profile, readiness…)
+//   CoachEV.knowledge    — Knowledge Repository (adaptations, prescriptions, KB)
+//   CoachEV.decision     — Decision Engine (plan / pipeline / validate / reschedule)
+//   CoachEV.programming  — Programming Engine (build / schedule / edit)
+//   CoachEV.performance  — Performance Intelligence (trends / estimates / load / fatigue)
+//   CoachEV.explain      — Explainability Engine (why + missing-data + full trace)
+//   CoachEV.learning     — Learning Engine  (interface stub — awaits coaching spec)
+//   CoachEV.feedback     — Feedback Engine   (interface stub — awaits coaching spec)
+//
+// Rules: delegate only · guard every call · never throw from the facade ·
+// fully backward compatible (all bare globals remain callable as before).
+// ═══════════════════════════════════════════════════════════════════════════
+const COACH_EV_VERSION = '1.0';
+const _cevCall = (f, ...a) => { try { return (typeof f === 'function') ? f(...a) : null; } catch (e) { return null; } };
+
+// ── Decision-log durability — the reasoning trail must survive a reload, so an
+//    elite-coach memory of "why we decided what we did" persists across sessions.
+function _persistDecisionLog(){
+  try { localStorage.setItem('ht-decision-log', JSON.stringify(DECISION_LOG.slice(-50))); } catch (e) {}
+}
+function _loadDecisionLog(){
+  try {
+    const raw = localStorage.getItem('ht-decision-log');
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) { DECISION_LOG.length = 0; arr.slice(-50).forEach(r => DECISION_LOG.push(r)); }
+  } catch (e) {}
+}
+
+// ── Explainability Engine ────────────────────────────────────────────────────
+// "What data is missing that would sharpen today's recommendation?" — a
+// first-class coaching question. Returns gaps with the impact of closing each.
+function _coachMissingData(){
+  const gaps = [];
+  const rd = _cevCall(typeof _readinessToday !== 'undefined' ? _readinessToday : null);
+  if (rd == null) gaps.push({ gap:'No readiness logged today', impact:'high', fix:'Log the morning check-in (sleep / HRV / resting HR)' });
+  const bl = (typeof baselines === 'object' && baselines) ? baselines : {};
+  if (!bl.vo2max_composite && !bl['run-cooper']) gaps.push({ gap:'No fitness baseline (VO₂max / threshold)', impact:'high', fix:'Run a Cooper test or sync Strava splits' });
+  const n = Array.isArray(sessions) ? sessions.length : 0;
+  if (n < 6) gaps.push({ gap:`Only ${n} session${n===1?'':'s'} logged`, impact:'medium', fix:'Log ≥6 sessions so trends and load stabilise' });
+  const hasSplits = Array.isArray(sessions) && sessions.some(s => s && s.strava_splits && s.strava_splits.length);
+  if (!hasSplits) gaps.push({ gap:'No lap / split data', impact:'low', fix:'Sync Strava for per-rep pace and automatic PBs' });
+  const goal = _cevCall(typeof _asGoal !== 'undefined' ? _asGoal : null);
+  if (!goal || !goal.text) gaps.push({ gap:'No goal set', impact:'medium', fix:'Set a goal so adaptations are prioritised toward it' });
+  return gaps;
+}
+
+// The full decision trace — the structured explanation an elite coach would give.
+// Runs the canonical pipeline and reshapes its DecisionRecord into an answer to
+// every Developer-Mode question: what was chosen, which data drove it, which
+// rules fired, what was ranked, what alternatives and why-not, what's missing.
+function coachExplainToday(opts = {}){
+  const rec = _cevCall(typeof runDecisionPipeline !== 'undefined' ? runDecisionPipeline : null, opts);
+  if (rec) _persistDecisionLog();
+  if (!rec) return { available:false, reason:'No program / adaptation to plan for yet.', missingData:_coachMissingData() };
+  const chosenId = rec.adaptation && rec.adaptation.id;
+  // rules fired = validation checks + the feasibility constraints applied
+  const rulesFired = [];
+  ((rec.validation && rec.validation.checks) || []).forEach(c => rulesFired.push({ rule:c.rule, passed:!!c.ok, detail:c.msg }));
+  (rec.constraints || []).forEach(c => rulesFired.push({ rule:c.type, passed:!c.limiting, limiting:!!c.limiting, detail:c.detail }));
+  // ranked adaptations with value = chosen + runners-up, ordered high→low
+  const ranked = [];
+  if (rec.adaptation) ranked.push({ name:rec.adaptation.name, value:rec.adaptation.value, status:rec.adaptation.status, chosen:true });
+  (rec.alternatives || []).forEach(a => ranked.push({ name:a.name, value:a.value, status:a.status, chosen:false, whyNot:a.whyNot }));
+  ranked.sort((a,b) => (b.value||0) - (a.value||0));
+  return {
+    available:true,
+    decisionId: rec.id, at: rec.at, asOf: rec.asOf, athleteStateAt: rec.athleteStateRef,
+    recommendation: {
+      adaptation:   rec.adaptation   ? rec.adaptation.name    : null,
+      status:       rec.adaptation   ? rec.adaptation.status  : null,
+      prescription: rec.prescription ? rec.prescription.name  : null,
+    },
+    confidence: rec.confidence,
+    reason: rec.reason,
+    inputs: {                                   // which athlete data influenced it
+      readiness:     rec.state ? rec.state.readiness : null,
+      goal:          rec.objective ? rec.objective.goal : null,
+      phase:         rec.state && rec.state.program ? rec.state.program.phase : null,
+      required:      rec.objective ? rec.objective.required : null,
+      fatigueBudget: rec.fatigueBudget ? { worstAxis:rec.fatigueBudget.worstAxis, worstPct:rec.fatigueBudget.worstPct, overBudget:rec.fatigueBudget.overBudget } : null,
+    },
+    rulesFired,
+    adaptationsRanked: ranked,
+    stock: (rec.adaptationStock || []).map(a => ({ id:a.id, name:a.name, status:a.status, since:a.since, urgency:a.urgency, chosen:a.id===chosenId })),
+    alternatives: (rec.alternatives || []).map(a => ({ name:a.name, value:a.value, status:a.status, whyNot:a.whyNot })),
+    missingData: _coachMissingData(),
+  };
+}
+
+const CoachEV = {
+  version: COACH_EV_VERSION,
+  athlete: {
+    state:        (...a) => _cevCall(typeof athleteState        !== 'undefined' ? athleteState        : null, ...a),
+    recompute:    (...a) => _cevCall(typeof recomputeAthleteState!== 'undefined' ? recomputeAthleteState: null, ...a),
+    timeline:     (...a) => _cevCall(typeof buildAthleteTimeline !== 'undefined' ? buildAthleteTimeline : null, ...a),
+    profile:      (...a) => _cevCall(typeof athleteProfile       !== 'undefined' ? athleteProfile       : null, ...a),
+    readiness:    (...a) => _cevCall(typeof _readinessToday      !== 'undefined' ? _readinessToday      : null, ...a),
+    baselines:    ()     => (typeof baselines === 'object' ? baselines : null),
+    vo2max:       (...a) => _cevCall(typeof computeVO2maxComposite!== 'undefined' ? computeVO2maxComposite: null, ...a),
+    personalBests:(...a) => _cevCall(typeof computePersonalBests  !== 'undefined' ? computePersonalBests  : null, ...a),
+  },
+  knowledge: {
+    adaptation:      (id) => _cevCall(typeof adaptationInfo   !== 'undefined' ? adaptationInfo   : null, id),
+    adaptations:     ()   => (typeof ADAPTATION_MODEL !== 'undefined' ? ADAPTATION_MODEL : null),
+    prescription:    (id) => _cevCall(typeof prescription    !== 'undefined' ? prescription    : null, id),
+    prescriptionsFor:(id) => _cevCall(typeof prescriptionsFor !== 'undefined' ? prescriptionsFor : null, id),
+    runningDomain:   (id) => _cevCall(typeof runningDomain    !== 'undefined' ? runningDomain    : null, id),
+    strengthDomain:  (id) => _cevCall(typeof strengthDomain   !== 'undefined' ? strengthDomain   : null, id),
+  },
+  decision: {
+    today:     (...a) => _cevCall(typeof planTodayAdaptation !== 'undefined' ? planTodayAdaptation : null, ...a),
+    pipeline:  (o)    => { const r = _cevCall(typeof runDecisionPipeline !== 'undefined' ? runDecisionPipeline : null, o); if (r) _persistDecisionLog(); return r; },
+    validate:  (...a) => _cevCall(typeof validateDecision !== 'undefined' ? validateDecision : null, ...a),
+    questions: (...a) => _cevCall(typeof decisionQuestions !== 'undefined' ? decisionQuestions : null, ...a),
+    rank:      (...a) => _cevCall(typeof rankAdaptationsByValue !== 'undefined' ? rankAdaptationsByValue : null, ...a),
+    reschedule:(...a) => _cevCall(typeof suggestReschedule !== 'undefined' ? suggestReschedule : null, ...a),
+    log:       ()     => (typeof DECISION_LOG !== 'undefined' ? DECISION_LOG.slice() : []),
+  },
+  programming: {
+    save:          (...a) => _cevCall(typeof saveProgramData        !== 'undefined' ? saveProgramData        : null, ...a),
+    buildWeek:     (...a) => _cevCall(typeof buildAdaptiveWeek      !== 'undefined' ? buildAdaptiveWeek      : null, ...a),
+    schedule:      (...a) => _cevCall(typeof scheduleWeek           !== 'undefined' ? scheduleWeek           : null, ...a),
+    weekSessions:  (...a) => _cevCall(typeof _progWeekSessions      !== 'undefined' ? _progWeekSessions      : null, ...a),
+    addSession:    (...a) => _cevCall(typeof addSessionToProgram    !== 'undefined' ? addSessionToProgram    : null, ...a),
+    moveSession:   (...a) => _cevCall(typeof moveProgramSession     !== 'undefined' ? moveProgramSession     : null, ...a),
+    removeSession: (...a) => _cevCall(typeof removeProgramSessionFromDay !== 'undefined' ? removeProgramSessionFromDay : null, ...a),
+    suggestSession:(...a) => _cevCall(typeof coachSuggestSession    !== 'undefined' ? coachSuggestSession    : null, ...a),
+  },
+  performance: {
+    trends:        (...a) => _cevCall(typeof _progressTrends     !== 'undefined' ? _progressTrends     : null, ...a),
+    raceEstimates: (...a) => _cevCall(typeof raceEstimates       !== 'undefined' ? raceEstimates       : null, ...a),
+    load:          (...a) => _cevCall(typeof _computeLoadMetrics !== 'undefined' ? _computeLoadMetrics : null, ...a),
+    buckets:       (...a) => _cevCall(typeof _statsBuckets       !== 'undefined' ? _statsBuckets       : null, ...a),
+    fatigueBudget: (...a) => _cevCall(typeof weeklyFatigueBudget !== 'undefined' ? weeklyFatigueBudget : null, ...a),
+    sessionFatigue:(...a) => { try { return (typeof Fatigue==='object' && Fatigue.sessionFatigue) ? Fatigue.sessionFatigue(...a) : null; } catch (e) { return null; } },
+  },
+  explain: {
+    today:       (...a) => coachExplainToday(...a),
+    record:      ()     => (typeof DECISION_LOG !== 'undefined' && DECISION_LOG.length) ? DECISION_LOG[DECISION_LOG.length-1] : null,
+    missingData: ()     => _coachMissingData(),
+    context:     (...a) => _cevCall(typeof coachingContext !== 'undefined' ? coachingContext : null, ...a),
+  },
+  // Learning + Feedback engines: interfaces are defined so features can target
+  // them today, but they are intentionally inert — we do NOT invent adaptation-
+  // from-outcome methodology. They activate when the coaching spec lands.
+  learning: {
+    _status:'stub',
+    _needs:'Spec: how observed outcomes (PBs, session feel, HRV response to load) should update adaptation priority / retention / the fatigue model.',
+    observe:() => null,
+    apply:  () => null,
+  },
+  feedback: {
+    _status:'stub',
+    _needs:'Spec: post-session feedback schema (RPE vs prescribed, pain flags, enjoyment) and how it feeds back into the decision engine.',
+    record: () => null,
+  },
+  services(){ return ['athlete','knowledge','decision','programming','performance','explain','learning(stub)','feedback(stub)']; },
+  // Developer transparency — a one-call snapshot of the coaching brain's state.
+  diagnostics(){
+    const rec = this.explain.record();
+    let rxCount = 0;
+    try { const rk = (typeof _RX_KB !== 'undefined') ? _RX_KB() : null; rxCount = Array.isArray(rk) ? rk.length : (rk && Array.isArray(rk.prescriptions) ? rk.prescriptions.length : 0); } catch (e) {}
+    return {
+      version: this.version,
+      services: this.services(),
+      athleteStateFresh: !!(typeof AthleteState !== 'undefined' && AthleteState),
+      decisions: (typeof DECISION_LOG !== 'undefined') ? DECISION_LOG.length : 0,
+      lastDecision: rec ? { id:rec.id, adaptation:rec.adaptation && rec.adaptation.name, confidence:rec.confidence, at:rec.at } : null,
+      knowledge: { adaptations: (typeof ADAPTATION_MODEL !== 'undefined' ? ADAPTATION_MODEL.length : 0), prescriptions: rxCount },
+      missingData: this.explain.missingData(),
+    };
+  },
+};
+// Rehydrate the decision memory before init runs, and expose CoachEV for devtools.
+_loadDecisionLog();
+try { if (typeof window !== 'undefined') window.CoachEV = CoachEV; } catch (e) {}
 
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
