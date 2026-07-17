@@ -740,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev7</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev8</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4259,6 +4259,19 @@ function _renderProgramPlan(w){
   if(archEl) archEl.style.display='';
 }
 
+// Render a Builder/AI-built session's authored content (name · detail · cue rows +
+// coaching notes) inside the program session overlay — no generated prescription.
+function _renderBuiltSession(sess){
+  const rows=(sess.builtBlocks||[]).map((ex,i,arr)=>`<div style="padding:11px 0;${i===arr.length-1?'':'border-bottom:.5px solid var(--border)'}">
+      <div style="display:flex;justify-content:space-between;gap:8px;">
+        <span style="font-size:13px;font-weight:500;color:var(--text);flex:1;">${ex.name||'Step'}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap;">${ex.detail||''}</span>
+      </div>
+      ${ex.cue?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px;line-height:1.5;">↳ ${ex.cue}</div>`:''}</div>`).join('');
+  const notes=(sess.notes&&sess.notes.length)?`<div style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.7;margin-top:4px;">${sess.notes.map(n=>'• '+n).join('<br>')}</div>`:'';
+  const tag=`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Custom build</div>`;
+  return `${tag}${rows?`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:0 14px;margin-bottom:12px;">${rows}</div>`:''}${notes}`;
+}
 function openProgramSessionOverlay(id,week,day){
   const prog=savedProgram; if(!prog) return;
   const sess=prog.sessions?.find(s=>s.id===id);
@@ -4282,7 +4295,10 @@ function openProgramSessionOverlay(id,week,day){
   let bodyHtml='';
   // Fitstop BLOCK C: show the REAL verbatim session detail for this exact week/day.
   const fsDetail = (prog.fitstopBlock && day) ? _fitstopDetail(week, day) : '';
-  if(fsDetail){
+  if(sess._built && Array.isArray(sess.builtBlocks) && sess.builtBlocks.length){
+    // A session added from the Builder / AI build — render its authored content as-is.
+    bodyHtml = _renderBuiltSession(sess);
+  } else if(fsDetail){
     bodyHtml = _renderFitstopDetail(fsDetail);
   } else if(type==='endurance'||type==='run'){
     // Endurance: progress the prescription for THIS week from baselines + block position.
@@ -5642,10 +5658,45 @@ function getBldSess(){
   }))};
 }
 
+// Infer a program session type (and run sub-type) from a built session's content,
+// so a hand-built or AI-built workout lands in the plan with the right coaching model.
+function _builderInferType(bld){
+  const opt=(bld.options&&bld.options[0])||{};
+  const txt=(((bld._name||'')+' ')+(opt.blocks||[]).map(b=>(b.title||'')+' '+(b.items||[]).map(it=>(it.name||'')+' '+(it.detail||'')).join(' ')).join(' ')).toLowerCase();
+  const runWords=/\b(run|km|mile|tempo|interval|jog|pace|zone ?2|threshold|track)\b/.test(txt);
+  if(/\b(squat|bench|deadlift|ohp|1rm|hinge|lunge|curl|press)\b/.test(txt) && !runWords) return {type:'strength'};
+  if(/\b(bike|erg|ski|amrap|emom|metcon|wod|circuit|hyrox|conditioning|sled|burpee|wall ?ball)\b/.test(txt)) return {type:'fitstop'};
+  let rt='easy';
+  if(/tempo|threshold/.test(txt)) rt='tempo';
+  else if(/interval|vo2|track|\d\s*[x×]\s*\d/.test(txt)) rt='intervals';
+  else if(/long run|long\b/.test(txt)) rt='long';
+  else if(/recovery|shakeout/.test(txt)) rt='recovery';
+  return {type:'endurance', runType:rt};
+}
+// Convert a Session-Builder session into a program-session def that addSessionToProgram
+// accepts, preserving the built structure so the program overlay renders it faithfully.
+function _builderSessionToProgramDef(bld, day){
+  const inf=_builderInferType(bld);
+  const opt=(bld.options&&bld.options[0])||{};
+  const builtBlocks=[];
+  (opt.blocks||[]).forEach(b=>{ (b.items||[]).forEach(it=>{ if(it.name||it.detail||it.cue) builtBlocks.push({name:it.name||b.title||'Step', detail:it.detail||'', cue:it.cue||''}); }); });
+  const def={ type:inf.type, name:bld._name||'Custom session', focus:'custom', _built:true, builtBlocks, builtOptions:bld.options||[], notes:(opt.notes||[]) };
+  if(inf.runType) def.runType=inf.runType;
+  return def;
+}
 function bldSavePlan(){
   const week=document.getElementById('bld-week').value;
   const day=document.getElementById('bld-day').value.slice(0,3);
   const sess=getBldSess();
+  // Connect the build to the ACTIVE custom program when one exists — that is the plan
+  // the Today/Plan screens actually render. (Writing to the legacy LIB/PLAN store here
+  // is why builds "saved to plan" but never appeared while a program was active.)
+  if(typeof savedProgram!=='undefined' && savedProgram){
+    const def=_builderSessionToProgramDef(sess, day);
+    const added=addSessionToProgram(def, day);   // persists + recompute + renderAll + toast
+    if(added){ closeOv('builder-overlay'); return; }
+  }
+  // Legacy PLAN (no custom program active): keep the historical LIB/ht-custom behavior.
   if(!LIB[week])LIB[week]={};
   LIB[week][day]=sess;
   try{const c=JSON.parse(localStorage.getItem('ht-custom')||'{}');if(!c[week])c[week]={};c[week][day]=sess;localStorage.setItem('ht-custom',JSON.stringify(c));}catch(e){}
