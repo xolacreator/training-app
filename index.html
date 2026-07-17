@@ -4925,6 +4925,94 @@ function _cardBreakdown(s){
   return null;
 }
 
+// ── SHARE · TRANSPARENT DATA OVERLAY ─────────────────────────────────────────
+// A metrics-forward overlay meant to be dropped over the athlete's own photo:
+// headline metric up top, core stats + an optional per-interval splits table at the
+// bottom, with baked-in top/bottom scrims so it stays legible over any background.
+// Renders onto a TRANSPARENT canvas (no bg fill) → exported PNG carries alpha.
+// Reuses the card's stat pipeline (_cardBreakdown + the same overall-figure math).
+function _overlayData(s){
+  const bd=_cardBreakdown(s);
+  let totalMin = s.dur? parseFloat(s.dur):0;
+  if(bd && bd.rows.length){ const tot=bd.rows.reduce((a,r)=>a+(r.secs||0),0)/60; if(tot>0 && (!totalMin||Math.abs(tot-totalMin)<=2)) totalMin=tot; }
+  let overallPace=''; if(s.dist && totalMin){ const mps=(parseFloat(s.dist)*1000)/(totalMin*60); if(mps>0) overallPace=convertPaceStr(mpsToMinKm(mps)); }
+  if(!overallPace && s.pace) overallPace=convertPaceStr(s.pace);
+  let overallHR = s.hr? parseInt(s.hr):0;
+  if(bd && bd.rows.length){ const hw=bd.rows.filter(r=>r.hr>0&&r.secs>0); if(hw.length){ const n=hw.reduce((a,r)=>a+r.hr*r.secs,0),d=hw.reduce((a,r)=>a+r.secs,0); if(d>0) overallHR=Math.round(n/d);} }
+  const cad=(typeof _normCad==='function')?_normCad(s.cad):0;
+  const distVal = s.dist ? (unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):String(s.dist)) : '';
+  const stats=[]; if(totalMin)stats.push(['Time',fmtDurMin(totalMin)]);
+  if(overallPace)stats.push(['Avg pace',overallPace+paceUnit()]);
+  if(overallHR)stats.push(['Avg HR',String(overallHR)]);
+  if(cad)stats.push(['Cadence',String(cad)]);
+  // Per-interval rows (work reps only when the session is grouped; else raw splits).
+  let reps=[];
+  if(bd){ const src = bd.grouped ? bd.rows.filter(r=>r.kind==='work') : bd.rows;
+    reps = src.map((r,i)=>({ rep:String(i+1),
+      dist: r.distM>=1000 ? (r.distM/1000).toFixed(2)+distUnit() : Math.round(r.distM)+'m',
+      time: (typeof fmtSecs==='function')?fmtSecs(r.secs):Math.round(r.secs)+'s',
+      pace: r.speed>0 ? convertPaceStr(mpsToMinKm(r.speed))+paceUnit() : '-',
+      hr: r.hr>0?String(r.hr):'' })); }
+  const headline = distVal ? {val:distVal, unit:distUnit()} : (totalMin?{val:fmtDurMin(totalMin), unit:''}:{val:'-',unit:''});
+  const eyebrow = _dash((s.session||'Session')).toUpperCase();
+  const date = s.ts ? new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase() : '';
+  const coach = _dash((s.notes||'').split('\n')[0]||'');
+  return { headline, eyebrow, date, stats, reps, coach,
+    has:{ intervals:reps.length>=2, coach:!!coach, cadence:!!cad } };
+}
+// Which blocks a preset includes (only rendered when the session has the data).
+const _OVERLAY_PRESETS={ minimal:{stats:true}, standard:{stats:true,coach:true}, detailed:{stats:true,coach:true,intervals:true} };
+// Draw the overlay onto ctx sized W×H (transparent). opts.preset or opts.blocks.
+function _drawWorkoutOverlay(ctx, s, opts={}){
+  const W=ctx.canvas.width, H=ctx.canvas.height, P=Math.round(W*0.059), GOLD='#e8c95a', BLUE='#8fbaff';
+  const k=W/1080;                                   // scale factor (design at 1080 wide)
+  const blocks = opts.blocks || _OVERLAY_PRESETS[opts.preset||'standard'] || _OVERLAY_PRESETS.standard;
+  const D=_overlayData(s);
+  ctx.clearRect(0,0,W,H);
+  const sh=on=>{ ctx.shadowColor=on?'rgba(0,0,0,.55)':'transparent'; ctx.shadowBlur=on?14*k:0; ctx.shadowOffsetY=on?1*k:0; };
+  const F=(w,px,fam)=>`${w} ${Math.round(px*k)}px ${fam||'Inter, system-ui, sans-serif'}`;
+  const MONO='ui-monospace, "SF Mono", Menlo, monospace';
+  // measure the bottom cluster first so the scrim covers exactly what's drawn
+  const showIv = blocks.intervals && D.has.intervals;
+  const showCoach = blocks.coach && D.has.coach;
+  const rowH=50*k, ivH = showIv ? (D.reps.length*rowH + 54*k) : 0;
+  const coachH = showCoach ? 40*k : 0;
+  const statsH = 78*k;
+  const clusterH = coachH + ivH + statsH + 44*k;
+  const botTop = H - Math.round(P*0.6) - clusterH;
+  // scrims
+  const tg=ctx.createLinearGradient(0,0,0,H*0.30); tg.addColorStop(0,'rgba(8,6,18,.82)');tg.addColorStop(1,'rgba(8,6,18,0)'); ctx.fillStyle=tg;ctx.fillRect(0,0,W,H*0.30);
+  const bg=ctx.createLinearGradient(0,botTop-30*k,0,H); bg.addColorStop(0,'rgba(8,6,18,0)');bg.addColorStop(.5,'rgba(8,6,18,.66)');bg.addColorStop(1,'rgba(8,6,18,.95)'); ctx.fillStyle=bg;ctx.fillRect(0,botTop-30*k,W,H-(botTop-30*k));
+  // TOP — wordmark + headline
+  sh(true); ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+  ctx.fillStyle='#fff'; ctx.font=F(800,34); ctx.fillText('REV3',P,P+34*k);
+  if(D.date){ ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font=`600 ${Math.round(22*k)}px ${MONO}`; ctx.fillText(D.date,W-P,P+31*k); ctx.textAlign='left'; }
+  ctx.fillStyle=GOLD; ctx.font=`700 ${Math.round(26*k)}px ${MONO}`; ctx.fillText(D.eyebrow.slice(0,42),P,P+108*k);
+  ctx.fillStyle='#fff'; ctx.font=F(800,178); ctx.fillText(D.headline.val,P,P+270*k);
+  if(D.headline.unit){ const hw=ctx.measureText(D.headline.val).width; ctx.fillStyle=GOLD; ctx.font=F(800,64); ctx.fillText(D.headline.unit,P+hw+22*k,P+270*k); }
+  // BOTTOM — build up from bottom
+  let y=H-Math.round(P*0.6);
+  if(showCoach){ ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font=F(500,26); ctx.fillText(D.coach.slice(0,64),P,y); y-=64*k; }
+  if(showIv){ const COL=[P,P+120*k,P+320*k,P+540*k,P+820*k];
+    for(let i=D.reps.length-1;i>=0;i--){ const r=D.reps[i];
+      ctx.fillStyle=GOLD; ctx.font=`700 ${Math.round(28*k)}px ${MONO}`; ctx.fillText('R'+r.rep,COL[0],y);
+      ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font=`600 ${Math.round(28*k)}px ${MONO}`; ctx.fillText(r.dist,COL[1],y);
+      ctx.fillStyle='#fff'; ctx.font=`700 ${Math.round(30*k)}px ${MONO}`; ctx.fillText(r.time,COL[2],y);
+      ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font=`600 ${Math.round(28*k)}px ${MONO}`; ctx.fillText(r.pace,COL[3],y);
+      if(r.hr){ ctx.fillStyle=BLUE; ctx.font=`600 ${Math.round(26*k)}px ${MONO}`; ctx.fillText(r.hr+'♥',COL[4],y); }
+      y-=rowH; }
+    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font=`600 ${Math.round(19*k)}px ${MONO}`;
+    ['REP','DIST','TIME','PACE','HR'].forEach((h,i)=>ctx.fillText(h,COL[i],y+6*k)); y-=34*k;
+    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=`600 ${Math.round(20*k)}px ${MONO}`; ctx.fillText('INTERVALS',P,y); y-=34*k; }
+  sh(false); ctx.fillStyle=GOLD; ctx.fillRect(P,y-14*k,84*k,6*k); sh(true); y-=44*k;
+  const sw=(W-2*P)/Math.max(1,D.stats.length);
+  D.stats.forEach((st,i)=>{ const cx=P+i*sw;
+    ctx.fillStyle='#fff'; ctx.font=F(800,46); ctx.textAlign='left'; ctx.fillText(st[1],cx,y);
+    ctx.fillStyle='rgba(255,255,255,.68)'; ctx.font=`600 ${Math.round(18*k)}px ${MONO}`; ctx.fillText(st[0].toUpperCase(),cx,y+28*k); });
+  sh(false);
+  return { botTop, clusterH, blocks:{intervals:showIv, coach:showCoach, stats:true} };
+}
+
 // Build the layout (sizes + data) once, so the animated preview and the exported
 // image render identically at any progress t.
 function _buildShareLayout(s){
