@@ -98,6 +98,7 @@ and a "what would sharpen this call" missing-data section. Inspector routed thro
 
 | Item | Notes |
 |---|---|
+| **Two plan data models** | Legacy `PLAN`/`LIB`/`ht-custom` (12-week) vs `savedProgram.dayMap`/`sessions` (custom program). The active-program screens read only the latter. Builder `bldSavePlan` now routes to `savedProgram` when active (fixed 2026-07 rev8), but the two stores still coexist — converge onto one plan model so no write can land in an ignored store. |
 | Two adaptation lists | `ADAPTATION_MODEL` (numeric engine) vs legacy `ADAPTATIONS` (scheduler). Converge over time. |
 | `athleteStateRef` dangling | Decision records reference `AthleteState.computedAt` but no historical state is retained to dereference. Consider a small ring-buffer of past states. |
 | Single-file size | `index.html` ~1.09 MB source; minified ~0.90 MB vs ~1 MB deploy cap. Margin is eroding — watch the minify size warning. |
