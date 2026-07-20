@@ -740,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev9</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev10</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4987,46 +4987,51 @@ function _drawWorkoutOverlay(ctx, s, opts={}){
   const D=_overlayData(s);
   ctx.clearRect(0,0,W,H);
   const sh=on=>{ ctx.shadowColor=on?'rgba(0,0,0,.55)':'transparent'; ctx.shadowBlur=on?14*k:0; ctx.shadowOffsetY=on?1*k:0; };
-  const F=(w,px,fam)=>`${w} ${Math.round(px*k)}px ${fam||'Inter, system-ui, sans-serif'}`;
-  const MONO='ui-monospace, "SF Mono", Menlo, monospace';
+  // Fonts: embedded (canvas-guaranteed) — Inter for numerals/values/table, Tanker
+  // for the uppercase eyebrow (matches the share card). No system monospace.
+  const NUM="'Inter', system-ui, sans-serif";
+  const TITLE="'Tanker', 'Inter', system-ui, sans-serif";
+  const N=(w,px)=>`${w} ${Math.round(px*k)}px ${NUM}`;
+  const LS=v=>{ try{ ctx.letterSpacing=(v*k)+'px'; }catch(e){} };  // tracking on labels (no-op on very old canvas)
   // measure the bottom cluster first so the scrim covers exactly what's drawn
   const showIv = blocks.intervals && D.has.intervals;
   const showCoach = blocks.coach && D.has.coach;
-  const rowH=50*k, ivH = showIv ? (D.reps.length*rowH + 54*k) : 0;
-  const coachH = showCoach ? 40*k : 0;
-  const statsH = 78*k;
-  const clusterH = coachH + ivH + statsH + 44*k;
-  const botTop = H - Math.round(P*0.6) - clusterH;
-  // scrims
+  const rowH=54*k, ivH = showIv ? (D.reps.length*rowH + 96*k) : 0;
+  const coachH = showCoach ? 46*k : 0;
+  const statsH = 66*k;
+  const clusterH = coachH + ivH + statsH + 54*k;
+  const botTop = H - Math.round(P*0.62) - clusterH;
+  // scrims — top for the headline, bottom for the metric cluster
   const tg=ctx.createLinearGradient(0,0,0,H*0.30); tg.addColorStop(0,'rgba(8,6,18,.82)');tg.addColorStop(1,'rgba(8,6,18,0)'); ctx.fillStyle=tg;ctx.fillRect(0,0,W,H*0.30);
-  const bg=ctx.createLinearGradient(0,botTop-30*k,0,H); bg.addColorStop(0,'rgba(8,6,18,0)');bg.addColorStop(.5,'rgba(8,6,18,.66)');bg.addColorStop(1,'rgba(8,6,18,.95)'); ctx.fillStyle=bg;ctx.fillRect(0,botTop-30*k,W,H-(botTop-30*k));
+  const bgTop=Math.min(botTop-34*k, H*0.52);
+  const bg=ctx.createLinearGradient(0,bgTop,0,H); bg.addColorStop(0,'rgba(8,6,18,0)');bg.addColorStop(.5,'rgba(8,6,18,.66)');bg.addColorStop(1,'rgba(8,6,18,.95)'); ctx.fillStyle=bg;ctx.fillRect(0,bgTop,W,H-bgTop);
   // TOP — wordmark + headline
   sh(true); ctx.textBaseline='alphabetic'; ctx.textAlign='left';
-  ctx.fillStyle='#fff'; ctx.font=F(800,34); ctx.fillText('REV3',P,P+34*k);
-  if(D.date){ ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font=`600 ${Math.round(22*k)}px ${MONO}`; ctx.fillText(D.date,W-P,P+31*k); ctx.textAlign='left'; }
-  ctx.fillStyle=GOLD; ctx.font=`700 ${Math.round(26*k)}px ${MONO}`; ctx.fillText(D.eyebrow.slice(0,42),P,P+108*k);
-  ctx.fillStyle='#fff'; ctx.font=F(800,178); ctx.fillText(D.headline.val,P,P+270*k);
-  if(D.headline.unit){ const hw=ctx.measureText(D.headline.val).width; ctx.fillStyle=GOLD; ctx.font=F(800,64); ctx.fillText(D.headline.unit,P+hw+22*k,P+270*k); }
-  // BOTTOM — build up from bottom
-  let y=H-Math.round(P*0.6);
-  if(showCoach){ ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font=F(500,26); ctx.fillText(D.coach.slice(0,64),P,y); y-=64*k; }
-  if(showIv){ const COL=[P,P+120*k,P+320*k,P+540*k,P+820*k];
+  ctx.fillStyle='#fff'; ctx.font=N(800,32); ctx.fillText('REV3',P,P+34*k);
+  if(D.date){ LS(1.5); ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font=N(600,21); ctx.fillText(D.date,W-P,P+31*k); ctx.textAlign='left'; LS(0); }
+  LS(1.5); ctx.fillStyle=GOLD; ctx.font=`400 ${Math.round(30*k)}px ${TITLE}`; ctx.fillText(D.eyebrow.slice(0,40),P,P+118*k); LS(0);
+  ctx.fillStyle='#fff'; ctx.font=N(900,178); ctx.fillText(D.headline.val,P,P+296*k);
+  if(D.headline.unit){ const hw=ctx.measureText(D.headline.val).width; ctx.fillStyle=GOLD; ctx.font=N(800,60); ctx.fillText(D.headline.unit,P+hw+20*k,P+296*k); }
+  // BOTTOM — build up from the bottom
+  let y=H-Math.round(P*0.62);
+  if(showCoach){ ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font=N(500,25); ctx.fillText(D.coach.slice(0,66),P,y); y-=62*k; }
+  if(showIv){ const COL=[P,P+118*k,P+322*k,P+540*k,P+812*k];
     for(let i=D.reps.length-1;i>=0;i--){ const r=D.reps[i];
-      ctx.fillStyle=GOLD; ctx.font=`700 ${Math.round(28*k)}px ${MONO}`; ctx.fillText('R'+r.rep,COL[0],y);
-      ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font=`600 ${Math.round(28*k)}px ${MONO}`; ctx.fillText(r.dist,COL[1],y);
-      ctx.fillStyle='#fff'; ctx.font=`700 ${Math.round(30*k)}px ${MONO}`; ctx.fillText(r.time,COL[2],y);
-      ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font=`600 ${Math.round(28*k)}px ${MONO}`; ctx.fillText(r.pace,COL[3],y);
-      if(r.hr){ ctx.fillStyle=BLUE; ctx.font=`600 ${Math.round(26*k)}px ${MONO}`; ctx.fillText(r.hr+'♥',COL[4],y); }
+      ctx.fillStyle=GOLD;                 ctx.font=N(700,27); ctx.fillText('R'+r.rep,COL[0],y);
+      ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font=N(500,27); ctx.fillText(r.dist,COL[1],y);
+      ctx.fillStyle='#fff';               ctx.font=N(700,29); ctx.fillText(r.time,COL[2],y);
+      ctx.fillStyle='rgba(255,255,255,.92)'; ctx.font=N(500,27); ctx.fillText(r.pace,COL[3],y);
+      if(r.hr){ ctx.fillStyle=BLUE;        ctx.font=N(600,26); ctx.fillText(r.hr+'♥',COL[4],y); }
       y-=rowH; }
-    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font=`600 ${Math.round(19*k)}px ${MONO}`;
-    ['REP','DIST','TIME','PACE','HR'].forEach((h,i)=>ctx.fillText(h,COL[i],y+6*k)); y-=34*k;
-    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=`600 ${Math.round(20*k)}px ${MONO}`; ctx.fillText('INTERVALS',P,y); y-=34*k; }
-  sh(false); ctx.fillStyle=GOLD; ctx.fillRect(P,y-14*k,84*k,6*k); sh(true); y-=44*k;
+    y-=8*k; LS(1); ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font=N(600,18);
+    ['REP','DIST','TIME','PACE','HR'].forEach((h,i)=>ctx.fillText(h,COL[i],y)); LS(0); y-=40*k;
+    LS(2); ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=N(600,19); ctx.fillText('INTERVALS',P,y); LS(0); y-=42*k; }
+  sh(false); ctx.fillStyle=GOLD; ctx.fillRect(P,y-14*k,80*k,5*k); sh(true); y-=42*k;
   const sw=(W-2*P)/Math.max(1,D.stats.length);
   D.stats.forEach((st,i)=>{ const cx=P+i*sw;
-    ctx.fillStyle='#fff'; ctx.font=F(800,46); ctx.textAlign='left'; ctx.fillText(st[1],cx,y);
-    ctx.fillStyle='rgba(255,255,255,.68)'; ctx.font=`600 ${Math.round(18*k)}px ${MONO}`; ctx.fillText(st[0].toUpperCase(),cx,y+28*k); });
-  sh(false);
+    ctx.fillStyle='#fff'; ctx.font=N(800,44); ctx.textAlign='left'; ctx.fillText(st[1],cx,y);
+    LS(1.5); ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=N(600,17); ctx.fillText(st[0].toUpperCase(),cx,y+30*k); LS(0); });
+  sh(false); LS(0);
   return { botTop, clusterH, blocks:{intervals:showIv, coach:showCoach, stats:true} };
 }
 
@@ -7052,18 +7057,31 @@ async function stravaGetToken() {
   }
 }
 
+// Coarse intensity bucket for a run subtype (planned runType OR classified actual),
+// so an import is only labelled as the planned session when the effort matches.
+function _runBucket(rt){ return /tempo|threshold|interval|vo2|track|speed|fartlek|race/i.test(rt||'') ? 'hard' : 'easy'; }
+// Structure-aware run classification — reads the lap/split structure (not just the
+// whole-activity average pace) so interval and tempo sessions aren't flattened into
+// "Zone 2 Run". Returns { name, subtype } where subtype ∈ intervals|tempo|easy.
+function _classifyRun(act){
+  const tmp={ strava_laps:act.strava_laps, strava_splits:act.strava_splits };
+  let bd=null; try{ bd=(typeof _cardBreakdown==='function')?_cardBreakdown(tmp):null; }catch(e){}
+  if(bd && bd.grouped && bd.rows.filter(r=>r.kind==='work').length>=2) return {name:'Intervals', subtype:'intervals'};
+  const segs=((bd&&bd.rows)||[]).map(r=>r.speed).filter(v=>v>0);
+  if(segs.length>=3){ const mx=Math.max(...segs), mn=Math.min(...segs);
+    if(mn>0 && mx/mn>=1.22) return {name:'Intervals', subtype:'intervals'}; }  // big pace spread → reps
+  const paceMin = act.average_speed>0 ? 1000/act.average_speed/60 : 99;
+  const hr = act.average_heartrate||0;
+  if(paceMin<4.3) return {name:'Intervals', subtype:'intervals'};
+  if(paceMin<5.0 && hr>155) return {name:'Tempo Run', subtype:'tempo'};
+  return {name:'Zone 2 Run', subtype:'easy'};
+}
 function stravaClassify(act) {
   const type = (act.sport_type || act.type || '').toLowerCase();
   if (type.includes('weight') || type.includes('strength')) return 'Fitstop LIFT';
   if (type === 'workout') return 'Fitstop PERFORM';
   if (type === 'ride' || type === 'virtualride' || type === 'ebikeride') return 'Easy Bike';
-  if (type === 'run' || type === 'virtualrun' || type === 'treadmill') {
-    const paceMin = act.average_speed > 0 ? 1000 / act.average_speed / 60 : 99;
-    const hr = act.average_heartrate || 0;
-    if (paceMin < 4.3) return 'Track – Intervals';
-    if (paceMin < 5.0 && hr > 155) return 'Tempo Run';
-    return 'Zone 2 Run';
-  }
+  if (type === 'run' || type === 'virtualrun' || type === 'treadmill') return _classifyRun(act).name;
   return act.name || 'Session';
 }
 
@@ -7116,7 +7134,14 @@ function _activityToSession(act, opts = {}) {
         const st=_sessType(slot.session);
         const enduranceSlot=(st==='endurance'||st==='run');
         const strengthSlot=(st==='strength'||st==='fitstop'||st==='conditioning'||st==='mixed');
-        if ((enduranceSlot && isRunAct) || (strengthSlot && isStrengthAct)){
+        // Inherit the planned session's name (and completion link) only when the
+        // imported activity actually matches it: same discipline AND, for runs, the
+        // same intensity bucket — so a hard interval run done on an easy-run day is
+        // NOT mislabelled "Easy Run" (it falls through to its true classification).
+        let matches=false;
+        if (strengthSlot && isStrengthAct) matches=true;
+        else if (enduranceSlot && isRunAct) matches = _runBucket(slot.session.runType)===_runBucket(_classifyRun(act).subtype);
+        if (matches){
           sessName=slot.session.name; intensity=slot.session.intensity||'moderate';
           link={progId:savedProgram.id, progWeek:pw, progSid:slot.id}; // → completion
         }
