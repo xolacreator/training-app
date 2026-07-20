@@ -740,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev8</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev9</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -975,19 +975,36 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="sharecard-overlay">
   <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi" style="display:flex;flex-direction:column;align-items:center;">
-    <div class="eyebrow" style="align-self:flex-start;">Session card</div>
+    <div class="eyebrow" style="align-self:flex-start;">Share</div>
+    <div style="display:flex;gap:4px;width:100%;max-width:340px;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:4px;margin-bottom:12px;">
+      <button id="sc-mode-card" onclick="_setShareMode('card')" style="flex:1;padding:9px;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;background:var(--accent);color:#0C0820;">Card</button>
+      <button id="sc-mode-overlay" onclick="_setShareMode('overlay')" style="flex:1;padding:9px;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);">Overlay</button>
+    </div>
     <canvas id="sharecard-canvas" style="width:100%;max-width:340px;border-radius:18px;box-shadow:0 12px 44px rgba(0,0,0,.55);background:var(--bg);"></canvas>
     <div id="sc-theme-row" style="display:flex;gap:8px;width:100%;max-width:340px;margin-top:14px;">
       <button class="btn sc-theme" data-theme="midnight" onclick="setCardTheme('midnight')" style="flex:1;">Midnight</button>
       <button class="btn sc-theme" data-theme="graphite" onclick="setCardTheme('graphite')" style="flex:1;">Graphite</button>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;">
+    <div id="sc-overlay-row" style="display:none;width:100%;max-width:340px;margin-top:14px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;">Detail</div>
+      <div style="display:flex;gap:6px;">
+        <button class="sc-preset" data-preset="minimal" onclick="_setOverlayPreset('minimal')" style="flex:1;padding:8px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">Minimal</button>
+        <button class="sc-preset" data-preset="standard" onclick="_setOverlayPreset('standard')" style="flex:1;padding:8px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">Standard</button>
+        <button class="sc-preset" data-preset="detailed" onclick="_setOverlayPreset('detailed')" style="flex:1;padding:8px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">Detailed</button>
+      </div>
+      <div id="sc-overlay-note" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:8px;line-height:1.5;">Transparent PNG - drops over your own photo.</div>
+    </div>
+    <div id="sc-card-actions" style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;">
       <button class="btn btn-accent" id="sc-share-btn" onclick="_exportShareCard(false)">↗ Share image</button>
       <button class="btn" id="sc-video-btn" style="color:var(--blue);border-color:rgba(77,158,255,.3);" onclick="_shareVideo()">▶ Share as video</button>
       <div class="btn-row">
         <button class="btn" onclick="_exportShareCard(true)">↓ Save image</button>
         <button class="btn" onclick="_replayShareCard()">↺ Replay</button>
       </div>
+    </div>
+    <div id="sc-overlay-actions" style="display:none;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;">
+      <button class="btn btn-accent" onclick="_exportShareCard(false)">↗ Share transparent PNG</button>
+      <button class="btn" onclick="_exportShareCard(true)">↓ Save PNG</button>
     </div>
   </div>
   <div class="of"><button class="back-btn" onclick="closeOv('sharecard-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button></div>
@@ -4802,7 +4819,7 @@ function unlinkLogFromProgram(idx){
 }
 
 // ── SHAREABLE SESSION CARD (animated preview + comprehensive breakdown) ───────
-let _shareIdx=null, _shareLayout=null, _shareRAF=null;
+let _shareIdx=null, _shareLayout=null, _shareRAF=null, _shareMode='card', _overlayPreset='standard';
 let _cardTheme=(function(){ try{ return localStorage.getItem('ht-card-theme')||'midnight'; }catch(e){ return 'midnight'; } })();
 function setCardTheme(t){ _cardTheme=t; try{ localStorage.setItem('ht-card-theme',t); }catch(e){} if(_shareIdx!=null){ _shareLayout=_buildShareLayout(sessions[_shareIdx]); _renderShareCardControls(); _animateShareCard(); } }
 function _cardPalette(name){
@@ -5342,6 +5359,41 @@ function _renderShareCardControls(){
     b.style.background=on?'var(--bg3)':'transparent';
   });
 }
+// ── Overlay mode (transparent data overlay) ─────────────────────────────────
+const _OV_CHECKER='linear-gradient(45deg,#2b2b2b 25%,transparent 25%),linear-gradient(-45deg,#2b2b2b 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#2b2b2b 75%),linear-gradient(-45deg,transparent 75%,#2b2b2b 75%)';
+function _renderOverlayPreview(){
+  const cv=document.getElementById('sharecard-canvas'); if(!cv) return;
+  const s=sessions[_shareIdx]; if(!s) return;
+  cancelAnimationFrame(_shareRAF);
+  cv.width=1080; cv.height=1920;
+  try{ _drawWorkoutOverlay(cv.getContext('2d'), s, {preset:_overlayPreset}); }catch(e){ console.error('overlay draw',e); }
+}
+function _renderOverlayControls(){
+  document.querySelectorAll('.sc-preset').forEach(b=>{ const on=b.getAttribute('data-preset')===_overlayPreset;
+    b.style.borderColor=on?'var(--accent)':'var(--border2)'; b.style.background=on?'var(--accent)':'var(--bg2)'; b.style.color=on?'#0C0820':'var(--text2)'; });
+  const s=sessions[_shareIdx], note=document.getElementById('sc-overlay-note');
+  if(note&&s){ let d=null; try{ d=_overlayData(s); }catch(e){}
+    note.textContent = (_overlayPreset==='detailed' && d && !d.has.intervals)
+      ? 'No interval data in this session - showing summary metrics.'
+      : 'Transparent PNG - drops over your own photo.'; }
+}
+function _setOverlayPreset(p){ _overlayPreset=p; _renderOverlayControls(); _renderOverlayPreview(); }
+function _setShareMode(m){
+  _shareMode=m; const ov=(m==='overlay');
+  const show=(id,v)=>{ const e=document.getElementById(id); if(e) e.style.display=v; };
+  show('sc-theme-row', ov?'none':'flex');
+  show('sc-overlay-row', ov?'block':'none');
+  show('sc-card-actions', ov?'none':'flex');
+  show('sc-overlay-actions', ov?'flex':'none');
+  const cb=document.getElementById('sc-mode-card'), ob=document.getElementById('sc-mode-overlay');
+  if(cb){ cb.style.background=ov?'transparent':'var(--accent)'; cb.style.color=ov?'var(--text2)':'#0C0820'; }
+  if(ob){ ob.style.background=ov?'var(--accent)':'transparent'; ob.style.color=ov?'#0C0820':'var(--text2)'; }
+  const cv=document.getElementById('sharecard-canvas');
+  if(cv){ if(ov){ cv.style.backgroundColor='#363636'; cv.style.backgroundImage=_OV_CHECKER; cv.style.backgroundSize='22px 22px'; cv.style.backgroundPosition='0 0,0 11px,11px -11px,-11px 0'; }
+          else { cv.style.background='var(--bg)'; cv.style.backgroundImage='none'; } }
+  if(ov){ _renderOverlayControls(); _renderOverlayPreview(); }
+  else { _renderShareCardControls(); _animateShareCard(); }
+}
 
 // Open the animated preview.
 async function shareSession(idx){
@@ -5350,13 +5402,30 @@ async function shareSession(idx){
   _shareIdx=idx;
   _shareLayout=_buildShareLayout(s);
   openOv('sharecard-overlay');
-  _renderShareCardControls();
-  requestAnimationFrame(()=>_animateShareCard());
+  try{ _setShareMode('card'); }catch(e){ _renderShareCardControls(); requestAnimationFrame(()=>_animateShareCard()); }
 }
 
 // Render the final frame at full resolution and share/save it.
 async function _exportShareCard(save){
-  const s=sessions[_shareIdx]; if(!s||!_shareLayout) return;
+  const s=sessions[_shareIdx]; if(!s) return;
+  // Overlay mode → export a TRANSPARENT PNG (alpha preserved by toBlob) at 1080×1920.
+  if(_shareMode==='overlay'){
+    const cv=document.createElement('canvas'); cv.width=1080; cv.height=1920;
+    try{ _drawWorkoutOverlay(cv.getContext('2d'), s, {preset:_overlayPreset}); }catch(e){ toast('Could not build overlay'); return; }
+    let blob; try{ blob=await new Promise(r=>cv.toBlob(r,'image/png')); }catch(e){ toast('Could not build image'); return; }
+    const file=new File([blob],'rev3-overlay.png',{type:'image/png'});
+    if(!save && navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:s.session}); }
+      catch(e){ if(e&&e.name!=='AbortError') toast('Share cancelled'); }
+    }else{
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download='rev3-overlay.png';a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+      toast('Overlay saved to downloads');
+    }
+    return;
+  }
+  if(!_shareLayout) return;
   const {W,H}=_shareLayout;
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   _renderShareCard(cv.getContext('2d'),1);
