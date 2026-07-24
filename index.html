@@ -992,6 +992,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="sc-preset" data-preset="standard" onclick="_setOverlayPreset('standard')" style="flex:1;padding:8px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">Standard</button>
         <button class="sc-preset" data-preset="detailed" onclick="_setOverlayPreset('detailed')" style="flex:1;padding:8px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">Detailed</button>
       </div>
+      <div id="sc-overlay-adv" style="margin-top:4px;"></div>
       <div id="sc-overlay-note" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:8px;line-height:1.5;">Transparent PNG - drops over your own photo.</div>
     </div>
     <div id="sc-card-actions" style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;">
@@ -4820,6 +4821,7 @@ function unlinkLogFromProgram(idx){
 
 // ── SHAREABLE SESSION CARD (animated preview + comprehensive breakdown) ───────
 let _shareIdx=null, _shareLayout=null, _shareRAF=null, _shareMode='card', _overlayPreset='standard';
+let _overlayOpts={ headline:'distance', stats:{time:true,pace:true,hr:true,cadence:true}, intervals:false, coach:true };
 let _cardTheme=(function(){ try{ return localStorage.getItem('ht-card-theme')||'midnight'; }catch(e){ return 'midnight'; } })();
 function setCardTheme(t){ _cardTheme=t; try{ localStorage.setItem('ht-card-theme',t); }catch(e){} if(_shareIdx!=null){ _shareLayout=_buildShareLayout(sessions[_shareIdx]); _renderShareCardControls(); _animateShareCard(); } }
 function _cardPalette(name){
@@ -4958,10 +4960,10 @@ function _overlayData(s){
   if(bd && bd.rows.length){ const hw=bd.rows.filter(r=>r.hr>0&&r.secs>0); if(hw.length){ const n=hw.reduce((a,r)=>a+r.hr*r.secs,0),d=hw.reduce((a,r)=>a+r.secs,0); if(d>0) overallHR=Math.round(n/d);} }
   const cad=(typeof _normCad==='function')?_normCad(s.cad):0;
   const distVal = s.dist ? (unitRun==='mi'?(parseFloat(s.dist)*MI_PER_KM).toFixed(2):String(s.dist)) : '';
-  const stats=[]; if(totalMin)stats.push(['Time',fmtDurMin(totalMin)]);
-  if(overallPace)stats.push(['Avg pace',overallPace+paceUnit()]);
-  if(overallHR)stats.push(['Avg HR',String(overallHR)]);
-  if(cad)stats.push(['Cadence',String(cad)]);
+  const stats=[]; if(totalMin)stats.push({key:'time',label:'Time',val:fmtDurMin(totalMin)});
+  if(overallPace)stats.push({key:'pace',label:'Avg pace',val:overallPace+paceUnit()});
+  if(overallHR)stats.push({key:'hr',label:'Avg HR',val:String(overallHR)});
+  if(cad)stats.push({key:'cadence',label:'Cadence',val:String(cad)});
   // Per-interval rows (work reps only when the session is grouped; else raw splits).
   let reps=[];
   if(bd){ const src = bd.grouped ? bd.rows.filter(r=>r.kind==='work') : bd.rows;
@@ -4970,21 +4972,35 @@ function _overlayData(s){
       time: (typeof fmtSecs==='function')?fmtSecs(r.secs):Math.round(r.secs)+'s',
       pace: r.speed>0 ? convertPaceStr(mpsToMinKm(r.speed))+paceUnit() : '-',
       hr: r.hr>0?String(r.hr):'' })); }
-  const headline = distVal ? {val:distVal, unit:distUnit()} : (totalMin?{val:fmtDurMin(totalMin), unit:''}:{val:'-',unit:''});
+  const headline = { distance: distVal?{val:distVal,unit:distUnit()}:null, duration: totalMin?{val:fmtDurMin(totalMin),unit:''}:null };
   const eyebrow = _dash((s.session||'Session')).toUpperCase();
   const date = s.ts ? new Date(s.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase() : '';
   const coach = _dash((s.notes||'').split('\n')[0]||'');
   return { headline, eyebrow, date, stats, reps, coach,
-    has:{ intervals:reps.length>=2, coach:!!coach, cadence:!!cad } };
+    has:{ intervals:reps.length>=2, coach:!!coach, cadence:!!cad, distance:!!distVal, duration:!!totalMin,
+          time:!!totalMin, pace:!!overallPace, hr:!!overallHR } };
 }
-// Which blocks a preset includes (only rendered when the session has the data).
-const _OVERLAY_PRESETS={ minimal:{stats:true}, standard:{stats:true,coach:true}, detailed:{stats:true,coach:true,intervals:true} };
-// Draw the overlay onto ctx sized W×H (transparent). opts.preset or opts.blocks.
+// Presets set the optional blocks; à-la-carte toggles override individual pieces.
+const _OVERLAY_PRESETS={ minimal:{intervals:false,coach:false}, standard:{intervals:false,coach:true}, detailed:{intervals:true,coach:true} };
+// Normalise overlay options → { headline, stats:{...}, intervals, coach }. Accepts
+// a { preset } shortcut or a granular options object (per-block toggles).
+function _overlayResolve(opts){
+  if(opts && opts.preset){ const pr=_OVERLAY_PRESETS[opts.preset]||_OVERLAY_PRESETS.standard;
+    return { headline:'distance', stats:{time:true,pace:true,hr:true,cadence:true}, intervals:!!pr.intervals, coach:!!pr.coach }; }
+  const o=opts||{};
+  return { headline:o.headline||'distance',
+           stats:Object.assign({time:true,pace:true,hr:true,cadence:true}, o.stats||{}),
+           intervals: o.intervals!==undefined ? !!o.intervals : false,
+           coach:     o.coach!==undefined     ? !!o.coach     : true };
+}
+// Draw the overlay onto ctx sized W×H (transparent). opts: {preset} or granular.
 function _drawWorkoutOverlay(ctx, s, opts={}){
   const W=ctx.canvas.width, H=ctx.canvas.height, P=Math.round(W*0.059), GOLD='#e8c95a', BLUE='#8fbaff';
   const k=W/1080;                                   // scale factor (design at 1080 wide)
-  const blocks = opts.blocks || _OVERLAY_PRESETS[opts.preset||'standard'] || _OVERLAY_PRESETS.standard;
+  const O=_overlayResolve(opts);
   const D=_overlayData(s);
+  const headlineObj = D.headline[O.headline] || D.headline.distance || D.headline.duration || {val:'-',unit:''};
+  const statsShow = D.stats.filter(st=>O.stats[st.key]!==false);
   ctx.clearRect(0,0,W,H);
   const sh=on=>{ ctx.shadowColor=on?'rgba(0,0,0,.55)':'transparent'; ctx.shadowBlur=on?14*k:0; ctx.shadowOffsetY=on?1*k:0; };
   // Fonts: embedded (canvas-guaranteed) — Inter for numerals/values/table, Tanker
@@ -4994,8 +5010,8 @@ function _drawWorkoutOverlay(ctx, s, opts={}){
   const N=(w,px)=>`${w} ${Math.round(px*k)}px ${NUM}`;
   const LS=v=>{ try{ ctx.letterSpacing=(v*k)+'px'; }catch(e){} };  // tracking on labels (no-op on very old canvas)
   // measure the bottom cluster first so the scrim covers exactly what's drawn
-  const showIv = blocks.intervals && D.has.intervals;
-  const showCoach = blocks.coach && D.has.coach;
+  const showIv = O.intervals && D.has.intervals;
+  const showCoach = O.coach && D.has.coach;
   const rowH=54*k, ivH = showIv ? (D.reps.length*rowH + 96*k) : 0;
   const coachH = showCoach ? 46*k : 0;
   const statsH = 66*k;
@@ -5010,8 +5026,8 @@ function _drawWorkoutOverlay(ctx, s, opts={}){
   ctx.fillStyle='#fff'; ctx.font=N(800,32); ctx.fillText('REV3',P,P+34*k);
   if(D.date){ LS(1.5); ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font=N(600,21); ctx.fillText(D.date,W-P,P+31*k); ctx.textAlign='left'; LS(0); }
   LS(1.5); ctx.fillStyle=GOLD; ctx.font=`400 ${Math.round(30*k)}px ${TITLE}`; ctx.fillText(D.eyebrow.slice(0,40),P,P+118*k); LS(0);
-  ctx.fillStyle='#fff'; ctx.font=N(900,178); ctx.fillText(D.headline.val,P,P+296*k);
-  if(D.headline.unit){ const hw=ctx.measureText(D.headline.val).width; ctx.fillStyle=GOLD; ctx.font=N(800,60); ctx.fillText(D.headline.unit,P+hw+20*k,P+296*k); }
+  ctx.fillStyle='#fff'; ctx.font=N(900,178); ctx.fillText(headlineObj.val,P,P+296*k);
+  if(headlineObj.unit){ const hw=ctx.measureText(headlineObj.val).width; ctx.fillStyle=GOLD; ctx.font=N(800,60); ctx.fillText(headlineObj.unit,P+hw+20*k,P+296*k); }
   // BOTTOM — build up from the bottom
   let y=H-Math.round(P*0.62);
   if(showCoach){ ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font=N(500,25); ctx.fillText(D.coach.slice(0,66),P,y); y-=62*k; }
@@ -5026,13 +5042,15 @@ function _drawWorkoutOverlay(ctx, s, opts={}){
     y-=8*k; LS(1); ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font=N(600,18);
     ['REP','DIST','TIME','PACE','HR'].forEach((h,i)=>ctx.fillText(h,COL[i],y)); LS(0); y-=40*k;
     LS(2); ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=N(600,19); ctx.fillText('INTERVALS',P,y); LS(0); y-=42*k; }
-  sh(false); ctx.fillStyle=GOLD; ctx.fillRect(P,y-14*k,80*k,5*k); sh(true); y-=42*k;
-  const sw=(W-2*P)/Math.max(1,D.stats.length);
-  D.stats.forEach((st,i)=>{ const cx=P+i*sw;
-    ctx.fillStyle='#fff'; ctx.font=N(800,44); ctx.textAlign='left'; ctx.fillText(st[1],cx,y);
-    LS(1.5); ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=N(600,17); ctx.fillText(st[0].toUpperCase(),cx,y+30*k); LS(0); });
+  if(statsShow.length){
+    sh(false); ctx.fillStyle=GOLD; ctx.fillRect(P,y-14*k,80*k,5*k); sh(true); y-=42*k;
+    const sw=(W-2*P)/statsShow.length;
+    statsShow.forEach((st,i)=>{ const cx=P+i*sw;
+      ctx.fillStyle='#fff'; ctx.font=N(800,44); ctx.textAlign='left'; ctx.fillText(st.val,cx,y);
+      LS(1.5); ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=N(600,17); ctx.fillText(st.label.toUpperCase(),cx,y+30*k); LS(0); });
+  }
   sh(false); LS(0);
-  return { botTop, clusterH, blocks:{intervals:showIv, coach:showCoach, stats:true} };
+  return { botTop, clusterH, blocks:{intervals:showIv, coach:showCoach, stats:statsShow.length>0} };
 }
 
 // Build the layout (sizes + data) once, so the animated preview and the exported
@@ -5371,18 +5389,43 @@ function _renderOverlayPreview(){
   const s=sessions[_shareIdx]; if(!s) return;
   cancelAnimationFrame(_shareRAF);
   cv.width=1080; cv.height=1920;
-  try{ _drawWorkoutOverlay(cv.getContext('2d'), s, {preset:_overlayPreset}); }catch(e){ console.error('overlay draw',e); }
+  try{ _drawWorkoutOverlay(cv.getContext('2d'), s, _overlayOpts); }catch(e){ console.error('overlay draw',e); }
 }
+// Presets are quick-sets; the à-la-carte toggles below fine-tune the same options.
+function _setOverlayPreset(p){
+  _overlayPreset=p; const pr=_OVERLAY_PRESETS[p]||_OVERLAY_PRESETS.standard;
+  _overlayOpts={ headline:'distance', stats:{time:true,pace:true,hr:true,cadence:true}, intervals:!!pr.intervals, coach:!!pr.coach };
+  _renderOverlayControls(); _renderOverlayPreview();
+}
+function _setOverlayHeadline(m){ _overlayOpts.headline=m; _overlayPreset='custom'; _renderOverlayControls(); _renderOverlayPreview(); }
+function _toggleOverlayStat(key){ const on=_overlayOpts.stats[key]!==false; _overlayOpts.stats[key]=!on; _overlayPreset='custom'; _renderOverlayControls(); _renderOverlayPreview(); }
+function _toggleOverlayBlock(key){ _overlayOpts[key]=!_overlayOpts[key]; _overlayPreset='custom'; _renderOverlayControls(); _renderOverlayPreview(); }
+// Render the preset row highlight + build the adaptive à-la-carte toggles (only the
+// data the session actually has is offered).
 function _renderOverlayControls(){
   document.querySelectorAll('.sc-preset').forEach(b=>{ const on=b.getAttribute('data-preset')===_overlayPreset;
     b.style.borderColor=on?'var(--accent)':'var(--border2)'; b.style.background=on?'var(--accent)':'var(--bg2)'; b.style.color=on?'#0C0820':'var(--text2)'; });
-  const s=sessions[_shareIdx], note=document.getElementById('sc-overlay-note');
-  if(note&&s){ let d=null; try{ d=_overlayData(s); }catch(e){}
-    note.textContent = (_overlayPreset==='detailed' && d && !d.has.intervals)
-      ? 'No interval data in this session - showing summary metrics.'
-      : 'Transparent PNG - drops over your own photo.'; }
+  const adv=document.getElementById('sc-overlay-adv'); const s=sessions[_shareIdx];
+  if(!adv||!s) return;
+  let D=null; try{ D=_overlayData(s); }catch(e){}
+  if(!D){ adv.innerHTML=''; return; }
+  const chip=(on,label,onclick,dim)=>`<button onclick="${onclick}" ${dim?'disabled':''} style="padding:7px 11px;border-radius:8px;border:1px solid ${on?'var(--accent)':'var(--border2)'};background:${on?'var(--accent)':'var(--bg2)'};color:${on?'#0C0820':(dim?'var(--text3)':'var(--text2)')};font-size:11px;font-weight:600;cursor:${dim?'default':'pointer'};opacity:${dim?.5:1};margin:0 5px 5px 0;">${label}</button>`;
+  const lbl=t=>`<div style="font-family:var(--mono);font-size:8.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin:10px 0 6px;">${t}</div>`;
+  let html='';
+  // headline metric
+  if(D.has.distance || D.has.duration){ html+=lbl('Headline');
+    if(D.has.distance) html+=chip(_overlayOpts.headline==='distance','Distance',`_setOverlayHeadline('distance')`);
+    if(D.has.duration) html+=chip(_overlayOpts.headline==='duration','Duration',`_setOverlayHeadline('duration')`); }
+  // core stats
+  const statDefs=[['time','Time'],['pace','Pace'],['hr','HR'],['cadence','Cadence']].filter(([k])=>D.has[k]);
+  if(statDefs.length){ html+=lbl('Stats');
+    html+=statDefs.map(([k,l])=>chip(_overlayOpts.stats[k]!==false,l,`_toggleOverlayStat('${k}')`)).join(''); }
+  // blocks
+  html+=lbl('Blocks');
+  html+=chip(!!_overlayOpts.intervals && D.has.intervals,'Intervals',`_toggleOverlayBlock('intervals')`, !D.has.intervals);
+  html+=chip(!!_overlayOpts.coach && D.has.coach,'Coach note',`_toggleOverlayBlock('coach')`, !D.has.coach);
+  adv.innerHTML=html;
 }
-function _setOverlayPreset(p){ _overlayPreset=p; _renderOverlayControls(); _renderOverlayPreview(); }
 function _setShareMode(m){
   _shareMode=m; const ov=(m==='overlay');
   const show=(id,v)=>{ const e=document.getElementById(id); if(e) e.style.display=v; };
@@ -5416,7 +5459,7 @@ async function _exportShareCard(save){
   // Overlay mode → export a TRANSPARENT PNG (alpha preserved by toBlob) at 1080×1920.
   if(_shareMode==='overlay'){
     const cv=document.createElement('canvas'); cv.width=1080; cv.height=1920;
-    try{ _drawWorkoutOverlay(cv.getContext('2d'), s, {preset:_overlayPreset}); }catch(e){ toast('Could not build overlay'); return; }
+    try{ _drawWorkoutOverlay(cv.getContext('2d'), s, _overlayOpts); }catch(e){ toast('Could not build overlay'); return; }
     let blob; try{ blob=await new Promise(r=>cv.toBlob(r,'image/png')); }catch(e){ toast('Could not build image'); return; }
     const file=new File([blob],'rev3-overlay.png',{type:'image/png'});
     if(!save && navigator.canShare && navigator.canShare({files:[file]})){

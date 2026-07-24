@@ -19,12 +19,32 @@ const D=await page.evaluate(()=>{
   const s={session:'Tempo Intervals',dist:'14.2',dur:'58',hr:'162',cad:182,ts:Date.parse('2026-07-11T09:00:00'),notes:'6x800m @ 5K pace - negative split.',strava_splits:sp};
   return _overlayData(s);
 });
+const paceStat=D.stats.find(s=>s.key==='pace');
 check('Per-interval rows carry dist/time/pace/HR', D.reps.length===6 && D.reps.every(r=>r.dist&&r.time&&r.pace&&r.hr), JSON.stringify(D.reps[0]));
-check('Pace uses a single unit slash (no //)', D.reps.every(r=>/^\d+:\d\d\/(km|mi)$/.test(r.pace)) && /\/(km|mi)$/.test(D.stats.find(s=>s[0]==='Avg pace')[1]) && !/\/\//.test(D.stats.find(s=>s[0]==='Avg pace')[1]), D.reps[0].pace+' · '+D.stats.find(s=>s[0]==='Avg pace')[1]);
-check('Cadence included when recorded', D.stats.some(s=>s[0]==='Cadence' && s[1]==='182'));
+check('Pace uses a single unit slash (no //)', D.reps.every(r=>/^\d+:\d\d\/(km|mi)$/.test(r.pace)) && /\/(km|mi)$/.test(paceStat.val) && !/\/\//.test(paceStat.val), D.reps[0].pace+' · '+paceStat.val);
+check('Cadence included when recorded', D.stats.some(s=>s.key==='cadence' && s.val==='182'));
 check('Copy is hyphenated (no em dash)', !/[—–]/.test(D.coach) && !/[—–]/.test(D.eyebrow));
-check('Headline is the distance metric', D.headline.val==='14.2' && D.headline.unit==='km', JSON.stringify(D.headline));
+check('Headline exposes distance + duration options', D.headline.distance.val==='14.2' && D.headline.distance.unit==='km' && !!D.headline.duration, JSON.stringify(D.headline));
 check('has.intervals true for a split session', D.has.intervals===true);
+
+// ── À-la-carte options: headline metric + per-block toggles ──────────────────
+const gran=await page.evaluate(()=>{
+  const t=[194,189,187,185,183,178],sp=[]; for(let i=0;i<6;i++) sp.push({distance:800,moving_time:t[i],average_speed:800/t[i],average_heartrate:160});
+  const s={session:'Tempo',dist:'14.2',dur:'58',hr:'162',cad:182,ts:Date.now(),notes:'note',strava_splits:sp};
+  const draw=(o)=>{const c=document.createElement('canvas');c.width=1080;c.height=1920;return _drawWorkoutOverlay(c.getContext('2d'),s,o);};
+  const O=_overlayResolve({});
+  return {
+    resolveDefault:O,
+    dropCadence: draw({stats:{cadence:false}}).blocks,   // toggle a stat off (still renders)
+    ivOn: draw({intervals:true}).blocks.intervals,
+    ivOff: draw({intervals:false}).blocks.intervals,
+    coachOff: draw({coach:false}).blocks.coach,
+  };
+});
+check('Default resolve = distance headline, stats on, coach on, intervals off', gran.resolveDefault.headline==='distance' && gran.resolveDefault.coach===true && gran.resolveDefault.intervals===false && gran.resolveDefault.stats.hr===true, JSON.stringify(gran.resolveDefault));
+check('Toggling a stat off still renders (stats block present)', gran.dropCadence.stats===true);
+check('Intervals block honours its toggle', gran.ivOn===true && gran.ivOff===false, JSON.stringify({on:gran.ivOn,off:gran.ivOff}));
+check('Coach note honours its toggle', gran.coachOff===false);
 
 // Presets gate the optional blocks
 const blk=await page.evaluate(()=>{
