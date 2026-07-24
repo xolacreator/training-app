@@ -740,7 +740,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev10</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev11</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -9027,9 +9027,21 @@ function coachingContextText(opts={}){
 }
 
 // Load a session INTO the active program as a real slot (builder / Coach EV → plan).
+// Freeze already-elapsed weeks into per-week snapshots BEFORE an on-demand plan
+// edit, so editing the base weekly template only changes the current and upcoming
+// weeks — it never rewrites what was already planned/logged in historical weeks.
+// (Past weeks then read their frozen `overrides[w]`; current/future read the base.)
+function _freezeHistoricalWeeks(prog){
+  if(!prog || !Array.isArray(prog.dayMap) || prog.dayMap.length!==7) return;
+  const cur = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
+  if(!(cur>1)) return;
+  prog.overrides = prog.overrides || {};
+  for(let w=1; w<cur; w++){ if(!prog.overrides[w]) prog.overrides[w] = prog.dayMap.slice(); }
+}
 function addSessionToProgram(sessionDef, day, opts={}){
   if (typeof savedProgram==='undefined' || !savedProgram){ if(!opts.silent) toast('No active program — build or attach one first'); return null; }
   const prog = savedProgram; prog.sessions = prog.sessions || [];
+  _freezeHistoricalWeeks(prog);   // protect past weeks from this template edit
   let base = sessionDef.id || (sessionDef.type||'session'), id=base, n=1;
   while (prog.sessions.some(s=>s.id===id)) id = base+'-'+(++n);
   const sess = { ...sessionDef, id };
@@ -9080,6 +9092,7 @@ function moveProgramSession(fromDay, toDay, opts={}){
   const prog=savedProgram; const fi=_PLAN_DOW.indexOf(fromDay), ti=_PLAN_DOW.indexOf(toDay);
   if (fi<0||ti<0||fi===ti) return false;
   if (!Array.isArray(prog.dayMap)||prog.dayMap.length!==7){ if(!opts.silent) toast("This program can't be edited by day"); return false; }
+  _freezeHistoricalWeeks(prog);   // protect past weeks from this template edit
   const moving=prog.dayMap[fi], occupied=prog.dayMap[ti];
   prog.dayMap[ti]=moving; prog.dayMap[fi]=occupied;   // swap (occupied may be null = plain move)
   saveProgramData(prog);
@@ -9092,6 +9105,7 @@ function removeProgramSessionFromDay(day, opts={}){
   if (typeof savedProgram==='undefined' || !savedProgram) return false;
   const prog=savedProgram; const di=_PLAN_DOW.indexOf(day);
   if (di<0||!Array.isArray(prog.dayMap)) return false;
+  _freezeHistoricalWeeks(prog);   // protect past weeks from this template edit
   prog.dayMap[di]=null;
   saveProgramData(prog);
   try{ recomputeAthleteState(); }catch(e){}
