@@ -67,9 +67,22 @@ Decision Inspector now renders the trace: a value-ranking "why this one" bar vie
 and a "what would sharpen this call" missing-data section. Inspector routed through
 `CoachEV` (first Core adoption). Added `CoachEV.explain.trace(record)`.
 
+**Cycle 3 — Weekly autoregulation** *(shipped, rev12)*
+`weeklyAutoregulation` turns the just-finished week's review into a proposed
+re-shaping of the upcoming week — progress / hold / cutback / deload — from
+adherence + readiness trend + ACWR guardrails (0.8–1.3) + fatigue budget.
+Athlete confirms; `applyWeeklyAutoregulation` writes a per-week load scalar that
+`_progressEndurance` folds in (history-safe). Surfaced as a Today banner + wired
+into `CoachEV.decision.autoregulate` / `CoachEV.programming.applyAutoreg`. This is
+the first closed outcome→plan loop — the daily layer (decision pipeline +
+reschedule) already existed; this adds the weekly trajectory layer. Standard
+autoregulation methodology (no invented science); the deeper Learning Engine
+remains a stub for outcome-weighted adaptation-priority learning.
+test-autoregulation 12/12.
+
 | Step (latest cycle) | Status |
 |---|---|
-| 1 Understand → 7 Reflect | ✅ complete; both cycles deployed to production |
+| 1 Understand → 7 Reflect | ✅ complete; cycles 1–3 deployed to production |
 
 ---
 
