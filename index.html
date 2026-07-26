@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev15</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev16</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4334,7 +4334,15 @@ function _renderPlanEditList(w, weekSess){
       <div style="font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;">✎ Editing week ${w} · applies this week forward</div>
       <button onclick="togglePlanEdit()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--accent);color:#0C0820;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">Done</button>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>`;
+    <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
+    <button onclick="openCoachAdjust()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(77,158,255,.4);background:rgba(77,158,255,.08);color:#8fbaff;font-size:13px;font-weight:600;cursor:pointer;">💬 Ask coach to adjust this week</button>`;
+}
+// Prompt sheet for the coach adjustment (optional plain-language request).
+function openCoachAdjust(){
+  openInsight('Ask your coach', `
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px;">Tell the coach what you need this week - or leave it blank and let it read your state.</div>
+    <input id="ca-req" type="text" placeholder="e.g. move my long run to Sunday, I'm travelling Friday" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;padding:11px 12px;color:var(--text);font-size:13px;">
+    <button onclick="coachAdjustWeek((document.getElementById('ca-req')||{}).value||'')" style="width:100%;margin-top:14px;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:14px;cursor:pointer;">Ask coach</button>`);
 }
 // Edit a programmed session's details. History-safe: when the program has elapsed
 // weeks, fork the definition (new id) and repoint the current+future template at it,
@@ -4391,6 +4399,118 @@ function _saveSessionEditor(){
   editProgramSession(e.id, changes);
   try{ closeInsight(); }catch(e){}
   try{ renderPlan(currentProgramWeek); }catch(e){}
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH BRAIN · PLAN ADJUSTMENT (C) — engine-guarded LLM
+// ---------------------------------------------------------------------------
+// The deterministic engine stays the safety rail: it supplies the athlete state,
+// KB principles and the current week, validates every returned action, and is the
+// offline fallback. The brain adds judgement + a human rationale on top. It can
+// only emit MOVE / ADD / REMOVE / RENAME on the CURRENT week (history-safe), and
+// every action is validated against the real day/session set before it is offered.
+// Nothing is applied until the athlete confirms.
+// ═══════════════════════════════════════════════════════════════════════════
+let _coachPlanProposal=null;
+function _planContextForBrain(week){
+  const wk=week||((typeof _progActualWeek==='function')?_progActualWeek():1);
+  const days=(typeof _progWeekSessions==='function'?_progWeekSessions(wk):[]).map(({day,session})=>
+    `${day}: ${session? (session.name+(session.focus?` (${session.focus})`:'')) : 'Rest'}`).join('\n');
+  let state=''; try{ state=coachingContextText? coachingContextText():''; }catch(e){}
+  return { wk, days, state };
+}
+// Validate one brain action against the real week; drop anything unsafe/unknown.
+function _validatePlanAction(a, wk){
+  if(!a || typeof a!=='object') return null;
+  const DOW=_PLAN_DOW, has=d=>DOW.includes(d);
+  const slot=d=>{ try{ return _progWeekSessions(wk).find(x=>x.day===d); }catch(e){ return null; } };
+  const t=String(a.action||'').toLowerCase();
+  if(t==='move'){ const f=a.from,to=a.to;
+    if(!has(f)||!has(to)||f===to) return null;
+    const s=slot(f); if(!s||!s.session) return null;                     // nothing to move
+    return { action:'move', from:f, to, why:String(a.why||'').slice(0,160) }; }
+  if(t==='remove'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
+    if(!s||!s.session) return null;
+    return { action:'remove', day:d, why:String(a.why||'').slice(0,160) }; }
+  if(t==='add'){ const d=a.day; if(!has(d)) return null;
+    const ty=String(a.type||'easy').toLowerCase();
+    if(!_ADD_PLAN_TYPES.some(([v])=>v===ty)) return null;
+    return { action:'add', day:d, type:ty, why:String(a.why||'').slice(0,160) }; }
+  if(t==='rename'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
+    if(!s||!s.session||!a.name) return null;
+    return { action:'rename', day:d, id:s.id, name:String(a.name).slice(0,60), why:String(a.why||'').slice(0,160) }; }
+  return null;
+}
+function _describePlanAction(a){
+  if(a.action==='move')   return `Move ${a.from}'s session to ${a.to}`;
+  if(a.action==='remove') return `Remove ${a.day}'s session`;
+  if(a.action==='add')    return `Add a ${(_ADD_PLAN_TYPES.find(([v])=>v===a.type)||[,a.type])[1].toLowerCase()} on ${a.day}`;
+  if(a.action==='rename') return `Rename ${a.day}'s session to "${a.name}"`;
+  return '';
+}
+// Ask the brain to adjust the current week. `request` is optional plain language.
+async function coachAdjustWeek(request){
+  if(typeof savedProgram==='undefined'||!savedProgram){ toast('Build or attach a program first'); return null; }
+  const { wk, days, state }=_planContextForBrain();
+  if(!hasValidAIKey()){ _coachPlanFallback(wk, 'No AI key configured - showing the engine proposal.'); return null; }
+  openInsight('Coach · adjusting your week', `<div style="font-family:var(--mono);font-size:11px;color:var(--text3);padding:10px 0;">Reading your week, readiness and load…</div>`);
+  let kb=''; try{ kb=runningKnowledgeContext? runningKnowledgeContext():''; }catch(e){}
+  const system=`You are an elite endurance coach adjusting ONE training week. Return ONLY JSON:
+{"summary":"<=200 chars plain language","actions":[{"action":"move|add|remove|rename","from":"Mon","to":"Wed","day":"Fri","type":"easy|tempo|intervals|long|recovery|strength|fitstop","name":"...","why":"<=140 chars"}]}
+Rules: max 3 actions; only the days Mon-Sun of THIS week; keep hard days separated by an easy/rest day; never remove the week's only long run without saying why; respect the athlete's readiness and load. Use hyphens, not em dashes. No prose outside JSON.`;
+  const user=`CURRENT WEEK ${wk}:\n${days}\n\nATHLETE STATE:\n${state||'(limited data)'}\n\nCOACHING PRINCIPLES:\n${(kb||'').slice(0,1200)}\n\nREQUEST: ${request||'Adjust this week to best fit my current state.'}`;
+  let txt='';
+  try{
+    const r=await aiAPI({ model:'claude-haiku-4-5-20251001', max_tokens:700, system, messages:[{role:'user',content:user}] });
+    txt=(r&&r.content&&r.content[0]&&r.content[0].text)||'';
+  }catch(e){ _coachPlanFallback(wk, 'Coach unavailable right now - showing the engine proposal.'); return null; }
+  let parsed=null; try{ const m=txt.match(/\{[\s\S]*\}/); parsed=m?JSON.parse(m[0]):null; }catch(e){}
+  const actions=((parsed&&parsed.actions)||[]).map(a=>_validatePlanAction(a,wk)).filter(Boolean).slice(0,3);
+  if(!actions.length){ _coachPlanFallback(wk, 'No safe changes suggested - here is the engine view.'); return null; }
+  _coachPlanProposal={ week:wk, summary:String((parsed&&parsed.summary)||'Proposed adjustments for this week.').slice(0,220), actions };
+  _renderCoachPlanProposal();
+  return _coachPlanProposal;
+}
+// Deterministic fallback: the weekly autoregulation view (never leaves the athlete stuck).
+function _coachPlanFallback(wk, note){
+  let p=null; try{ p=weeklyAutoregulation(); }catch(e){}
+  const body=`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">${_dash(note||'')}</div>`+
+    (p? `<div style="font-size:15px;font-weight:600;color:var(--text);">${p.headline}</div>
+         <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-top:6px;">${p.reasons.map(r=>_dash(r)).join(' · ')}</div>
+         <button onclick="_autoregApply();closeInsight();" style="width:100%;margin-top:16px;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:14px;cursor:pointer;">Apply ${p.decision}</button>`
+       : `<div style="font-size:13px;color:var(--text2);">Not enough data yet - log a few sessions and a morning check-in.</div>`);
+  openInsight('Coach · this week', body);
+}
+function _renderCoachPlanProposal(){
+  const p=_coachPlanProposal; if(!p) return;
+  const rows=p.actions.map((a,i)=>`<div style="display:flex;gap:10px;padding:10px 0;border-bottom:.5px solid var(--border);">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--accent);flex-shrink:0;">${i+1}</span>
+      <div style="min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--text);">${_describePlanAction(a)}</div>
+        ${a.why?`<div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:2px;">${_dash(a.why)}</div>`:''}</div></div>`).join('');
+  openInsight('Coach · proposed changes', `
+    <div style="font-size:14px;color:var(--text);line-height:1.55;margin-bottom:12px;">${_dash(p.summary)}</div>
+    ${rows}
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:12px;">Applies to week ${p.week} (this week forward) - past weeks are untouched.</div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="applyCoachPlanProposal()" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:14px;cursor:pointer;">Apply changes</button>
+      <button onclick="closeInsight()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-weight:600;font-size:14px;cursor:pointer;">Not now</button>
+    </div>`);
+}
+function applyCoachPlanProposal(){
+  const p=_coachPlanProposal; if(!p) return 0;
+  let n=0;
+  p.actions.forEach(a=>{
+    try{
+      if(a.action==='move')        { if(moveProgramSession(a.from,a.to,{silent:true})) n++; }
+      else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true})) n++; }
+      else if(a.action==='add')    { _addPlan={day:a.day,type:a.type}; _confirmAddToPlan(); n++; }
+      else if(a.action==='rename') { if(editProgramSession(a.id,{name:a.name},{silent:true})) n++; }
+    }catch(e){}
+  });
+  try{ closeInsight(); }catch(e){}
+  try{ renderPlan(currentProgramWeek); }catch(e){}
+  toast(n?`Applied ${n} change${n>1?'s':''} to week ${p.week}`:'No changes applied');
+  _coachPlanProposal=null;
+  return n;
 }
 // Render a Builder/AI-built session's authored content (name · detail · cue rows +
 // coaching notes) inside the program session overlay — no generated prescription.
@@ -13322,6 +13442,9 @@ const CoachEV = {
     removeSession: (...a) => _cevCall(typeof removeProgramSessionFromDay !== 'undefined' ? removeProgramSessionFromDay : null, ...a),
     suggestSession:(...a) => _cevCall(typeof coachSuggestSession    !== 'undefined' ? coachSuggestSession    : null, ...a),
     applyAutoreg:  (...a) => _cevCall(typeof applyWeeklyAutoregulation !== 'undefined' ? applyWeeklyAutoregulation : null, ...a),
+    editSession:   (...a) => _cevCall(typeof editProgramSession       !== 'undefined' ? editProgramSession       : null, ...a),
+    adjustWeek:    (...a) => _cevCall(typeof coachAdjustWeek          !== 'undefined' ? coachAdjustWeek          : null, ...a),
+    applyProposal: (...a) => _cevCall(typeof applyCoachPlanProposal   !== 'undefined' ? applyCoachPlanProposal   : null, ...a),
   },
   performance: {
     trends:        (...a) => _cevCall(typeof _progressTrends     !== 'undefined' ? _progressTrends     : null, ...a),
