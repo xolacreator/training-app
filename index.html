@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev13</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev14</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -952,7 +952,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <div class="oh"><div class="drag-handle"></div></div>
   <div class="oi">
     <div class="eyebrow" id="lo-eyebrow"></div>
-    <div class="overlay-title" id="lo-title"></div>
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <div class="overlay-title" id="lo-title" style="flex:1;min-width:0;"></div>
+      <button onclick="_renameSession()" title="Rename session" style="flex-shrink:0;width:34px;height:34px;border-radius:9px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:15px;line-height:1;">✎</button>
+    </div>
     <div class="overlay-sub" id="lo-sub"></div>
     <div class="stat-grid" id="lo-stats"></div>
     <div id="lo-feel"></div>
@@ -3089,12 +3092,21 @@ function renderToday() {
         <div class="dchip-dot">${done?'✓':''}</div>
       </div>`;
     }).join('');
-    const todaySess = pw.sessions.find(s=>s.day===todayDow) || pw.sessions[pw.sessions.length-1];
-    document.getElementById('today-session').onclick = () =>
-      openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
-        `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
-    const planDone = wkLogged.some(d=>d===todaySess.day);
-    document.getElementById('today-session').innerHTML = _sessionBar(todaySess.session, planDone, false);
+    // Today's session for the day; if today isn't a scheduled training day, show REST
+    // (never fall back to the last/Saturday session — that surfaced an old-plan long
+    //  run on rest days). Mirrors the custom-program path in _renderProgramTodayStrip.
+    const todaySess = pw.sessions.find(s=>s.day===todayDow) || null;
+    const tsEl = document.getElementById('today-session');
+    if (todaySess){
+      tsEl.onclick = () =>
+        openPlanOverlay(String(currentPlanWeek),todaySess.day,todaySess.session,todaySess.session,
+          `Week ${currentPlanWeek} · ${todaySess.day} ${todaySess.date}`);
+      const planDone = wkLogged.some(d=>d===todaySess.day);
+      tsEl.innerHTML = _sessionBar(todaySess.session, planDone, false);
+    } else {
+      tsEl.onclick = null;
+      tsEl.innerHTML = _sessionBar('', false, true);   // rest day
+    }
   }
 
   // Review banner — shown when Strava imports need feel rating
@@ -4722,6 +4734,24 @@ function renderBaselinesCard() {
     </div>`;
 }
 
+// Inline-edit a logged session's name from the detail overlay (tap the ✎).
+let _renameEditing=false;
+function _renameSession(){
+  if(_renameEditing) return;
+  const s=sessions[detailIdx]; if(!s) return;
+  _renameEditing=true;
+  const el=document.getElementById('lo-title'); if(!el) return;
+  const cur=(s.session||'').replace(/"/g,'&quot;');
+  el.innerHTML=`<input id="lo-title-input" type="text" value="${cur}" style="width:100%;font:inherit;font-weight:inherit;background:var(--bg2);border:1px solid var(--accent);border-radius:8px;padding:6px 10px;color:var(--text);">`;
+  const inp=document.getElementById('lo-title-input'); if(!inp){ _renameEditing=false; return; }
+  inp.focus(); inp.select();
+  let done=false;
+  const commit=(save)=>{ if(done) return; done=true;
+    if(save){ const v=(inp.value||'').trim(); if(v && v!==s.session){ s.session=v; try{saveData();}catch(e){} try{renderAll();}catch(e){} } }
+    _renameEditing=false; openLogOverlay(detailIdx); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); commit(true); } else if(e.key==='Escape'){ e.preventDefault(); commit(false); } });
+  inp.addEventListener('blur',()=>commit(true));
+}
 // Log detail overlay
 function openLogOverlay(idx){
   detailIdx=idx;
@@ -4729,6 +4759,7 @@ function openLogOverlay(idx){
   const ds=new Date(s.ts).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('lo-eyebrow').textContent=`Week ${s.week} · ${s.day} · ${ds}`;
   document.getElementById('lo-title').textContent=s.session;
+  _renameEditing=false;
   document.getElementById('lo-sub').innerHTML=ibadge(s.intensity);
 
   const sc=[];
