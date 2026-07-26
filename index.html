@@ -627,7 +627,8 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="cat-tab" onclick="setCat('other',this)">Other</button>
       </div>
       <div class="fg"><label class="flbl">Session name</label>
-        <select id="f-session" onchange="renderMetrics()"></select>
+        <input type="text" id="f-session" list="f-session-list" autocomplete="off" placeholder="Pick a preset or type your own…" onchange="renderMetrics()">
+        <datalist id="f-session-list"></datalist>
       </div>
       <div id="metric-area"></div>
       <div class="fg"><label class="flbl">How did it feel?</label>
@@ -741,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev12</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev13</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -3305,8 +3306,13 @@ function setCat(c, btn) {
   cat = c;
   document.querySelectorAll('.cat-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  const names = CAT_SESSIONS[c] || CAT_SESSIONS.other;
+  const dl = document.getElementById('f-session-list');
+  if (dl) dl.innerHTML = names.map(n=>`<option value="${n}"></option>`).join('');
+  // Default to the first preset for the category; the field stays editable so any
+  // custom name can be typed over it.
   const sel = document.getElementById('f-session');
-  if (sel) sel.innerHTML = (CAT_SESSIONS[c]||CAT_SESSIONS.other).map(n=>`<option>${n}</option>`).join('');
+  if (sel) sel.value = names[0] || '';
   renderMetrics();
 }
 
@@ -3533,7 +3539,7 @@ function saveSession(){
   let week='';
   if(savedProgram && savedProgram.startDate && typeof _progWeekForDate==='function') week=String(_progWeekForDate(dateISO)||'');
   else if(typeof weekFor==='function') week=String(weekFor(dateISO)||'');
-  const session=document.getElementById('f-session').value;
+  const session=(document.getElementById('f-session').value||'').trim() || 'Session';
   const intensity=document.getElementById('f-intensity').value;
   const pace=(document.getElementById('f-pace')?.value||'').trim();
   const dist=(document.getElementById('f-dist')?.value||'').trim();
@@ -4474,11 +4480,10 @@ function logProgramSession(id, week, day, setsAdd, isDeload){
   // Select the right category, then inject the program session name as a (selected) option.
   const catBtn=document.querySelector('.cat-tab.'+(logCat==='run'?'run':logCat)) || document.querySelector('.cat-tab.'+logCat);
   setCat(logCat, catBtn||document.createElement('button'));
-  const sel=document.getElementById('f-session');
-  if(sel){
-    const base=(CAT_SESSIONS[logCat]||[]).filter(n=>n!==sess.name);
-    sel.innerHTML=[`<option selected>${sess.name}</option>`,...base.map(n=>`<option>${n}</option>`)].join('');
-  }
+  const sel=document.getElementById('f-session'), dl=document.getElementById('f-session-list');
+  const base=(CAT_SESSIONS[logCat]||[]).filter(n=>n!==sess.name);
+  if(dl) dl.innerHTML=[sess.name,...base].map(n=>`<option value="${n}"></option>`).join('');
+  if(sel) sel.value=sess.name;   // prefilled but still editable
   _setLogDate(_dateForWeekDay(week, day));   // attach to the program session's real date
   const iEl=document.getElementById('f-intensity'); if(iEl) iEl.value=sess.intensity|| (logCat==='run'?'moderate':'moderate');
   renderMetrics(); // re-render metrics now that the buffers are populated
@@ -4678,12 +4683,9 @@ function assLogSession(id) {
   closeOv('assessment-overlay');
   _setLogDate(todayISO());
   document.getElementById('f-intensity').value = a.intensity;
-  const sEl = document.getElementById('f-session');
-  if (sEl) {
-    const opt = [...sEl.options].find(o => o.text.toLowerCase().includes('test') || o.value === a.name);
-    if (!opt) { const o=new Option(a.name,a.name); sEl.insertBefore(o,sEl.firstChild); }
-    sEl.value = a.name;
-  }
+  const sEl = document.getElementById('f-session'), dl = document.getElementById('f-session-list');
+  if (dl && ![...dl.options].some(o => o.value === a.name)) dl.insertAdjacentHTML('afterbegin', `<option value="${a.name}"></option>`);
+  if (sEl) sEl.value = a.name;
   nav('log', document.querySelectorAll('.nb')[1]);
 }
 
