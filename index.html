@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev14</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev15</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4269,21 +4269,26 @@ function _renderProgramPlan(w){
   const ab=document.getElementById('assessment-banner');
   if(ab) ab.style.display='none';
 
-  // Session rows (Kinetic Gold)
+  // Session rows (Kinetic Gold) — read-only list, or the inline week editor (Edit mode).
   const todayDow3=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
   const isActualWeek = (typeof _progActualWeek==='function') && _progActualWeek()===w;
-  document.getElementById('plan-days').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">`+weekSess.map(({day,id,session})=>{
-    const isToday = isActualWeek && day===todayDow3;
-    if(!session) return _planRowKG({ color:'var(--text3)', isToday, dim:!isToday,
-      eyebrow:`${day} · Rest`, name:'Rest / Recovery' });
-    const done=_progSessionDone(w,id);
-    const intensity = session.intensity || session.runType || _sessType(session);
-    return _planRowKG({
-      color:_intCol(intensity), isToday, done,
-      eyebrow:`${day} · ${session.focus||_sessType(session)}`, name:session.name,
-      onclick:`openProgramSessionOverlay('${id}',${w},'${day}')`,
-    });
-  }).join('')+`</div>`;
+  if(_planEditMode){
+    document.getElementById('plan-days').innerHTML=_renderPlanEditList(w, weekSess);
+  } else {
+    const editBtn=`<div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><button onclick="togglePlanEdit()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;">✎ Edit plan</button></div>`;
+    document.getElementById('plan-days').innerHTML=editBtn+`<div style="display:flex;flex-direction:column;gap:8px;">`+weekSess.map(({day,id,session})=>{
+      const isToday = isActualWeek && day===todayDow3;
+      if(!session) return _planRowKG({ color:'var(--text3)', isToday, dim:!isToday,
+        eyebrow:`${day} · Rest`, name:'Rest / Recovery' });
+      const done=_progSessionDone(w,id);
+      const intensity = session.intensity || session.runType || _sessType(session);
+      return _planRowKG({
+        color:_intCol(intensity), isToday, done,
+        eyebrow:`${day} · ${session.focus||_sessType(session)}`, name:session.name,
+        onclick:`openProgramSessionOverlay('${id}',${w},'${day}')`,
+      });
+    }).join('')+`</div>`;
+  }
 
   // Week-nav buttons (replace log-week-btn once, then update in-place)
   const prevBtn=currentProgramWeek>1?`<button class="btn" style="flex:1;" onclick="renderPlan(${w-1})">← W${w-1}</button>`:'<div style="flex:1;"></div>';
@@ -4298,6 +4303,95 @@ function _renderProgramPlan(w){
   if(archEl) archEl.style.display='';
 }
 
+// ── Plan editor (Edit mode) — reconfigure the whole week in one place ─────────
+let _planEditMode=false;
+function togglePlanEdit(){ _planEditMode=!_planEditMode; try{ renderPlan(currentProgramWeek); }catch(e){} }
+function _planMove(from,to){ if(to){ moveProgramSession(from,to); try{ renderPlan(currentProgramWeek); }catch(e){} } }
+function _planRemove(day){ if(confirm(`Remove ${day}'s session from the plan?`)){ removeProgramSessionFromDay(day); try{ renderPlan(currentProgramWeek); }catch(e){} } }
+function _renderPlanEditList(w, weekSess){
+  const chip=(t,onclick,c)=>`<button onclick="${onclick}" style="padding:6px 10px;border-radius:8px;border:1px solid ${c?c+'88':'var(--border2)'};background:var(--bg2);color:${c||'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;">${t}</button>`;
+  const others=d=>_PLAN_DOW.filter(x=>x!==d).map(x=>`<option value="${x}">${x}</option>`).join('');
+  const rows=weekSess.map(({day,id,session})=>{
+    if(!session) return `<div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--border2);border-radius:12px;padding:12px 13px;">
+      <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
+      <div style="flex:1;font-size:13px;color:var(--text3);">Rest day</div>
+      ${chip('＋ Add', `openAddToPlan('${day}')`, 'var(--accent)')}</div>`;
+    const col=_intCol(session.intensity||session.runType||_sessType(session));
+    const detail=session.focus||_sessType(session);
+    return `<div style="display:flex;flex-direction:column;gap:9px;border:1px solid var(--border2);border-radius:12px;padding:12px 13px;background:var(--bg2);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:3px;height:30px;background:${col};border-radius:2px;flex-shrink:0;"></div>
+        <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
+        <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${session.name}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${detail}</div></div></div>
+      <div style="display:flex;gap:7px;align-items:center;padding-left:36px;">
+        <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
+        ${chip('Edit', `openSessionEditor('${id}','${day}',${w})`)}
+        ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
+      </div></div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;">✎ Editing week ${w} · applies this week forward</div>
+      <button onclick="togglePlanEdit()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--accent);color:#0C0820;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">Done</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>`;
+}
+// Edit a programmed session's details. History-safe: when the program has elapsed
+// weeks, fork the definition (new id) and repoint the current+future template at it,
+// leaving frozen past weeks on the original — so editing never rewrites history.
+function editProgramSession(id, changes, opts={}){
+  if(typeof savedProgram==='undefined'||!savedProgram) return false;
+  const prog=savedProgram; const idx=(prog.sessions||[]).findIndex(s=>s.id===id); if(idx<0) return false;
+  const cur=(typeof _progActualWeek==='function')?_progActualWeek():1;
+  if(cur>1){
+    _freezeHistoricalWeeks(prog);
+    let nid=id+'-e', n=1; while(prog.sessions.some(s=>s.id===nid)) nid=id+'-e'+(++n);
+    prog.sessions.push({ ...prog.sessions[idx], ...changes, id:nid });
+    if(Array.isArray(prog.dayMap)) prog.dayMap=prog.dayMap.map(x=> x===id?nid:x);
+    if(prog.overrides) for(const wk in prog.overrides){ if(parseInt(wk)>=cur && Array.isArray(prog.overrides[wk])) prog.overrides[wk]=prog.overrides[wk].map(x=>x===id?nid:x); }
+  } else {
+    Object.assign(prog.sessions[idx], changes);
+  }
+  saveProgramData(prog); try{recomputeAthleteState();}catch(e){} try{renderAll();}catch(e){}
+  if(!opts.silent) toast('Session updated');
+  return true;
+}
+// ── Session editor (B) — change a programmed session's name / type / target ───
+let _sessEdit=null;
+const _EDIT_TYPES=[['endurance','Run'],['strength','Strength'],['fitstop','Conditioning']];
+const _EDIT_RUNTYPES=[['easy','Easy'],['tempo','Tempo'],['intervals','Intervals'],['long','Long'],['recovery','Recovery']];
+function openSessionEditor(id, day, w){
+  const s=(savedProgram&&savedProgram.sessions||[]).find(x=>x.id===id);
+  if(!s){ toast('Session not found'); return; }
+  _sessEdit={ id, day, week:w, name:s.name||'', type:_sessType(s), runType:s.runType||'easy', focus:s.focus||'' };
+  _renderSessionEditor();
+}
+function _renderSessionEditor(){
+  const e=_sessEdit; if(!e) return;
+  const chip=(sel,label,onclick)=>`<button onclick="${onclick}" style="padding:8px 12px;border-radius:9px;border:1px solid ${sel?'var(--accent)':'var(--border2)'};background:${sel?'var(--accent)':'var(--bg2)'};color:${sel?'#0C0820':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;margin:0 6px 6px 0;">${label}</button>`;
+  const typeChips=_EDIT_TYPES.map(([v,l])=>chip(e.type===v,l,`_sessEdit.type='${v}';_renderSessionEditor()`)).join('');
+  const rtChips=_EDIT_RUNTYPES.map(([v,l])=>chip(e.runType===v,l,`_sessEdit.runType='${v}';_renderSessionEditor()`)).join('');
+  const body=`
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Name</div>
+    <input id="se-name" type="text" value="${(e.name||'').replace(/"/g,'&quot;')}" oninput="_sessEdit.name=this.value" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:14px;">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Type</div>
+    <div style="display:flex;flex-wrap:wrap;">${typeChips}</div>
+    ${e.type==='endurance'?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 8px;">Run type</div><div style="display:flex;flex-wrap:wrap;">${rtChips}</div>`:''}
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px;">Focus / target <span style="text-transform:none;color:var(--text3);">(optional)</span></div>
+    <input id="se-focus" type="text" value="${(e.focus||'').replace(/"/g,'&quot;')}" oninput="_sessEdit.focus=this.value" placeholder="e.g. 6×800m @ 5K pace, or 22 km" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;color:var(--text);font-size:13px;">
+    <button onclick="_saveSessionEditor()" style="width:100%;margin-top:18px;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:14px;cursor:pointer;">Save changes</button>`;
+  openInsight('Edit session', body);
+}
+function _saveSessionEditor(){
+  const e=_sessEdit; if(!e) return;
+  const nm=document.getElementById('se-name'); if(nm) e.name=nm.value;
+  const fc=document.getElementById('se-focus'); if(fc) e.focus=fc.value;
+  const changes={ name:(e.name||'').trim()||'Session', type:e.type, focus:(e.focus||'').trim() };
+  if(e.type==='endurance') changes.runType=e.runType;
+  editProgramSession(e.id, changes);
+  try{ closeInsight(); }catch(e){}
+  try{ renderPlan(currentProgramWeek); }catch(e){}
+}
 // Render a Builder/AI-built session's authored content (name · detail · cue rows +
 // coaching notes) inside the program session overlay — no generated prescription.
 function _renderBuiltSession(sess){
