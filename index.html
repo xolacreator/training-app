@@ -1358,7 +1358,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Input bar — always pinned to bottom, full width -->
   <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 12px),46px) calc(16px+env(safe-area-inset-left,0px));">
     <div style="display:flex;gap:8px;align-items:flex-end;">
-      <textarea id="coach-input" rows="1" placeholder="Reply to your coach…"
+      <textarea id="coach-input" rows="1" placeholder="Or type something specific…"
         style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;max-height:80px;overflow-y:auto;line-height:1.45;"
         oninput="autoGrowCoachInput(this)"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage();}"></textarea>
@@ -11973,18 +11973,75 @@ function autoGrowCoachInput(el) {
 
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
-  if (!hasValidAIKey()) {
-    toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return;
-  }
   localStorage.setItem('ht-last-coach-open', Date.now().toString());
   renderCoachHeader();
   if (coachMessages.length === 0) {
-    coachMode = null;
-    renderCoachModePicker();
+    coachMode = 'checkin';
+    renderCoachBriefing();          // coach speaks first — no typing, no AI call
   } else {
     renderCoachMessages();
   }
   openOv('coach-overlay');
+}
+// ── Proactive coach (chips-first) ────────────────────────────────────────────
+// A real coach opens the conversation. The briefing is built from the engine, so
+// it is instant and works with no AI key / offline; chips carry the common intents
+// so the athlete never has to type. Free text stays available underneath.
+function _coachBriefingLines(){
+  const L=[];
+  try{ const r=_coachReadText(); if(r) L.push(r); }catch(e){}
+  if(!L.length){
+    try{ const rd=_readinessToday();
+      L.push(rd!=null?`Readiness is ${rd} today.`:'No check-in logged yet today - tell me how you slept and I will shape the session around it.');
+    }catch(e){ L.push('Ready when you are.'); }
+  }
+  try{ const ins=_coachInsight(); if(ins&&ins.text) L.push(ins.text); }catch(e){}
+  return L.map(x=>_dash(x));
+}
+// State-derived follow-ups. Each maps to a known intent, so it routes to a
+// deterministic surface where one exists (instant) and only uses AI when needed.
+function _coachChips(){
+  const c=[]; let rd=null, hasProg=false, restToday=false, lowRead=false;
+  try{ rd=_readinessToday(); }catch(e){}
+  try{ hasProg=!!savedProgram; }catch(e){}
+  try{ const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+       const slot=hasProg?(_progWeekSessions(_progActualWeek())||[]).find(s=>s.day===dow):null;
+       restToday=hasProg&&!(slot&&slot.session); }catch(e){}
+  lowRead = rd!=null && rd<55;
+  if(rd==null)                 c.push(['Log how I slept','checkin']);
+  if(hasProg&&!restToday)      c.push(['Why this session?','why']);
+  if(lowRead)                  c.push(['I feel beat up','beat']);
+  if(hasProg)                  c.push(['Change my week','adjust']);
+  if(hasProg)                  c.push(['How is my week going?','week']);
+  c.push(['How am I progressing?','progress']);
+  if(!lowRead&&rd!=null)       c.push(['What should I focus on?','focus']);
+  return c.slice(0,5);
+}
+function renderCoachBriefing(){
+  const el=document.getElementById('coach-messages'); if(!el) return;
+  const lines=_coachBriefingLines();
+  const bubbles=lines.map(t=>`<div style="display:flex;margin-bottom:10px;">
+      <div style="max-width:88%;padding:11px 13px;border-radius:14px 14px 14px 4px;background:var(--bg2);border:.5px solid var(--border);font-size:13px;line-height:1.55;color:var(--text);">${t}</div></div>`).join('');
+  const chips=_coachChips().map(([label,intent])=>
+    `<button onclick="coachChip('${intent}')" style="padding:9px 13px;border-radius:18px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:12.5px;font-weight:500;cursor:pointer;margin:0 6px 7px 0;">${label}</button>`).join('');
+  el.innerHTML=bubbles+
+    `<div style="margin-top:6px;"><div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Pick one, or type below</div>
+      <div style="display:flex;flex-wrap:wrap;">${chips}</div></div>`;
+  setTimeout(()=>{ el.scrollTop=0; },30);
+}
+// Route a chip: deterministic surfaces answer instantly; open-ended ones ask the AI.
+function coachChip(intent){
+  const ask=(q)=>{ const i=document.getElementById('coach-input'); if(i){ i.value=q; } sendCoachMessage(); };
+  try{
+    if(intent==='why')      { closeCoach(); openDecisionInspector(); return; }
+    if(intent==='adjust')   { closeCoach(); openCoachAdjust(); return; }
+    if(intent==='week')     { closeCoach(); openWeeklyDashboard(); return; }
+    if(intent==='progress') { closeCoach(); openAthleteProfile(); return; }
+    if(intent==='checkin')  { closeCoach(); nav('today',document.querySelectorAll('.nb')[0]); try{ document.getElementById('recovery-card').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} return; }
+  }catch(e){}
+  if(intent==='beat')  return ask('I feel beat up today - what should I do with the session?');
+  if(intent==='focus') return ask('What should I focus on today?');
+  ask('What should I know today?');
 }
 
 function renderCoachModePicker() {
