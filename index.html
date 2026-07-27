@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev17</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev18</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -3731,6 +3731,70 @@ const _PROG_DAY_SLOTS={1:['Mon'],2:['Mon','Thu'],3:['Mon','Wed','Fri'],
 function _progDays(spw){return _PROG_DAY_SLOTS[Math.min(Math.max(spw,1),7)]||_PROG_DAY_SLOTS[4];}
 
 const _ALL_DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// ── Day options (A/B) + conditional rules ────────────────────────────────────
+// A dayMap entry is either a plain sessionId (string, the original shape) or an
+// OPTION entry: { opts:[idA,idB], rule?:{type:'readiness',threshold,high,low}, pick? }.
+// Resolution order: an explicit athlete pick for this week wins; else the rule
+// decides from today's readiness; else the first option. Everything downstream keeps
+// receiving a concrete { id, session }, so option days are backward compatible.
+function _resolveDaySlot(entry, prog, week){
+  prog = prog || savedProgram;
+  const find = id => (id && prog && prog.sessions) ? (prog.sessions.find(s=>s.id===id)||null) : null;
+  if(!entry) return { id:null, session:null };
+  if(typeof entry === 'string') return { id:entry, session:find(entry) };
+  const opts=(entry.opts||[]).filter(Boolean);
+  if(!opts.length) return { id:null, session:null };
+  let pick=opts[0], via='default';
+  const rule=entry.rule||null;
+  if(rule && rule.type==='readiness'){
+    let rd=null; try{ rd=_readinessToday(); }catch(e){}
+    if(rd!=null){ const thr=rule.threshold!=null?rule.threshold:60;
+      pick = rd>=thr ? (rule.high||opts[0]) : (rule.low||opts[1]||opts[0]);
+      via = rd>=thr ? 'rule-high' : 'rule-low'; }
+  }
+  const picked = entry.pick && entry.pick[String(week)];
+  if(picked && opts.includes(picked)){ pick=picked; via='athlete'; }
+  return { id:pick, session:find(pick), isOption:true, options:opts.map(id=>({id, session:find(id)})), rule, via };
+}
+// Turn a day into an A/B choice (history-safe). ids = [idA, idB]; rule optional.
+function setDayOptions(day, ids, rule, opts={}){
+  if(typeof savedProgram==='undefined'||!savedProgram) return false;
+  const prog=savedProgram, di=_PLAN_DOW.indexOf(day);
+  if(di<0||!Array.isArray(prog.dayMap)) return false;
+  const valid=(ids||[]).filter(id=>(prog.sessions||[]).some(s=>s.id===id));
+  if(valid.length<2) { if(!opts.silent) toast('Need two sessions to make a choice'); return false; }
+  _freezeHistoricalWeeks(prog);
+  prog.dayMap[di]={ opts:valid.slice(0,2), ...(rule?{rule}:{}) , pick:{} };
+  saveProgramData(prog); try{recomputeAthleteState();}catch(e){} try{renderAll();}catch(e){}
+  if(!opts.silent) toast(`${day} is now a choice of ${valid.length} sessions`);
+  return true;
+}
+// The athlete picks one option for a given week (does not change the template).
+function pickDayOption(day, id, week, opts={}){
+  if(typeof savedProgram==='undefined'||!savedProgram) return false;
+  const prog=savedProgram, di=_PLAN_DOW.indexOf(day);
+  if(di<0||!Array.isArray(prog.dayMap)) return false;
+  const wk=week||((typeof _progActualWeek==='function')?_progActualWeek():1);
+  const e=prog.dayMap[di];
+  if(!e||typeof e==='string'||!(e.opts||[]).includes(id)) return false;
+  e.pick=e.pick||{}; e.pick[String(wk)]=id;
+  saveProgramData(prog); try{recomputeAthleteState();}catch(e){} try{renderAll();}catch(e){}
+  const s=(prog.sessions||[]).find(x=>x.id===id);
+  if(!opts.silent) toast(`${day}: ${s?s.name:'session'} selected`);
+  return true;
+}
+// Collapse an option day back to a single session.
+function clearDayOptions(day, keepId, opts={}){
+  if(typeof savedProgram==='undefined'||!savedProgram) return false;
+  const prog=savedProgram, di=_PLAN_DOW.indexOf(day);
+  if(di<0||!Array.isArray(prog.dayMap)) return false;
+  const e=prog.dayMap[di]; if(!e||typeof e==='string') return false;
+  _freezeHistoricalWeeks(prog);
+  prog.dayMap[di]=keepId&&(e.opts||[]).includes(keepId)?keepId:(e.opts||[])[0]||null;
+  saveProgramData(prog); try{recomputeAthleteState();}catch(e){} try{renderAll();}catch(e){}
+  if(!opts.silent) toast(`${day} set to a single session`);
+  return true;
+}
 function _progWeekSessions(week){
   const prog=savedProgram; if(!prog) return [];
   // Composite/multi-discipline programs (and all new ones) use an explicit
@@ -3742,10 +3806,7 @@ function _progWeekSessions(week){
     // that specific week; otherwise the base template repeats.
     const ov = prog.overrides && prog.overrides[week];
     const dm = (Array.isArray(ov) && ov.length===7) ? ov : prog.dayMap;
-    return _ALL_DOW.map((day,i)=>{
-      const id=dm[i]||null;
-      return {day,id,session:id?prog.sessions?.find(s=>s.id===id):null};
-    });
+    return _ALL_DOW.map((day,i)=>Object.assign({day}, _resolveDaySlot(dm[i], prog, week)));
   }
   // Legacy fallback: flat weekSchedule rotation + sessions-per-week day slots.
   const spw=prog.sessionsPerWeek||4;
@@ -4311,13 +4372,32 @@ function _planRemove(day){ if(confirm(`Remove ${day}'s session from the plan?`))
 function _renderPlanEditList(w, weekSess){
   const chip=(t,onclick,c)=>`<button onclick="${onclick}" style="padding:6px 10px;border-radius:8px;border:1px solid ${c?c+'88':'var(--border2)'};background:var(--bg2);color:${c||'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;">${t}</button>`;
   const others=d=>_PLAN_DOW.filter(x=>x!==d).map(x=>`<option value="${x}">${x}</option>`).join('');
-  const rows=weekSess.map(({day,id,session})=>{
+  const rows=weekSess.map(({day,id,session,isOption,options,rule,via})=>{
     if(!session) return `<div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--border2);border-radius:12px;padding:12px 13px;">
       <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
       <div style="flex:1;font-size:13px;color:var(--text3);">Rest day</div>
       ${chip('＋ Add', `openAddToPlan('${day}')`, 'var(--accent)')}</div>`;
     const col=_intCol(session.intensity||session.runType||_sessType(session));
     const detail=session.focus||_sessType(session);
+    // Option day: show both choices; the active one is highlighted.
+    if(isOption){
+      const pills=(options||[]).map(o=>`<button onclick="pickDayOption('${day}','${o.id}',${w})" style="flex:1;min-width:0;padding:8px 9px;border-radius:9px;border:1px solid ${o.id===id?'var(--accent)':'var(--border2)'};background:${o.id===id?'var(--accent)':'var(--bg2)'};color:${o.id===id?'#0C0820':'var(--text2)'};font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${o.session?o.session.name:o.id}</button>`).join('');
+      const ruleTxt = rule&&rule.type==='readiness'
+        ? `Auto-picks by readiness (cutoff ${rule.threshold!=null?rule.threshold:60})${via==='rule-high'?' - recovered, hard option':via==='rule-low'?' - low, easier option':''}`
+        : 'Your choice on the day';
+      return `<div style="display:flex;flex-direction:column;gap:9px;border:1px solid rgba(212,175,55,.35);border-radius:12px;padding:12px 13px;background:var(--bg2);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:3px;height:30px;background:${col};border-radius:2px;flex-shrink:0;"></div>
+          <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
+          <div style="flex:1;min-width:0;"><div style="font-family:var(--mono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;">Choice day${via==='athlete'?' · you picked':''}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ruleTxt}</div></div></div>
+        <div style="display:flex;gap:7px;padding-left:36px;">${pills}</div>
+        <div style="display:flex;gap:7px;padding-left:36px;">
+          <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
+          ${chip('Single', `clearDayOptions('${day}','${id}')`)}
+          ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
+        </div></div>`;
+    }
     return `<div style="display:flex;flex-direction:column;gap:9px;border:1px solid var(--border2);border-radius:12px;padding:12px 13px;background:var(--bg2);">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:3px;height:30px;background:${col};border-radius:2px;flex-shrink:0;"></div>
@@ -4438,13 +4518,38 @@ function _validatePlanAction(a, wk){
   if(t==='rename'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
     if(!s||!s.session||!a.name) return null;
     return { action:'rename', day:d, id:s.id, name:String(a.name).slice(0,60), why:String(a.why||'').slice(0,160) }; }
+  // Turn a day into an A/B choice. `types` are session TYPES (the app creates the
+  // sessions); an optional readiness rule picks between them automatically.
+  if(t==='set_options'){ const d=a.day; if(!has(d)) return null;
+    const types=(a.types||[]).map(x=>String(x).toLowerCase()).filter(x=>_ADD_PLAN_TYPES.some(([v])=>v===x));
+    if(types.length<2) return null;
+    const rule=(a.rule&&String(a.rule.type||'').toLowerCase()==='readiness')
+      ? { type:'readiness', threshold:Math.max(1,Math.min(99, parseInt(a.rule.threshold)||60)) } : null;
+    return { action:'set_options', day:d, types:types.slice(0,2), rule, why:String(a.why||'').slice(0,160) }; }
   return null;
+}
+// Create (or reuse) a program session for a plan type — used by option actions.
+function _sessionForType(ty){
+  const prog=savedProgram; if(!prog) return null;
+  const runDef=rt=>({type:'endurance', name:{easy:'Easy Run',tempo:'Tempo Run',intervals:'Intervals',long:'Long Run',recovery:'Recovery Run'}[rt]||'Run', runType:rt, focus:(typeof _adaptationForRunType==='function'?_adaptationForRunType(rt):'')||''});
+  let def;
+  if(ty==='strength') def=(typeof _genericStrengthSession==='function'?_genericStrengthSession():{type:'strength',name:'Strength'});
+  else if(ty==='fitstop') def={type:'fitstop', name:'Conditioning', format:'Circuit', focus:'work_capacity'};
+  else def=runDef(ty);
+  const existing=(prog.sessions||[]).find(s=>s.name===def.name && (s.runType||'')===(def.runType||''));
+  if(existing) return existing.id;
+  let base=def.id||('run-'+(def.runType||ty)), id=base, n=1;
+  while((prog.sessions||[]).some(s=>s.id===id)) id=base+'-'+(++n);
+  prog.sessions=prog.sessions||[]; prog.sessions.push({...def, id});
+  return id;
 }
 function _describePlanAction(a){
   if(a.action==='move')   return `Move ${a.from}'s session to ${a.to}`;
   if(a.action==='remove') return `Remove ${a.day}'s session`;
   if(a.action==='add')    return `Add a ${(_ADD_PLAN_TYPES.find(([v])=>v===a.type)||[,a.type])[1].toLowerCase()} on ${a.day}`;
   if(a.action==='rename') return `Rename ${a.day}'s session to "${a.name}"`;
+  if(a.action==='set_options'){ const lbl=t=>(_ADD_PLAN_TYPES.find(([v])=>v===t)||[,t])[1].toLowerCase();
+    return `Make ${a.day} a choice: ${a.types.map(lbl).join(' or ')}${a.rule?` (auto-picks by readiness, cutoff ${a.rule.threshold})`:''}`; }
   return '';
 }
 // Ask the brain to adjust the current week. `request` is optional plain language.
@@ -4504,6 +4609,10 @@ function applyCoachPlanProposal(){
       else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true})) n++; }
       else if(a.action==='add')    { _addPlan={day:a.day,type:a.type}; _confirmAddToPlan(); n++; }
       else if(a.action==='rename') { if(editProgramSession(a.id,{name:a.name},{silent:true})) n++; }
+      else if(a.action==='set_options'){
+        const ids=a.types.map(t=>_sessionForType(t)).filter(Boolean);
+        const rule=a.rule?{ type:'readiness', threshold:a.rule.threshold, high:ids[0], low:ids[1] }:null;
+        if(setDayOptions(a.day, ids, rule, {silent:true})) n++; }
     }catch(e){}
   });
   try{ closeInsight(); }catch(e){}
@@ -12429,7 +12538,11 @@ PLAN CHANGES: when the athlete asks you to change their schedule (move/add/remov
 \`\`\`plan
 {"actions":[{"action":"move","from":"Wed","to":"Thu","why":"travel"},{"action":"add","day":"Tue","type":"easy","why":"aerobic volume"}]}
 \`\`\`
-Rules: max 3 actions; weekdays Mon-Sun of the CURRENT week only; type is one of easy|tempo|intervals|long|recovery|strength|fitstop; "remove"/"rename" take {"day":...} (rename also "name"). Keep your normal prose above the block - it becomes a confirm button, so never claim the change is already made.`,
+Rules: max 3 actions; weekdays Mon-Sun of the CURRENT week only; type is one of easy|tempo|intervals|long|recovery|strength|fitstop; "remove"/"rename" take {"day":...} (rename also "name"). Keep your normal prose above the block - it becomes a confirm button, so never claim the change is already made.
+
+You can also give a day TWO options instead of one fixed session:
+{"action":"set_options","day":"Thu","types":["intervals","easy"],"rule":{"type":"readiness","threshold":60},"why":"hard day only if recovered"}
+With a rule the app auto-selects the first type when readiness is at/above the threshold and the second when below; without a rule the athlete chooses on the day. Use this when the right session genuinely depends on how they turn up.`,
     motivate: `\nMODE: MOTIVATIONAL\nFocus entirely on mindset, belief and energy. Reference the athlete's goal and what it means. No technical detail unless they ask. Fire them up.`,
     ask:      '',
   };
