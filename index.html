@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev18</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev19</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -3742,6 +3742,14 @@ function _resolveDaySlot(entry, prog, week){
   const find = id => (id && prog && prog.sessions) ? (prog.sessions.find(s=>s.id===id)||null) : null;
   if(!entry) return { id:null, session:null };
   if(typeof entry === 'string') return { id:entry, session:find(entry) };
+  // ROTATION entry: { rotate:[idA, idB, ...] } — alternates by week. A null slot in
+  // the cycle means "rest that week", so "Fri LIFT one week, nothing the next" works.
+  if(Array.isArray(entry.rotate) && entry.rotate.length){
+    const cyc=entry.rotate, w=Math.max(1, parseInt(week)||1);
+    const id=cyc[(w-1)%cyc.length]||null;
+    return { id, session:find(id), isRotation:true, rotate:cyc.map(x=>({id:x, session:find(x)})),
+             cycleIndex:(w-1)%cyc.length, cycleLen:cyc.length };
+  }
   const opts=(entry.opts||[]).filter(Boolean);
   if(!opts.length) return { id:null, session:null };
   let pick=opts[0], via='default';
@@ -3755,6 +3763,48 @@ function _resolveDaySlot(entry, prog, week){
   const picked = entry.pick && entry.pick[String(week)];
   if(picked && opts.includes(picked)){ pick=picked; via='athlete'; }
   return { id:pick, session:find(pick), isOption:true, options:opts.map(id=>({id, session:find(id)})), rule, via };
+}
+// ── Edit scope ───────────────────────────────────────────────────────────────
+// Plan edits are either:
+//   'once'    — THIS WEEK ONLY. Materialises overrides[week] from the resolved map
+//               and mutates that, so pending/future weeks keep the template.
+//   'forward' — the base template (this week and every later week), freezing past
+//               weeks first so history is never rewritten.
+// _planScope is the editor's current setting; every mutator honours an explicit
+// opts.scope and otherwise falls back to it.
+let _planScope='forward';
+function setPlanScope(s){ _planScope=(s==='once')?'once':'forward'; try{ renderPlan(currentProgramWeek); }catch(e){} }
+// Materialise a per-week copy so a one-off edit can't touch the template.
+function _ensureWeekOverride(prog, week){
+  prog.overrides = prog.overrides || {};
+  if(!Array.isArray(prog.overrides[week]) || prog.overrides[week].length!==7){
+    const base = prog.dayMap || [null,null,null,null,null,null,null];
+    // Deep-ish clone so option/rotation objects aren't shared with the template.
+    prog.overrides[week] = base.map(e => (e && typeof e==='object') ? JSON.parse(JSON.stringify(e)) : (e||null));
+  }
+  return prog.overrides[week];
+}
+// The array a mutation should write to, given the scope.
+function _editTarget(prog, opts={}){
+  const scope = opts.scope || _planScope;
+  const wk = opts.week || ((typeof _progActualWeek==='function') ? _progActualWeek() : 1);
+  if(scope==='once') return { map:_ensureWeekOverride(prog, wk), scope:'once', week:wk };
+  _freezeHistoricalWeeks(prog);
+  return { map:prog.dayMap, scope:'forward', week:wk };
+}
+const _scopeNote = s => s==='once' ? 'this week only' : 'this week forward';
+// Alternate a day's session across weeks: ids may include null for a rest week.
+function setDayRotation(day, ids, opts={}){
+  if(typeof savedProgram==='undefined'||!savedProgram) return false;
+  const prog=savedProgram, di=_PLAN_DOW.indexOf(day);
+  if(di<0||!Array.isArray(prog.dayMap)) return false;
+  const cyc=(ids||[]).map(id=> id && (prog.sessions||[]).some(s=>s.id===id) ? id : null);
+  if(cyc.length<2 || cyc.every(x=>!x)){ if(!opts.silent) toast('Need at least two weeks in the rotation'); return false; }
+  _freezeHistoricalWeeks(prog);                       // rotation is always a template change
+  prog.dayMap[di]={ rotate:cyc.slice(0,4) };
+  saveProgramData(prog); try{recomputeAthleteState();}catch(e){} try{renderAll();}catch(e){}
+  if(!opts.silent) toast(`${day} now alternates over ${cyc.length} weeks`);
+  return true;
 }
 // Turn a day into an A/B choice (history-safe). ids = [idA, idB]; rule optional.
 function setDayOptions(day, ids, rule, opts={}){
@@ -3790,7 +3840,8 @@ function clearDayOptions(day, keepId, opts={}){
   if(di<0||!Array.isArray(prog.dayMap)) return false;
   const e=prog.dayMap[di]; if(!e||typeof e==='string') return false;
   _freezeHistoricalWeeks(prog);
-  prog.dayMap[di]=keepId&&(e.opts||[]).includes(keepId)?keepId:(e.opts||[])[0]||null;
+  const members=(e.opts||e.rotate||[]).filter(Boolean);
+  prog.dayMap[di]=(keepId&&members.includes(keepId))?keepId:(members[0]||null);
   saveProgramData(prog); try{recomputeAthleteState();}catch(e){} try{renderAll();}catch(e){}
   if(!opts.silent) toast(`${day} set to a single session`);
   return true;
@@ -4372,7 +4423,24 @@ function _planRemove(day){ if(confirm(`Remove ${day}'s session from the plan?`))
 function _renderPlanEditList(w, weekSess){
   const chip=(t,onclick,c)=>`<button onclick="${onclick}" style="padding:6px 10px;border-radius:8px;border:1px solid ${c?c+'88':'var(--border2)'};background:var(--bg2);color:${c||'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;">${t}</button>`;
   const others=d=>_PLAN_DOW.filter(x=>x!==d).map(x=>`<option value="${x}">${x}</option>`).join('');
-  const rows=weekSess.map(({day,id,session,isOption,options,rule,via})=>{
+  const rows=weekSess.map(({day,id,session,isOption,options,rule,via,isRotation,rotate,cycleIndex,cycleLen})=>{
+    // Rotation day: show the week-by-week cycle, marking which week is active now.
+    if(isRotation){
+      const pills=(rotate||[]).map((o,i)=>`<div style="flex:1;min-width:0;padding:7px 8px;border-radius:9px;border:1px solid ${i===cycleIndex?'var(--accent)':'var(--border2)'};background:${i===cycleIndex?'rgba(212,175,55,.16)':'var(--bg2)'};color:${i===cycleIndex?'var(--text)':'var(--text3)'};font-size:11px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">wk${i+1}: ${o.session?o.session.name:'Rest'}</div>`).join('');
+      return `<div style="display:flex;flex-direction:column;gap:9px;border:1px solid rgba(143,186,255,.4);border-radius:12px;padding:12px 13px;background:var(--bg2);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:3px;height:30px;background:#8fbaff;border-radius:2px;flex-shrink:0;"></div>
+          <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:var(--mono);font-size:9px;color:#8fbaff;text-transform:uppercase;letter-spacing:.07em;">Alternating · ${cycleLen}-week cycle</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:1px;">${session?session.name:'Rest'} <span style="font-size:11px;font-weight:400;color:var(--text3);">this week</span></div></div></div>
+        <div style="display:flex;gap:6px;padding-left:36px;">${pills}</div>
+        <div style="display:flex;gap:7px;padding-left:36px;">
+          <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
+          ${chip('Stop alternating', `clearDayOptions('${day}','${id}')`)}
+          ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
+        </div></div>`;
+    }
     if(!session) return `<div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--border2);border-radius:12px;padding:12px 13px;">
       <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
       <div style="flex:1;font-size:13px;color:var(--text3);">Rest day</div>
@@ -4407,15 +4475,56 @@ function _renderPlanEditList(w, weekSess){
       <div style="display:flex;gap:7px;align-items:center;padding-left:36px;">
         <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
         ${chip('Edit', `openSessionEditor('${id}','${day}',${w})`)}
+        ${chip('Alternate', `openAlternatePicker('${day}','${id}')`)}
         ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
       </div></div>`;
   }).join('');
-  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;">✎ Editing week ${w} · applies this week forward</div>
+  const scopeBtn=(v,label,sub)=>`<button onclick="setPlanScope('${v}')" style="flex:1;padding:8px 6px;border-radius:9px;border:1px solid ${_planScope===v?'var(--accent)':'var(--border2)'};background:${_planScope===v?'var(--accent)':'var(--bg2)'};color:${_planScope===v?'#0C0820':'var(--text2)'};font-size:11.5px;font-weight:700;cursor:pointer;line-height:1.25;">${label}<div style="font-weight:500;font-size:9px;opacity:.8;">${sub}</div></button>`;
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;">✎ Editing week ${w}</div>
       <button onclick="togglePlanEdit()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--accent);color:#0C0820;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">Done</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      ${scopeBtn('once','This week only',`week ${w} only`)}
+      ${scopeBtn('forward','All future weeks','changes the template')}
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
     <button onclick="openCoachAdjust()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(77,158,255,.4);background:rgba(77,158,255,.08);color:#8fbaff;font-size:13px;font-weight:600;cursor:pointer;">💬 Ask coach to adjust this week</button>`;
+}
+// Pick what this day alternates to on the OTHER week (2-week cycle).
+let _altPick=null;
+function openAlternatePicker(day, currentId){
+  if(!savedProgram) return;
+  _altPick={ day, a:currentId, b:null };
+  _renderAlternatePicker();
+}
+function _renderAlternatePicker(){
+  const p=_altPick; if(!p) return;
+  const cur=(savedProgram.sessions||[]).find(s=>s.id===p.a);
+  const chip=(sel,label,onclick)=>`<button onclick="${onclick}" style="padding:8px 12px;border-radius:9px;border:1px solid ${sel?'var(--accent)':'var(--border2)'};background:${sel?'var(--accent)':'var(--bg2)'};color:${sel?'#0C0820':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;margin:0 6px 6px 0;">${label}</button>`;
+  const existing=(savedProgram.sessions||[]).filter(s=>s.id!==p.a)
+    .map(s=>chip(p.b===s.id, s.name, `_altPick.b='${s.id}';_renderAlternatePicker()`)).join('');
+  const types=_ADD_PLAN_TYPES.map(([v,l])=>chip(p.b==='new:'+v, l, `_altPick.b='new:${v}';_renderAlternatePicker()`)).join('');
+  const ready=!!p.b;
+  openInsight('Alternate weeks', `
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px;">${p.day} is <b style="color:var(--text);">${cur?cur.name:'a session'}</b> on odd weeks. What should it be on even weeks?</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Existing sessions</div>
+    <div style="display:flex;flex-wrap:wrap;">${existing||'<span style="font-size:12px;color:var(--text3);">None yet</span>'}</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 8px;">Or a new session</div>
+    <div style="display:flex;flex-wrap:wrap;">${types}</div>
+    <div style="display:flex;flex-wrap:wrap;margin-top:10px;">${chip(p.b==='rest','Rest that week',`_altPick.b='rest';_renderAlternatePicker()`)}</div>
+    <button ${ready?'':'disabled'} onclick="_confirmAlternate()" style="width:100%;margin-top:18px;padding:12px;border:none;border-radius:10px;background:${ready?'var(--accent)':'var(--bg3)'};color:${ready?'#0C0820':'var(--text3)'};font-weight:700;font-size:14px;cursor:${ready?'pointer':'default'};">Set alternating weeks</button>`);
+}
+function _confirmAlternate(){
+  const p=_altPick; if(!p||!p.b) return;
+  let bId=null;
+  if(p.b==='rest') bId=null;
+  else if(String(p.b).startsWith('new:')) bId=_sessionForType(String(p.b).slice(4));
+  else bId=p.b;
+  setDayRotation(p.day,[p.a,bId]);
+  try{ closeInsight(); }catch(e){}
+  try{ renderPlan(currentProgramWeek); }catch(e){}
+  _altPick=null;
 }
 // Prompt sheet for the coach adjustment (optional plain-language request).
 function openCoachAdjust(){
@@ -9546,14 +9655,18 @@ function addSessionToProgram(sessionDef, day, opts={}){
   while (prog.sessions.some(s=>s.id===id)) id = base+'-'+(++n);
   const sess = { ...sessionDef, id };
   prog.sessions.push(sess);
+  let scopeTxt='';
   if (day){
     const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const di=DOW.indexOf(day);
-    if (di>=0){ if(!Array.isArray(prog.dayMap)||prog.dayMap.length!==7) prog.dayMap=[null,null,null,null,null,null,null]; prog.dayMap[di]=id; }
+    if (di>=0){
+      if(!Array.isArray(prog.dayMap)||prog.dayMap.length!==7) prog.dayMap=[null,null,null,null,null,null,null];
+      const T=_editTarget(prog, opts); T.map[di]=id; scopeTxt=` (${_scopeNote(T.scope)})`;
+    }
   }
   saveProgramData(prog);
   try{ recomputeAthleteState(); }catch(e){}
   try{ renderAll(); }catch(e){}
-  if(!opts.silent) toast(`Added "${sess.name||'session'}" to the plan${day?` · ${day}`:''}`);
+  if(!opts.silent) toast(`Added "${sess.name||'session'}"${day?` · ${day}`:''}${scopeTxt}`);
   return sess;
 }
 // Turn a library prescription + adaptation into a concrete program-session def.
@@ -9592,25 +9705,25 @@ function moveProgramSession(fromDay, toDay, opts={}){
   const prog=savedProgram; const fi=_PLAN_DOW.indexOf(fromDay), ti=_PLAN_DOW.indexOf(toDay);
   if (fi<0||ti<0||fi===ti) return false;
   if (!Array.isArray(prog.dayMap)||prog.dayMap.length!==7){ if(!opts.silent) toast("This program can't be edited by day"); return false; }
-  _freezeHistoricalWeeks(prog);   // protect past weeks from this template edit
-  const moving=prog.dayMap[fi], occupied=prog.dayMap[ti];
-  prog.dayMap[ti]=moving; prog.dayMap[fi]=occupied;   // swap (occupied may be null = plain move)
+  const T=_editTarget(prog, opts);            // 'once' → this week only; 'forward' → template
+  const moving=T.map[fi], occupied=T.map[ti];
+  T.map[ti]=moving; T.map[fi]=occupied;       // swap (occupied may be null = plain move)
   saveProgramData(prog);
   try{ recomputeAthleteState(); }catch(e){}
   try{ renderAll(); }catch(e){}
-  if(!opts.silent) toast(`Moved ${fromDay} → ${toDay}${occupied?` (swapped with ${toDay}'s session)`:''}`);
+  if(!opts.silent) toast(`Moved ${fromDay} → ${toDay} (${_scopeNote(T.scope)})`);
   return true;
 }
 function removeProgramSessionFromDay(day, opts={}){
   if (typeof savedProgram==='undefined' || !savedProgram) return false;
   const prog=savedProgram; const di=_PLAN_DOW.indexOf(day);
   if (di<0||!Array.isArray(prog.dayMap)) return false;
-  _freezeHistoricalWeeks(prog);   // protect past weeks from this template edit
-  prog.dayMap[di]=null;
+  const T=_editTarget(prog, opts);
+  T.map[di]=null;
   saveProgramData(prog);
   try{ recomputeAthleteState(); }catch(e){}
   try{ renderAll(); }catch(e){}
-  if(!opts.silent) toast(`Removed ${day}'s session from the plan`);
+  if(!opts.silent) toast(`Removed ${day}'s session (${_scopeNote(T.scope)})`);
   return true;
 }
 // The move/remove controls appended to a program session's detail (tap a session).
