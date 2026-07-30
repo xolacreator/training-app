@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev19</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev20</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4436,15 +4436,14 @@ function _renderPlanEditList(w, weekSess){
             <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:1px;">${session?session.name:'Rest'} <span style="font-size:11px;font-weight:400;color:var(--text3);">this week</span></div></div></div>
         <div style="display:flex;gap:6px;padding-left:36px;">${pills}</div>
         <div style="display:flex;gap:7px;padding-left:36px;">
-          <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
+          ${chip('Change this day', `openDayActions('${day}',${w})`)}
           ${chip('Stop alternating', `clearDayOptions('${day}','${id}')`)}
-          ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
         </div></div>`;
     }
-    if(!session) return `<div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--border2);border-radius:12px;padding:12px 13px;">
-      <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
+    if(!session) return `<div onclick="openDayActions('${day}',${w})" style="display:flex;align-items:center;gap:10px;border:1px dashed var(--border2);border-radius:12px;padding:13px;cursor:pointer;">
+      <div style="width:34px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
       <div style="flex:1;font-size:13px;color:var(--text3);">Rest day</div>
-      ${chip('＋ Add', `openAddToPlan('${day}')`, 'var(--accent)')}</div>`;
+      <span style="font-size:12px;font-weight:600;color:var(--accent);">＋ Add</span></div>`;
     const col=_intCol(session.intensity||session.runType||_sessType(session));
     const detail=session.focus||_sessType(session);
     // Option day: show both choices; the active one is highlighted.
@@ -4461,36 +4460,70 @@ function _renderPlanEditList(w, weekSess){
             <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">${ruleTxt}</div></div></div>
         <div style="display:flex;gap:7px;padding-left:36px;">${pills}</div>
         <div style="display:flex;gap:7px;padding-left:36px;">
-          <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
-          ${chip('Single', `clearDayOptions('${day}','${id}')`)}
-          ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
+          ${chip('Change this day', `openDayActions('${day}',${w})`)}
+          ${chip('Just one session', `clearDayOptions('${day}','${id}')`)}
         </div></div>`;
     }
-    return `<div style="display:flex;flex-direction:column;gap:9px;border:1px solid var(--border2);border-radius:12px;padding:12px 13px;background:var(--bg2);">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:3px;height:30px;background:${col};border-radius:2px;flex-shrink:0;"></div>
-        <div style="width:30px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
+    return `<div onclick="openDayActions('${day}',${w})" style="display:flex;align-items:center;gap:10px;border:1px solid var(--border2);border-radius:12px;padding:13px;background:var(--bg2);cursor:pointer;">
+        <div style="width:3px;height:32px;background:${col};border-radius:2px;flex-shrink:0;"></div>
+        <div style="width:34px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;">${day}</div>
         <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${session.name}</div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">${detail}</div></div></div>
-      <div style="display:flex;gap:7px;align-items:center;padding-left:36px;">
-        <select onchange="_planMove('${day}',this.value)" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:11px;font-weight:600;"><option value="">Move to…</option>${others(day)}</select>
-        ${chip('Edit', `openSessionEditor('${id}','${day}',${w})`)}
-        ${chip('Alternate', `openAlternatePicker('${day}','${id}')`)}
-        ${chip('Remove', `_planRemove('${day}')`, '#f87171')}
-      </div></div>`;
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${detail}</div></div>
+        <span style="font-size:15px;color:var(--text3);flex-shrink:0;">›</span></div>`;
   }).join('');
-  const scopeBtn=(v,label,sub)=>`<button onclick="setPlanScope('${v}')" style="flex:1;padding:8px 6px;border-radius:9px;border:1px solid ${_planScope===v?'var(--accent)':'var(--border2)'};background:${_planScope===v?'var(--accent)':'var(--bg2)'};color:${_planScope===v?'#0C0820':'var(--text2)'};font-size:11.5px;font-weight:700;cursor:pointer;line-height:1.25;">${label}<div style="font-weight:500;font-size:9px;opacity:.8;">${sub}</div></button>`;
-  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
       <div style="font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;">✎ Editing week ${w}</div>
       <button onclick="togglePlanEdit()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--accent);color:#0C0820;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">Done</button>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:10px;">
-      ${scopeBtn('once','This week only',`week ${w} only`)}
-      ${scopeBtn('forward','All future weeks','changes the template')}
-    </div>
+    <div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">Tap any day to change it. We'll ask whether it's just this week or from now on.</div>
     <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
     <button onclick="openCoachAdjust()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(77,158,255,.4);background:rgba(77,158,255,.08);color:#8fbaff;font-size:13px;font-weight:600;cursor:pointer;">💬 Ask coach to adjust this week</button>`;
 }
+// ── Plain-language day actions (calendar-app pattern) ────────────────────────
+// One tap on a day opens its actions in plain language; anything that could affect
+// later weeks asks "Just this week / Every week from now on" AFTER the choice — so
+// the athlete never has to understand templates before acting. Default is this week.
+function _dateForPlanDay(day, week){
+  try{ const start=_progStartDate(); if(!start) return '';
+    const d=new Date(start); d.setDate(d.getDate()+((week||1)-1)*7+Math.max(0,_PLAN_DOW.indexOf(day)));
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  }catch(e){ return ''; }
+}
+// Ask which occurrences a change should touch, then run it with that scope.
+function _askScope(title, day, week, run){
+  const dt=_dateForPlanDay(day, week);
+  const btn=(scope,label,sub)=>`<button onclick="_scopeAnswer('${scope}')" style="width:100%;text-align:left;margin-bottom:8px;padding:14px;border-radius:12px;border:1px solid ${scope==='once'?'var(--accent)':'var(--border2)'};background:${scope==='once'?'rgba(212,175,55,.1)':'var(--bg2)'};color:var(--text);font-size:14px;font-weight:600;cursor:pointer;">${label}<div style="font-weight:400;font-size:11.5px;color:var(--text3);margin-top:2px;">${sub}</div></button>`;
+  window._scopeAnswer=(scope)=>{ try{ closeInsight(); }catch(e){} run(scope); };
+  openInsight(title, `
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px;">Your plan repeats every week. Should this apply to just ${day}${dt?` (${dt})`:''}, or from now on?</div>
+    ${btn('once', `Just this week`, `Only ${day}${dt?' '+dt:''} changes`)}
+    ${btn('forward', `Every week from now on`, `${day} changes this week and after`)}`);
+}
+// The action sheet for a day — plain language, one tap to open.
+function openDayActions(day, week){
+  if(!savedProgram) return;
+  const wk=week||((typeof _progActualWeek==='function')?_progActualWeek():1);
+  const slot=(_progWeekSessions(wk)||[]).find(s=>s.day===day)||{};
+  const s=slot.session, dt=_dateForPlanDay(day,wk);
+  const row=(icon,label,sub,onclick,danger)=>`<button onclick="${onclick}" style="width:100%;text-align:left;margin-bottom:8px;padding:13px 14px;border-radius:12px;border:1px solid var(--border2);background:var(--bg2);color:${danger?'var(--red)':'var(--text)'};font-size:14px;font-weight:600;cursor:pointer;display:flex;gap:11px;align-items:flex-start;">
+      <span style="font-size:16px;line-height:1.2;flex-shrink:0;">${icon}</span><span style="min-width:0;">${label}${sub?`<div style="font-weight:400;font-size:11.5px;color:var(--text3);margin-top:2px;">${sub}</div>`:''}</span></button>`;
+  let body='';
+  if(s){
+    body += row('🔀','Move to another day','Pick the new day next',`_dayMovePrompt('${day}',${wk})`);
+    body += row('✏️','Change the workout','Name, type or target',`closeInsight();openSessionEditor('${slot.id}','${day}',${wk})`);
+    body += row('🔁','Make it different every other week',`e.g. ${s.name} one week, something else the next`,`closeInsight();openAlternatePicker('${day}','${slot.id}')`);
+    body += row('🚫','Skip it','Turn this into a rest day',`_dayRemovePrompt('${day}',${wk})`,true);
+  } else {
+    body += row('＋','Add a workout','Choose what to train',`closeInsight();openAddToPlan('${day}')`);
+  }
+  openInsight(`${day}${dt?' · '+dt:''}${s?' · '+s.name:' · Rest day'}`, body);
+}
+function _dayMovePrompt(day, wk){
+  const opts=_PLAN_DOW.filter(d=>d!==day).map(d=>`<button onclick="_dayMoveTo('${day}','${d}',${wk})" style="padding:11px 6px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">${d}</button>`).join('');
+  openInsight(`Move ${day} to…`, `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">${opts}</div>`);
+}
+function _dayMoveTo(from,to,wk){ _askScope(`Move ${from} to ${to}`, from, wk, scope=>{ moveProgramSession(from,to,{scope}); try{renderPlan(currentProgramWeek);}catch(e){} }); }
+function _dayRemovePrompt(day, wk){ _askScope(`Skip ${day}`, day, wk, scope=>{ removeProgramSessionFromDay(day,{scope}); try{renderPlan(currentProgramWeek);}catch(e){} }); }
 // Pick what this day alternates to on the OTHER week (2-week cycle).
 let _altPick=null;
 function openAlternatePicker(day, currentId){

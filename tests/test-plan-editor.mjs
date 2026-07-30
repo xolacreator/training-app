@@ -25,8 +25,11 @@ await page.evaluate(()=>{
 
 // ── A: Edit mode renders the inline week editor ─────────────────────────────
 const em=await page.evaluate(()=>{ togglePlanEdit(); const h=document.getElementById('plan-days').innerHTML;
-  return { editing:/Editing week 1/.test(h), move:/Move to…/.test(h), add:/＋ Add/.test(h), edit:/openSessionEditor/.test(h) }; });
-check('Edit mode shows the week editor (Move / Edit / Add)', em.editing && em.move && em.add && em.edit, JSON.stringify(em));
+  // Rows are now single-tap; the actions live in the day sheet (openDayActions).
+  const sheet=(()=>{ openDayActions('Mon',1); const s=document.getElementById('ins-content').innerHTML; try{closeInsight();}catch(e){} return s; })();
+  return { editing:/Editing week 1/.test(h), tap:/openDayActions/.test(h), add:/＋ Add/.test(h),
+           move:/Move to another day/.test(sheet), edit:/Change the workout/.test(sheet) }; });
+check('Edit mode: one tap per day, actions in the day sheet', em.editing && em.tap && em.add && em.move && em.edit, JSON.stringify(em));
 const off=await page.evaluate(()=>{ togglePlanEdit(); return !/Editing week/.test(document.getElementById('plan-days').innerHTML); });
 check('Toggle off returns to the read-only list', off);
 

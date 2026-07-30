@@ -79,8 +79,8 @@ check('Stop alternating collapses to one session', await page.evaluate(()=>{ cle
 const ui=await page.evaluate(()=>{ setDayRotation('Wed',['int','tempo'],{silent:true});
   nav('plan',document.querySelectorAll('.nb')[2]); renderPlan(_progActualWeek()); togglePlanEdit();
   const h=document.getElementById('plan-days').innerHTML; togglePlanEdit();
-  return { scope:/This week only/.test(h)&&/All future weeks/.test(h), alt:/Alternating · 2-week cycle/.test(h), btn:/openAlternatePicker/.test(h) }; });
-check('Editor shows the scope toggle + alternating day + Alternate action', ui.scope && ui.alt && ui.btn, JSON.stringify(ui));
+  return { hint:/Tap any day to change it/.test(h), alt:/Alternating · 2-week cycle/.test(h), tap:/openDayActions/.test(h) }; });
+check('Editor shows the tap-to-change hint + alternating day (scope now asked after)', ui.hint && ui.alt && ui.tap, JSON.stringify(ui));
 
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
