@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev20</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev21</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -11937,7 +11937,20 @@ function renderHyroxCalc(){
       +'<div style="width:58px;text-align:right;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);">'+hxFmtLong(cum)+'</div>'
       +'</div>';
   });
-  document.getElementById('hx-table').innerHTML=html;
+  // Provenance banner — states exactly which parts of the run projection are
+  // measured from the athlete's data and which are not modelled.
+  const rc=hyroxPlan.runCalibration;
+  let prov='';
+  if(rc && rc.notes && rc.notes.length){
+    const ok=rc.measured&&rc.measured.generalFade, ok2=rc.measured&&rc.measured.stationPenalty;
+    const dot=v=>`<span style="color:${v?'var(--green)':'var(--text3)'};">${v?'●':'○'}</span>`;
+    prov=`<div style="border:1px solid ${(ok||ok2)?'rgba(52,211,153,.3)':'var(--border2)'};background:${(ok||ok2)?'rgba(52,211,153,.06)':'var(--bg2)'};border-radius:12px;padding:11px 13px;margin-bottom:10px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Run projection · where these numbers come from</div>
+      ${rc.notes.map((n,i)=>`<div style="font-size:11.5px;color:var(--text2);line-height:1.6;">${dot(i===0?ok:ok2)} ${_dash(n)}</div>`).join('')}
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Base pace ${hxFmt(rc.basePace)}/km · every split stays editable</div>
+    </div>`;
+  }
+  document.getElementById('hx-table').innerHTML=prov+html;
 
   // Stats header
   const runTotal=HYROX_SEGMENTS.filter(s=>s.type==='run').reduce((a,s)=>a+(hyroxPlan.splits[s.id]||0),0);
@@ -11975,6 +11988,82 @@ function hyroxGoalChange(){
   if(total>0){hyroxPlan.goalSecs=total;saveHyrox();renderHyroxCalc();}
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HYROX RUN CALIBRATION — measured, not assumed
+// ---------------------------------------------------------------------------
+// The old projection multiplied a base pace by a hardcoded 8-value fade curve.
+// These functions derive the same shape from the athlete's OWN data:
+//   G (general fade)     ← how their pace decays across km within long/tempo runs
+//   S (station penalty)  ← how much slower their compromised runs are than fresh
+// Anything not measurable from the log is reported as unknown rather than guessed;
+// callers surface provenance so a projection never implies precision it lacks.
+// ═══════════════════════════════════════════════════════════════════════════
+// Per-km fade within a single run: linear slope of normalised pace vs km index.
+function _sessionFadeSlope(s){
+  const sp=(s&&s.strava_splits)||[]; if(sp.length<5) return null;
+  const paces=sp.map(x=>{ const d=x.distance||1000, t=x.moving_time||x.elapsed_time||0;
+    return (t>0&&d>0) ? (t/(d/1000)) : null; }).filter(v=>v&&v>120&&v<900);
+  if(paces.length<5) return null;
+  const mean=paces.reduce((a,b)=>a+b,0)/paces.length; if(!(mean>0)) return null;
+  const y=paces.map(p=>p/mean);                       // normalised: 1.0 = session average
+  const n=y.length, xm=(n-1)/2, ym=y.reduce((a,b)=>a+b,0)/n;
+  let num=0, den=0;
+  for(let i=0;i<n;i++){ num+=(i-xm)*(y[i]-ym); den+=(i-xm)*(i-xm); }
+  if(!(den>0)) return null;
+  return { slope:num/den, km:n };                     // slope = fractional pace change per km
+}
+// Athlete's measured general-fade (G): average per-km decay across their longest,
+// most split-rich sessions. Returns null when there isn't enough data to be honest.
+function _runFadeProfile(opts={}){
+  const src=(Array.isArray(sessions)?sessions:[]).filter(s=>(s.strava_splits||[]).length>=5);
+  const fits=src.map(s=>({ s, f:_sessionFadeSlope(s) })).filter(x=>x.f);
+  if(fits.length<(opts.min||2)) return { available:false, n:fits.length, need:(opts.min||2) };
+  const slopes=fits.map(x=>x.f.slope).sort((a,b)=>a-b);
+  const med=slopes[Math.floor(slopes.length/2)];      // median resists one bad session
+  const avgKm=Math.round(fits.reduce((a,x)=>a+x.f.km,0)/fits.length);
+  return { available:true, slopePerKm:+med.toFixed(4), n:fits.length, avgKm,
+           pctPerKm:+(med*100).toFixed(2) };
+}
+// Athlete's measured station penalty (S): how much slower compromised/brick running
+// is than their fresh quality running. Needs logged compromised runs to exist.
+function _compromisedPenalty(){
+  const pSecs=p=>{ if(!p) return null; const q=String(p).split(':'); return q.length===2?(+q[0]*60+ +q[1]):null; };
+  const runs=(Array.isArray(sessions)?sessions:[]).filter(s=>s.pace&&parseFloat(s.dist)>=3);
+  const isComp=s=>/compromi|brick|race.?sim/i.test((s.session||'')+' '+(s.notes||''));
+  const comp=runs.filter(isComp).map(s=>pSecs(s.best_pace||s.pace)).filter(Boolean);
+  const fresh=runs.filter(s=>!isComp(s)&&isQualityRun(s.session,s.notes,s.intensity))
+                  .map(s=>pSecs(s.best_pace||s.pace)).filter(Boolean);
+  if(comp.length<1||fresh.length<2) return { available:false, comp:comp.length, fresh:fresh.length };
+  const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const c=avg(comp), f=avg(fresh);
+  if(!(f>0)) return { available:false, comp:comp.length, fresh:fresh.length };
+  return { available:true, penalty:+(c/f).toFixed(3), pct:+(((c/f)-1)*100).toFixed(1),
+           comp:comp.length, fresh:fresh.length };
+}
+// Build the 8 race-run splits from measured data. Every component reports where it
+// came from; unmeasured components are flagged, never silently invented.
+function hyroxCalibratedRuns(basePaceSecs){
+  const fade=_runFadeProfile(), stn=_compromisedPenalty();
+  const notes=[];
+  if(!basePaceSecs) return { available:false, reason:'No base run pace yet - log a few quality runs.' };
+  // G: measured per-km decay, compounded across the 8 race runs (8 km of running).
+  let g = fade.available ? fade.slopePerKm : null;
+  if(fade.available) notes.push(`Fade ${fade.pctPerKm>0?'+':''}${fade.pctPerKm}%/km from ${fade.n} split-logged runs`);
+  else notes.push(`Not enough split data to measure your fade (${fade.n}/${fade.need} runs) - trend left flat`);
+  // S: measured compromised-run penalty applied to runs that follow a station (2-8).
+  let s = stn.available ? (stn.penalty-1) : null;
+  if(stn.available) notes.push(`Station penalty +${stn.pct}% from ${stn.comp} compromised run${stn.comp>1?'s':''}`);
+  else notes.push(`No compromised runs logged - station effect not modelled`);
+  const splits={}; const ids=['run1','run2','run3','run4','run5','run6','run7','run8'];
+  ids.forEach((id,i)=>{
+    const gPart = (g!=null) ? (1 + g*i) : 1;           // cumulative decay per run
+    const sPart = (s!=null && i>0) ? (1 + s) : 1;      // run 1 is fresh; 2-8 follow a station
+    splits[id]=Math.round(basePaceSecs*gPart*sPart);
+  });
+  return { available:true, splits, basePace:basePaceSecs,
+           measured:{ generalFade:fade.available, stationPenalty:stn.available },
+           fade, stn, notes };
+}
 function hyroxDistribute(){
   const base=getHyroxBase();
   const baseTotal=HYROX_SEGMENTS.reduce((s,seg)=>s+(base[seg.id]||0),0);
@@ -12029,16 +12118,18 @@ async function hyroxPullTraining(){
   if(!paces.length){toast('No pace data found');return;}
   const avg=Math.round(paces.reduce((a,b)=>a+b,0)/paces.length);
 
-  // Progressive fatigue across the 8 race runs (station accumulation effect)
-  const fat=[0.93,0.97,1.01,1.05,1.10,1.15,1.21,1.27];
-  ['run1','run2','run3','run4','run5','run6','run7','run8'].forEach((id,i)=>{
-    hyroxPlan.splits[id]=Math.round(avg*fat[i]);
-  });
+  // Project the 8 race runs from MEASURED fade + station penalty where the log
+  // supports it; anything unmeasured is reported rather than assumed.
+  const cal=hyroxCalibratedRuns(avg);
+  if(cal.available){
+    Object.assign(hyroxPlan.splits, cal.splits);
+    hyroxPlan.runCalibration={ at:Date.now(), basePace:avg, measured:cal.measured, notes:cal.notes };
+  } else {
+    const fat=[0.93,0.97,1.01,1.05,1.10,1.15,1.21,1.27];   // fallback only
+    ['run1','run2','run3','run4','run5','run6','run7','run8'].forEach((id,i)=>{ hyroxPlan.splits[id]=Math.round(avg*fat[i]); });
+  }
   saveHyrox();renderHyroxCalc();
-
-  const withSplits=qualRuns.filter(s=>s.best_pace).length;
-  const src=withSplits?`${withSplits} with km splits`:`${qualRuns.length} sessions (avg pace)`;
-  toast(`Runs set · base ${hxFmt(avg)}/km · from ${src}`);
+  toast(`Runs set · base ${hxFmt(avg)}/km${cal.available?'':' (default curve)'}`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
