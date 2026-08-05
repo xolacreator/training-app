@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev21</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev22</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4479,6 +4479,53 @@ function _renderPlanEditList(w, weekSess){
     <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
     <button onclick="openCoachAdjust()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(77,158,255,.4);background:rgba(77,158,255,.08);color:#8fbaff;font-size:13px;font-weight:600;cursor:pointer;">💬 Ask coach to adjust this week</button>`;
 }
+// ── Link a logged/imported session to a planned session ──────────────────────
+// Auto-linking only fires when an import lands on the SAME weekday as the plan and
+// matches its intensity. Real life drifts (Wednesday's tempo run happens Thursday),
+// so this lets the athlete attach any recent logged session to a planned slot.
+function _linkableSessions(week){
+  const all=Array.isArray(sessions)?sessions:[];
+  const win=(typeof _weekWindow==='function')?_weekWindow(week):null;
+  const near=[];
+  all.forEach((s,idx)=>{
+    if(s.progSid) return;                                  // already linked
+    const iso=(typeof sessionDateISO==='function')?sessionDateISO(s):s.date;
+    if(!iso) return;
+    let ok=true;
+    if(win){ const t=new Date(iso+'T12:00:00').getTime();
+      ok = t>=(win.start.getTime()-3*86400000) && t<=(win.end.getTime()+3*86400000); }  // ±3 days of the week
+    if(ok) near.push({idx, s, iso});
+  });
+  return near.sort((a,b)=>(b.s.ts||0)-(a.s.ts||0)).slice(0,12);
+}
+function openLinkSession(sid, week, day){
+  const cands=_linkableSessions(week);
+  if(!cands.length){ openInsight('Link a logged session', `<div style="font-size:13px;color:var(--text2);line-height:1.6;">No unlinked sessions near this week. Log or import the session first, then link it here.</div>`); return; }
+  const rows=cands.map(({idx,s,iso})=>{
+    const d=new Date(iso+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const meta=[s.dist?fmtDist(parseFloat(s.dist)):'', s.pace?convertPaceStr(s.pace)+paceUnit():'', s.dur?fmtDurMin(s.dur):''].filter(Boolean).join(' · ');
+    return `<button onclick="linkSessionToPlanned(${idx},'${sid}',${week})" style="width:100%;text-align:left;margin-bottom:8px;padding:12px 13px;border-radius:11px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;">
+      ${_dash(s.session||'Session')}<div style="font-weight:400;font-family:var(--mono);font-size:10.5px;color:var(--text3);margin-top:3px;">${d}${meta?' · '+meta:''}</div></button>`;
+  }).join('');
+  openInsight(`Link to ${day}'s session`, `<div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:12px;">Pick the session you actually did. It will count towards this planned session.</div>${rows}`);
+}
+function linkSessionToPlanned(idx, sid, week){
+  const s=sessions[idx]; if(!s||!savedProgram) return false;
+  s.progId=savedProgram.id; s.progWeek=week; s.progSid=sid;
+  try{ saveData(); }catch(e){}
+  try{ recomputeAthleteState(); }catch(e){}
+  try{ closeInsight(); }catch(e){}
+  try{ renderAll(); }catch(e){}
+  toast(`Linked "${s.session||'session'}" to the plan`);
+  return true;
+}
+function unlinkSession(idx){
+  const s=sessions[idx]; if(!s) return false;
+  delete s.progId; delete s.progWeek; delete s.progSid;
+  try{ saveData(); }catch(e){} try{ recomputeAthleteState(); }catch(e){} try{ renderAll(); }catch(e){}
+  toast('Unlinked from the plan');
+  return true;
+}
 // ── Plain-language day actions (calendar-app pattern) ────────────────────────
 // One tap on a day opens its actions in plain language; anything that could affect
 // later weeks asks "Just this week / Every week from now on" AFTER the choice — so
@@ -4910,7 +4957,17 @@ function openProgramSessionOverlay(id,week,day){
       ${ex.alternatives?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;">${ex.alternatives}</div>`:''}</div>`;
   }
 
-  document.getElementById('po-breakdown').innerHTML=`${whyBanner}${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}${(typeof _planAdjustControls==='function'?_planAdjustControls(day):'')}`;
+  // Link an already-logged session to this planned one (auto-link only fires on a
+  // same-day, same-intensity match, so this covers everything else).
+  const linked=(Array.isArray(sessions)?sessions:[]).findIndex(s=>s.progSid===id&&String(s.progWeek)===String(week));
+  const linkCtl=`<div style="margin-top:14px;padding-top:12px;border-top:.5px solid var(--border);">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Completion</div>
+    ${linked>=0
+      ? `<div style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text2);"><span style="color:var(--green);">✓</span><span style="flex:1;min-width:0;">Linked to “${_dash(sessions[linked].session||'session')}”</span>
+         <button onclick="unlinkSession(${linked})" style="padding:6px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;">Unlink</button></div>`
+      : `<button onclick="openLinkSession('${id}',${week},'${day}')" style="width:100%;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">🔗 Link a logged session</button>`}
+  </div>`;
+  document.getElementById('po-breakdown').innerHTML=`${whyBanner}${fitstopBanner}${deloadBanner}${noteBanner}${bodyHtml}${linkCtl}${(typeof _planAdjustControls==='function'?_planAdjustControls(day):'')}`;
 
   const alreadyDone=_progSessionDone(week,id);
   document.getElementById('po-log-btn').textContent=alreadyDone?'Log again':'Log this session';
@@ -12063,6 +12120,59 @@ function hyroxCalibratedRuns(basePaceSecs){
   return { available:true, splits, basePace:basePaceSecs,
            measured:{ generalFade:fade.available, stationPenalty:stn.available },
            fade, stn, notes };
+}
+// Unified projection: TARGET splits for the athlete's goal, shaped by whatever
+// evidence exists. Magnitude comes from the goal (it is a projection, not a
+// record); the SHAPE of the runs comes from the athlete's measured fade + station
+// penalty when available, falling back to the category baseline shape when not.
+// Stations keep the category shape until per-station evidence exists.
+function hyroxProject(opts={}){
+  const base=getHyroxBase();
+  const goal=opts.goal||hyroxPlan.goalSecs;
+  const runIds=['run1','run2','run3','run4','run5','run6','run7','run8'];
+  const stationIds=HYROX_SEGMENTS.filter(s=>s.type!=='run').map(s=>s.id);
+  const fade=_runFadeProfile(), stn=_compromisedPenalty();
+  const notes=[];
+  // ── Run SHAPE (relative weights, not absolute times) ──────────────────────
+  let shape, shapeSrc;
+  if(fade.available){
+    const g=fade.slopePerKm, s=stn.available?(stn.penalty-1):0;
+    shape=runIds.map((_,i)=>(1+g*i)*(1+(i>0?s:0)));
+    shapeSrc='measured';
+    notes.push(`Run shape from your data - fade ${fade.pctPerKm>0?'+':''}${fade.pctPerKm}%/km across ${fade.n} split-logged runs`);
+    if(stn.available) notes.push(`Station penalty +${stn.pct}% from ${stn.comp} compromised run${stn.comp>1?'s':''}`);
+    else notes.push(`No compromised runs logged yet - runs shaped by fade only`);
+  } else {
+    shape=runIds.map(id=>base[id]||270); shapeSrc='category';
+    notes.push(`Not enough split data yet (${fade.n}/${fade.need} runs) - using ${(hyroxPlan.cat?.div||'open')} ${(hyroxPlan.cat?.gen||'men')} reference shape`);
+  }
+  // ── Split the goal between running and everything else, using the category
+  //    ratio as the structural prior, then distribute each by its shape.
+  const baseRunTotal=runIds.reduce((a,id)=>a+(base[id]||0),0);
+  const baseAll=HYROX_SEGMENTS.reduce((a,s)=>a+(base[s.id]||0),0);
+  const runFraction=baseAll>0?(baseRunTotal/baseAll):0.55;
+  const runBudget=goal*runFraction, otherBudget=goal-runBudget;
+  const shapeSum=shape.reduce((a,b)=>a+b,0)||1;
+  const splits={};
+  runIds.forEach((id,i)=>{ splits[id]=Math.round(runBudget*(shape[i]/shapeSum)); });
+  const baseOther=stationIds.reduce((a,id)=>a+(base[id]||0),0)||1;
+  stationIds.forEach(id=>{ splits[id]=Math.round(otherBudget*((base[id]||0)/baseOther)); });
+  notes.push(`Stations scaled to your goal from the category reference - log erg/station work to personalise`);
+  // Reconcile rounding so the plan sums exactly to the goal.
+  const tot=HYROX_SEGMENTS.reduce((a,s)=>a+(splits[s.id]||0),0);
+  if(tot!==goal){ splits.roxzone=Math.max(0,(splits.roxzone||0)+(goal-tot)); }
+  return { splits, goal, shapeSrc, notes,
+           measured:{ generalFade:fade.available, stationPenalty:stn.available, stations:false },
+           basePaceImplied:Math.round(runBudget/8) };
+}
+// Apply the projection to the plan.
+function hyroxApplyProjection(){
+  const p=hyroxProject();
+  Object.assign(hyroxPlan.splits, p.splits);
+  hyroxPlan.runCalibration={ at:Date.now(), basePace:p.basePaceImplied, measured:p.measured, notes:p.notes, goal:p.goal };
+  saveHyrox(); renderHyroxCalc();
+  toast(`Target splits for ${hxFmtLong(p.goal)} · ${p.shapeSrc==='measured'?'shaped by your data':'reference shape'}`);
+  return p;
 }
 function hyroxDistribute(){
   const base=getHyroxBase();
