@@ -29,7 +29,7 @@ check('Baseline dayMap: Mon tempo, Wed easy, Fri long', dm0[0]==='tempo'&&dm0[2]
 
 // ── TASK 1: add an extra run on Tuesday
 const add=await page.evaluate(()=>{
-  _addPlan={day:'Tue',type:'easy'}; _confirmAddToPlan();
+  _addPlan={day:'Tue',type:'easy',scope:'forward'}; _confirmAddToPlan();
   const di=1; // Tue
   const id=savedProgram.dayMap[di];
   const sess=savedProgram.sessions.find(s=>s.id===id);
@@ -61,7 +61,7 @@ check('Remove clears that day', rm==null, JSON.stringify(rm));
 // ── Engine re-analyses after edits (AthleteState + dashboard reflect the new plan)
 const reanalyse=await page.evaluate(()=>{
   // add a strength day and confirm the weekly dashboard sees force_production scheduled
-  _addPlan={day:'Sat',type:'strength'}; _confirmAddToPlan();
+  _addPlan={day:'Sat',type:'strength',scope:'forward'}; _confirmAddToPlan();
   const d=weeklyAdaptationDashboard();
   return { sat:!!savedProgram.dayMap[5], hasForce: d.rows.some(r=>r.id==='force_production') };
 });
@@ -84,7 +84,7 @@ const addUI=await page.evaluate(()=>{ nav('plan',document.querySelectorAll('.nb'
 check('Plan shows "+ Add to plan" button; picker opens with day/type', addUI.btnShown && addUI.picker, JSON.stringify(addUI));
 
 // ── Add picker warns when the chosen day is occupied
-const warn=await page.evaluate(()=>{ _addPlan={day:'Fri',type:'tempo'}; _renderAddToPlan(); return /already has a session/.test(document.getElementById('ins-content').innerHTML); });
+const warn=await page.evaluate(()=>{ _addPlan={day:'Fri',type:'tempo',scope:'forward'}; _renderAddToPlan(); return /already has a session/.test(document.getElementById('ins-content').innerHTML); });
 check('Add picker warns when the day is already occupied', warn);
 
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));

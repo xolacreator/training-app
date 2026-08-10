@@ -38,7 +38,7 @@ const moved=await page.evaluate(()=>{ togglePlanEdit(); _planMove('Tue','Wed'); 
 check('Editor move: Tue tempo → Wed', moved.wed==='tempo' && moved.tue==null, JSON.stringify(moved));
 const removed=await page.evaluate(()=>{ removeProgramSessionFromDay('Sat',{silent:true}); renderPlan(currentProgramWeek); return savedProgram.dayMap[5]; });
 check('Editor remove clears the day', removed==null);
-const added=await page.evaluate(()=>{ _addPlan={day:'Fri',type:'easy'}; _confirmAddToPlan(); return savedProgram.dayMap[4]; });
+const added=await page.evaluate(()=>{ _addPlan={day:'Fri',type:'easy',scope:'forward'}; _confirmAddToPlan(); return savedProgram.dayMap[4]; });
 check('Editor add fills a rest day', added!=null);
 
 // ── B: edit a session in place (week-1 program, no history) ─────────────────

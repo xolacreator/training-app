@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev24</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev25</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -3788,9 +3788,18 @@ function _ensureWeekOverride(prog, week){
 function _editTarget(prog, opts={}){
   const scope = opts.scope || _planScope;
   const wk = opts.week || ((typeof _progActualWeek==='function') ? _progActualWeek() : 1);
-  if(scope==='once') return { map:_ensureWeekOverride(prog, wk), scope:'once', week:wk };
+  if(scope==='once'){ const m=_ensureWeekOverride(prog, wk); return { map:m, maps:[m], scope:'once', week:wk }; }
   _freezeHistoricalWeeks(prog);
-  return { map:prog.dayMap, scope:'forward', week:wk };
+  // 'Every week from now on' must also reach weeks that already carry a per-week
+  // override (from an earlier one-off edit or a reschedule) — otherwise the template
+  // change is shadowed by that override and appears to skip those weeks entirely.
+  const maps=[prog.dayMap];
+  if(prog.overrides){
+    Object.keys(prog.overrides).forEach(k=>{
+      if(parseInt(k)>=wk && Array.isArray(prog.overrides[k]) && prog.overrides[k].length===7) maps.push(prog.overrides[k]);
+    });
+  }
+  return { map:prog.dayMap, maps, scope:'forward', week:wk };
 }
 const _scopeNote = s => s==='once' ? 'this week only' : 'this week forward';
 // Alternate a day's session across weeks: ids may include null for a rest week.
@@ -4794,9 +4803,11 @@ function applyCoachPlanProposal(){
   let n=0;
   p.actions.forEach(a=>{
     try{
-      if(a.action==='move')        { if(moveProgramSession(a.from,a.to,{silent:true})) n++; }
-      else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true})) n++; }
-      else if(a.action==='add')    { _addPlan={day:a.day,type:a.type}; _confirmAddToPlan(); n++; }
+      // Coach proposals adjust THIS week explicitly — never silently rewrite the
+      // template (and never trigger the athlete-facing scope prompt).
+      if(a.action==='move')        { if(moveProgramSession(a.from,a.to,{silent:true,scope:'once',week:p.week})) n++; }
+      else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true,scope:'once',week:p.week})) n++; }
+      else if(a.action==='add')    { _addPlan={day:a.day,type:a.type,scope:'once'}; _confirmAddToPlan(); n++; }
       else if(a.action==='rename') { if(editProgramSession(a.id,{name:a.name},{silent:true})) n++; }
       else if(a.action==='set_options'){
         const ids=a.types.map(t=>_sessionForType(t)).filter(Boolean);
@@ -9764,7 +9775,9 @@ function addSessionToProgram(sessionDef, day, opts={}){
     const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const di=DOW.indexOf(day);
     if (di>=0){
       if(!Array.isArray(prog.dayMap)||prog.dayMap.length!==7) prog.dayMap=[null,null,null,null,null,null,null];
-      const T=_editTarget(prog, opts); T.map[di]=id; scopeTxt=` (${_scopeNote(T.scope)})`;
+      const T=_editTarget(prog, opts);
+      (T.maps||[T.map]).forEach(m=>{ m[di]=id; });
+      scopeTxt=` (${_scopeNote(T.scope)})`;
     }
   }
   saveProgramData(prog);
@@ -9809,9 +9822,9 @@ function moveProgramSession(fromDay, toDay, opts={}){
   const prog=savedProgram; const fi=_PLAN_DOW.indexOf(fromDay), ti=_PLAN_DOW.indexOf(toDay);
   if (fi<0||ti<0||fi===ti) return false;
   if (!Array.isArray(prog.dayMap)||prog.dayMap.length!==7){ if(!opts.silent) toast("This program can't be edited by day"); return false; }
-  const T=_editTarget(prog, opts);            // 'once' → this week only; 'forward' → template
-  const moving=T.map[fi], occupied=T.map[ti];
-  T.map[ti]=moving; T.map[fi]=occupied;       // swap (occupied may be null = plain move)
+  const T=_editTarget(prog, opts);            // 'once' → this week only; 'forward' → template + future overrides
+  let occupied=null;
+  (T.maps||[T.map]).forEach(m=>{ const mv=m[fi], oc=m[ti]; m[ti]=mv; m[fi]=oc; if(m===T.map) occupied=oc; });
   saveProgramData(prog);
   try{ recomputeAthleteState(); }catch(e){}
   try{ renderAll(); }catch(e){}
@@ -9823,7 +9836,7 @@ function removeProgramSessionFromDay(day, opts={}){
   const prog=savedProgram; const di=_PLAN_DOW.indexOf(day);
   if (di<0||!Array.isArray(prog.dayMap)) return false;
   const T=_editTarget(prog, opts);
-  T.map[di]=null;
+  (T.maps||[T.map]).forEach(m=>{ m[di]=null; });
   saveProgramData(prog);
   try{ recomputeAthleteState(); }catch(e){}
   try{ renderAll(); }catch(e){}
@@ -9868,13 +9881,23 @@ function _renderAddToPlan(){
 }
 function _confirmAddToPlan(){
   if (!_addPlan.day||!_addPlan.type) return;
+  // Adding is a plan change like any other — ask which occurrences it applies to
+  // (unless a caller already decided, e.g. the coach applying a proposal).
+  if (!_addPlan.scope && savedProgram){
+    const wk=(typeof _progActualWeek==='function')?_progActualWeek():1;
+    const day=_addPlan.day;
+    _askScope(`Add to ${day}`, day, wk, scope=>{ _addPlan.scope=scope; _confirmAddToPlan(); });
+    return;
+  }
   const runDef=rt=>({type:'endurance', name:{easy:'Easy Run',tempo:'Tempo Run',intervals:'Intervals',long:'Long Run',recovery:'Recovery Run'}[rt], runType:rt, focus:_adaptationForRunType(rt)||''});
   let def;
   if (_addPlan.type==='strength') def=(typeof _genericStrengthSession==='function'?_genericStrengthSession():{type:'strength',name:'Strength'});
   else if (_addPlan.type==='fitstop') def={type:'fitstop', name:'Conditioning', format:'Circuit', focus:'work_capacity'};
   else def=runDef(_addPlan.type);
-  addSessionToProgram(def, _addPlan.day);
+  addSessionToProgram(def, _addPlan.day, _addPlan.scope?{scope:_addPlan.scope}:{});
   closeInsight();
+  _addPlan={day:null,type:null};
+  try{ renderPlan(currentProgramWeek); }catch(e){}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

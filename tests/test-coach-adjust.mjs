@@ -55,10 +55,15 @@ const applied=await page.evaluate(()=>{
     {action:'add',day:'Tue',type:'easy',why:'aerobic volume'},
   ]};
   const n=applyCoachPlanProposal();
-  const dm=savedProgram.dayMap;
-  return { n, thu:dm[3], wed:dm[2], tue:dm[1], cleared:_coachPlanProposal===null };
+  // Coach actions apply to THIS week (an override), so read through the real API
+  // rather than the raw template.
+  const w=_progWeekSessions(wk);
+  const at=d=>{ const s=w.find(x=>x.day===d); return s&&s.id||null; };
+  return { n, thu:at('Thu'), wed:at('Wed'), tue:at('Tue'), cleared:_coachPlanProposal===null,
+           templateUntouched:savedProgram.dayMap[2]==='tempo' };
 });
 check('Applying the proposal performs each action', applied.n===2 && applied.thu==='tempo' && applied.wed==null && applied.tue!=null, JSON.stringify(applied));
+check('Coach changes this week only — the template is untouched', applied.templateUntouched, JSON.stringify({dayMapWed:applied.templateUntouched}));
 check('Proposal is cleared after applying', applied.cleared);
 
 // ── No AI key → deterministic engine fallback, never a dead end ──────────────
