@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev25</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev26</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4382,9 +4382,19 @@ function _renderProgramPlan(w){
   const weekSess=_progWeekSessions(w);
 
   // Header
-  document.getElementById('plan-vol').textContent=isDeload
+  // Race anchoring: show the countdown and flag race/taper weeks explicitly.
+  let raceTag='';
+  try{ if(prog.race && prog.race.dateISO){
+    const d=new Date(prog.race.dateISO+'T12:00:00'), today=new Date(); today.setHours(0,0,0,0);
+    const days=Math.max(0,Math.ceil((d-today)/86400000));
+    const label=d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    raceTag = w===prog.race.week ? ` · 🏁 RACE WEEK (${prog.race.day} ${label})`
+            : w===prog.race.week-1 ? ` · Taper — race in ${days} days`
+            : ` · Race ${label} (${days} days)`;
+  } }catch(e){}
+  document.getElementById('plan-vol').textContent=(isDeload
     ?`${prog.name||'Program'} · Week ${w} of ${totalWeeks} · Deload — recover and consolidate`
-    :`${prog.name||'Program'} · Week ${w} of ${totalWeeks}${weekNote?' · '+weekNote:''}`;
+    :`${prog.name||'Program'} · Week ${w} of ${totalWeeks}${weekNote?' · '+weekNote:''}`)+raceTag;
 
   // Hide assessment banner (irrelevant for custom programs)
   const ab=document.getElementById('assessment-banner');
@@ -10426,6 +10436,38 @@ function scheduleWeek(objectiveIds, opts={}){
 }
 
 // Build an opt-in adaptive program from the athlete's availability (date-anchored).
+// ── Race anchoring ───────────────────────────────────────────────────────────
+// The athlete's race/key date was only ever fed to the coach prompt — the program
+// builder never saw it, so blocks were a fixed length ending in a generic deload
+// with no race day and no taper. These derive a real date from the free-text field
+// ("Jun 20 2026", "2026-06-20", "HYROX Sydney Nov 2026") and anchor the block to it.
+function _parseRaceDate(raw){
+  const s=String(raw||'').trim(); if(!s) return null;
+  const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  let m=s.match(/(\d{4})-(\d{2})-(\d{2})/);                       // 2026-06-20
+  if(m) return new Date(+m[1], +m[2]-1, +m[3], 12);
+  m=s.match(/([A-Za-z]{3,})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})/); // Jun 20 2026
+  if(m && MON[m[1].slice(0,3).toLowerCase()]!=null) return new Date(+m[3], MON[m[1].slice(0,3).toLowerCase()], +m[2], 12);
+  m=s.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,}),?\s*(\d{4})/); // 20 Jun 2026
+  if(m && MON[m[2].slice(0,3).toLowerCase()]!=null) return new Date(+m[3], MON[m[2].slice(0,3).toLowerCase()], +m[1], 12);
+  m=s.match(/([A-Za-z]{3,})\s+(\d{4})/);                          // "HYROX Sydney Nov 2026" → 1st of month
+  if(m && MON[m[1].slice(0,3).toLowerCase()]!=null) return new Date(+m[2], MON[m[1].slice(0,3).toLowerCase()], 1, 12);
+  const d=new Date(s); return isNaN(d.getTime())?null:d;
+}
+function athleteRaceDate(){
+  let raw=null;
+  try{ raw=(typeof coachProfile==='object'&&coachProfile&&coachProfile.raceDate)||localStorage.getItem('ht-race-date'); }catch(e){}
+  const d=_parseRaceDate(raw);
+  return (d && d.getTime()>Date.now()-86400000) ? d : null;       // ignore past dates
+}
+// Whole weeks from the Monday of the current week to the race week (1-based).
+function _raceWeekCount(raceDate, startISO){
+  if(!raceDate) return null;
+  const start=new Date((startISO||_mondayISO(new Date()))+'T00:00:00');
+  const diff=Math.floor((raceDate-start)/86400000);
+  if(diff<0) return null;
+  return Math.floor(diff/7)+1;                                     // the week containing the race
+}
 function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   const type = goalType || (programBuilderConfig?.type) || 'hybrid';
   // Adaptation-first: order objectives by adaptation value (per unit fatigue × decay-urgency,
@@ -10451,13 +10493,42 @@ function buildAdaptiveWeek(goalType, weeks=6, opts={}){
     sessionsById[s.id] = s; return s.id;
   });
   const sessions = Object.values(sessionsById);
+  // ── Anchor the block to the athlete's race, when they have one ─────────────
+  const startISO=_mondayISO(new Date());
+  const raceDate=athleteRaceDate();
+  const raceWk=_raceWeekCount(raceDate, startISO);
+  let raceInfo=null;
+  if(raceWk && raceWk>=2 && raceWk<=52){
+    weeks = raceWk;                                   // block ends ON race week
+    const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][raceDate.getDay()];
+    const raceSess={ id:'race-day', type:'endurance', name:'RACE DAY', focus:'race_specificity',
+                     runType:'race', race:true, cue:(opts.goal||trainGoal||'Race') };
+    sessionsById['race-day']=raceSess; sessions.push(raceSess);
+    raceInfo={ week:raceWk, day:dow, dateISO:raceDate.toISOString().slice(0,10) };
+  }
   const weeklyProgressions = Array.from({length:weeks},(_,i)=> i===weeks-1 ? {week:i+1,deload:true,note:'Deload'} : {week:i+1, setsAdd:i, note:`Week ${i+1} — progress within your availability`});
   // Anchor to the Monday of the current week.
+  // Race week + taper: the final week is the race itself (rest around race day) and
+  // the week before is a taper, rather than a generic deload at an arbitrary point.
+  const overrides={};
+  if(raceInfo){
+    const rp=weeklyProgressions[raceInfo.week-1];
+    if(rp){ rp.race=true; rp.deload=true; rp.note=`RACE WEEK · ${raceInfo.day}`; }
+    const tp=weeklyProgressions[raceInfo.week-2];
+    if(tp){ tp.deload=true; tp.taper=true; tp.note='Taper'; }
+    // Race-week template: keep one easy opener, rest into the race, race on the day.
+    const di=_PLAN_DOW.indexOf(raceInfo.day);
+    const rw=[null,null,null,null,null,null,null];
+    if(di>=0){ rw[di]='race-day'; const openerIdx=Math.max(0,di-3); if(openerIdx!==di) rw[openerIdx]=dayMap.find(x=>x&&/easy|recovery/.test(x))||null; }
+    overrides[raceInfo.week]=rw;
+  }
   const data = {
-    id:'adaptive-'+Date.now(), name:'Adaptive Week (from your availability)', type,
-    source:'Constraint-based scheduler', startDate:_mondayISO(new Date()), weeks,
+    id:'adaptive-'+Date.now(),
+    name: raceInfo ? `Race Block · ${weeks} weeks to race day` : 'Adaptive Week (from your availability)',
+    type, source:'Constraint-based scheduler', startDate:startISO, weeks,
     sessionsPerWeek: dayMap.filter(Boolean).length, sessions, dayMap, weeklyProgressions,
     schedule: explanations, unplaced,
+    ...(raceInfo?{ race:raceInfo, overrides }:{}) ,
   };
   saveProgramData(data);
   currentProgramWeek = 1; programViewWeek = 1;
