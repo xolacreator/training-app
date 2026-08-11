@@ -742,7 +742,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev26</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-07-12 · rev27</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4496,6 +4496,8 @@ function _renderPlanEditList(w, weekSess){
     </div>
     <div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">Tap any day to change it. We'll ask whether it's just this week or from now on.</div>
     <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
+    ${(()=>{ try{ return (!savedProgram.race && athleteRaceDate())
+      ? `<button onclick="reanchorProgramToRace()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(212,175,55,.45);background:rgba(212,175,55,.08);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;">🏁 Anchor this block to my race date</button>` : ''; }catch(e){ return ''; } })()}
     <button onclick="openCoachAdjust()" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(77,158,255,.4);background:rgba(77,158,255,.08);color:#8fbaff;font-size:13px;font-weight:600;cursor:pointer;">💬 Ask coach to adjust this week</button>`;
 }
 // ── Link a logged/imported session to a planned session ──────────────────────
@@ -4728,6 +4730,21 @@ function _validatePlanAction(a, wk){
     return { action:'rename', day:d, id:s.id, name:String(a.name).slice(0,60), why:String(a.why||'').slice(0,160) }; }
   // Turn a day into an A/B choice. `types` are session TYPES (the app creates the
   // sessions); an optional readiness rule picks between them automatically.
+  // ── Block-level actions (span weeks, not a single day) ───────────────────
+  // Change the taper into race day: 1-3 weeks, volume down / intensity retained.
+  if(t==='set_taper'){
+    const raw=parseInt(a.weeks);
+    if(!raw || raw<1) return null;                                   // reject 0/missing before clamping
+    const n=Math.min(3, raw);                                        // clamp an over-long request
+    try{ if(!savedProgram||!savedProgram.race) return null;          // needs a race anchor
+         if(savedProgram.race.week-n < (typeof _progActualWeek==='function'?_progActualWeek():1)) return null; }catch(e){ return null; }
+    return { action:'set_taper', weeks:n, why:String(a.why||'').slice(0,160) };
+  }
+  // Re-anchor the block to the athlete's race date.
+  if(t==='reanchor'){
+    try{ if(!athleteRaceDate()) return null; }catch(e){ return null; }
+    return { action:'reanchor', why:String(a.why||'').slice(0,160) };
+  }
   if(t==='set_options'){ const d=a.day; if(!has(d)) return null;
     const types=(a.types||[]).map(x=>String(x).toLowerCase()).filter(x=>_ADD_PLAN_TYPES.some(([v])=>v===x));
     if(types.length<2) return null;
@@ -4756,6 +4773,8 @@ function _describePlanAction(a){
   if(a.action==='remove') return `Remove ${a.day}'s session`;
   if(a.action==='add')    return `Add a ${(_ADD_PLAN_TYPES.find(([v])=>v===a.type)||[,a.type])[1].toLowerCase()} on ${a.day}`;
   if(a.action==='rename') return `Rename ${a.day}'s session to "${a.name}"`;
+  if(a.action==='set_taper') return `Switch to a ${a.weeks}-week taper into race day`;
+  if(a.action==='reanchor')  return `Re-anchor the block to your race date`;
   if(a.action==='set_options'){ const lbl=t=>(_ADD_PLAN_TYPES.find(([v])=>v===t)||[,t])[1].toLowerCase();
     return `Make ${a.day} a choice: ${a.types.map(lbl).join(' or ')}${a.rule?` (auto-picks by readiness, cutoff ${a.rule.threshold})`:''}`; }
   return '';
@@ -4819,6 +4838,8 @@ function applyCoachPlanProposal(){
       else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true,scope:'once',week:p.week})) n++; }
       else if(a.action==='add')    { _addPlan={day:a.day,type:a.type,scope:'once'}; _confirmAddToPlan(); n++; }
       else if(a.action==='rename') { if(editProgramSession(a.id,{name:a.name},{silent:true})) n++; }
+      else if(a.action==='set_taper'){ if(setTaperPlan(a.weeks,{silent:true})) n++; }
+      else if(a.action==='reanchor'){ if(reanchorProgramToRace({silent:true})) n++; }
       else if(a.action==='set_options'){
         const ids=a.types.map(t=>_sessionForType(t)).filter(Boolean);
         const rule=a.rule?{ type:'readiness', threshold:a.rule.threshold, high:ids[0], low:ids[1] }:null;
@@ -9520,7 +9541,19 @@ function weeklyAutoregulation(opts={}){
   let rv=null; try{ rv=weeklyReview({week:reviewWeek}); }catch(e){}
   if(!rv) return null;
   const lm = (typeof _computeLoadMetrics==='function') ? _computeLoadMetrics() : {acute:0,chronic:0,acwr:0};
-  const acwr = lm.acwr || 0;
+  // ACWR is only meaningful against an established chronic base. With a thin history
+  // (a new or returning athlete) the 28-day denominator is near-empty and the ratio
+  // spikes, which would wrongly prescribe a deload after a perfectly good week.
+  // Per the KB: "a robust chronic base lets an athlete tolerate more acute load".
+  const chronicSessions = (()=>{ try{
+    const cut=Date.now()-28*86400000;
+    return (Array.isArray(sessions)?sessions:[]).filter(s=>{
+      const iso=(typeof sessionDateISO==='function')?sessionDateISO(s):s.date;
+      return iso && new Date(iso+'T12:00:00').getTime()>=cut;
+    }).length;
+  }catch(e){ return 0; } })();
+  const acwrReliable = chronicSessions>=8;
+  const acwr = acwrReliable ? (lm.acwr || 0) : 0;   // 0 = "no signal", never a trigger
   const adherence = (rv.consistency && rv.consistency.planned) ? rv.consistency.done/Math.max(1,rv.consistency.planned) : null;
   const rThis = rv.recovery ? rv.recovery.thisWeek : null, rPrev = rv.recovery ? rv.recovery.prevWeek : null;
   const rDrop = (rThis!=null && rPrev!=null) ? (rPrev - rThis) : 0;   // +ve = readiness fell
@@ -9542,10 +9575,11 @@ function weeklyAutoregulation(opts={}){
     if(overBudget)                      reasons.push('Near or over the fatigue budget');
   } else if (strongSignals){ decision='progress'; scalar = acwr<0.8 ? 1.12 : 1.06;
     reasons.push(`${Math.round(adherence*100)}% completed with steady readiness`);
-    reasons.push(acwr<0.8 ? `Load headroom (ACWR ${acwr.toFixed(2)}) - room to build` : `Load in the safe range (ACWR ${acwr.toFixed(2)})`);
+    reasons.push(!acwrReliable ? `Load history still building (${chronicSessions} sessions in 4 weeks) - progressing on adherence and readiness`
+                 : acwr<0.8 ? `Load headroom (ACWR ${acwr.toFixed(2)}) - room to build` : `Load in the safe range (ACWR ${acwr.toFixed(2)})`);
   } else { decision='hold'; scalar=1.0; reasons.push('Signals are mixed - hold steady and reassess next week'); }
 
-  let conf=0.5; if(adherence!=null)conf+=0.15; if(rThis!=null&&rPrev!=null)conf+=0.2; if(acwr>0)conf+=0.15; conf=Math.min(0.95,+conf.toFixed(2));
+  let conf=0.5; if(adherence!=null)conf+=0.15; if(rThis!=null&&rPrev!=null)conf+=0.2; if(acwrReliable)conf+=0.15; conf=Math.min(0.95,+conf.toFixed(2));
   const heads={progress:'Push on next week',hold:'Hold steady next week',cutback:'Ease back next week',deload:'Deload next week'};
   return { reviewWeek, targetWeek, decision, loadScalar:scalar, headline:heads[decision], reasons,
     inputs:{ adherence, readinessThis:rThis, readinessPrev:rPrev, acwr:+acwr.toFixed(2), budgetPct, overBudget }, confidence:conf };
@@ -10467,6 +10501,73 @@ function _raceWeekCount(raceDate, startISO){
   const diff=Math.floor((raceDate-start)/86400000);
   if(diff<0) return null;
   return Math.floor(diff/7)+1;                                     // the week containing the race
+}
+// ── Retrofit an existing program to the athlete's race ───────────────────────
+// Programs built before a race date existed (or before race anchoring shipped) can
+// be re-anchored in place: resize to end on race week, add RACE DAY, taper into it.
+// Never touches elapsed weeks.
+function reanchorProgramToRace(opts={}){
+  const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  if(!prog){ if(!opts.silent) toast('No active program'); return null; }
+  const race=athleteRaceDate();
+  if(!race){ if(!opts.silent) toast('Set a race date in your coach profile first'); return null; }
+  const raceWk=_raceWeekCount(race, prog.startDate);
+  const cur=(typeof _progActualWeek==='function')?_progActualWeek():1;
+  if(!raceWk || raceWk<cur){ if(!opts.silent) toast('That race date is before the current week'); return null; }
+  _freezeHistoricalWeeks(prog);
+  // Resize the block to end on race week (keeping existing week notes where possible).
+  const wp=prog.weeklyProgressions||[];
+  prog.weeklyProgressions=Array.from({length:raceWk},(_,i)=> wp[i] || {week:i+1, setsAdd:Math.min(i,4), note:`Week ${i+1}`});
+  prog.weeks=raceWk;
+  // Ensure a RACE DAY session exists.
+  prog.sessions=prog.sessions||[];
+  if(!prog.sessions.find(s=>s.id==='race-day')){
+    prog.sessions.push({ id:'race-day', type:'endurance', name:'RACE DAY', focus:'race_specificity',
+                         runType:'race', race:true, cue:(typeof trainGoal!=='undefined'&&trainGoal)||'Race' });
+  }
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][race.getDay()];
+  const di=_PLAN_DOW.indexOf(dow);
+  const rw=[null,null,null,null,null,null,null];
+  if(di>=0){ rw[di]='race-day';
+    const opener=(prog.dayMap||[]).find(x=>typeof x==='string'&&/easy|recovery/.test(x));
+    const oi=Math.max(0,di-3); if(oi!==di && opener) rw[oi]=opener; }
+  prog.overrides=prog.overrides||{}; prog.overrides[raceWk]=rw;
+  const rp=prog.weeklyProgressions[raceWk-1];
+  if(rp){ rp.race=true; rp.deload=true; rp.note=`RACE WEEK · ${dow}`; }
+  prog.race={ week:raceWk, day:dow, dateISO:race.toISOString().slice(0,10) };
+  setTaperPlan(opts.taperWeeks||1, {silent:true});      // default: 1-week taper
+  saveProgramData(prog);
+  try{ recomputeAthleteState(); }catch(e){} try{ renderAll(); }catch(e){}
+  if(!opts.silent) toast(`Anchored to race day · ${raceWk} weeks`);
+  return prog.race;
+}
+// ── Taper ────────────────────────────────────────────────────────────────────
+// Mark the N weeks before race week as a taper and apply progressive load
+// reduction via the existing per-week autoregulation scalars (volume down,
+// intensity retained — standard taper practice).
+const _TAPER_CURVES={ 1:[0.60], 2:[0.75,0.55], 3:[0.85,0.70,0.50] };
+function setTaperPlan(weeksN, opts={}){
+  const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  if(!prog||!prog.race){ if(!opts.silent) toast('Anchor the program to a race first'); return false; }
+  const n=Math.max(1,Math.min(3,parseInt(weeksN)||1));
+  const raceWk=prog.race.week, cur=(typeof _progActualWeek==='function')?_progActualWeek():1;
+  if(raceWk-n < 1){ if(!opts.silent) toast('Not enough weeks before the race for that taper'); return false; }
+  prog.autoReg=prog.autoReg||{};
+  // clear any previous taper marks/scalars
+  (prog.weeklyProgressions||[]).forEach((p,i)=>{ if(p&&p.taper){ delete p.taper; if(p.note==='Taper') p.note=`Week ${i+1}`; delete prog.autoReg[i+1]; } });
+  const curve=_TAPER_CURVES[n];
+  for(let k=0;k<n;k++){
+    const wk=raceWk-n+k;                      // e.g. 3-week taper → raceWk-3, -2, -1
+    if(wk<cur) continue;                      // never rewrite elapsed weeks
+    const p=(prog.weeklyProgressions||[])[wk-1];
+    if(p){ p.taper=true; p.deload=true; p.note=n>1?`Taper ${k+1}/${n}`:'Taper'; }
+    prog.autoReg[wk]={ decision:'taper', loadScalar:curve[k], at:Date.now() };
+  }
+  prog.taperWeeks=n;
+  saveProgramData(prog);
+  try{ recomputeAthleteState(); }catch(e){} try{ renderAll(); }catch(e){}
+  if(!opts.silent) toast(`${n}-week taper set into race day`);
+  return true;
 }
 function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   const type = goalType || (programBuilderConfig?.type) || 'hybrid';
@@ -13040,7 +13141,12 @@ Rules: max 3 actions; weekdays Mon-Sun of the CURRENT week only; type is one of 
 
 You can also give a day TWO options instead of one fixed session:
 {"action":"set_options","day":"Thu","types":["intervals","easy"],"rule":{"type":"readiness","threshold":60},"why":"hard day only if recovered"}
-With a rule the app auto-selects the first type when readiness is at/above the threshold and the second when below; without a rule the athlete chooses on the day. Use this when the right session genuinely depends on how they turn up.`,
+With a rule the app auto-selects the first type when readiness is at/above the threshold and the second when below; without a rule the athlete chooses on the day. Use this when the right session genuinely depends on how they turn up.
+
+BLOCK-LEVEL CHANGES (these span weeks, not one day) — use when the athlete asks about the shape of the build or the run-in to their race:
+{"action":"set_taper","weeks":2,"why":"they respond better to a longer taper"}   // 1-3 weeks; volume drops, intensity is retained
+{"action":"reanchor","why":"the block was not aligned to race day"}              // resize the block to end on race week
+set_taper needs an existing race anchor and enough weeks before the race; reanchor needs a race date on file. Both apply from the current week forward and never rewrite completed weeks.`,
     motivate: `\nMODE: MOTIVATIONAL\nFocus entirely on mindset, belief and energy. Reference the athlete's goal and what it means. No technical detail unless they ask. Fire them up.`,
     ask:      '',
   };

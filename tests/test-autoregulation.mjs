@@ -70,6 +70,16 @@ check('CoachEV.decision.autoregulate + programming.applyAutoreg work', core.hasP
 const banner=await page.evaluate((seed)=>{ eval(seed)(76,50,1); localStorage.removeItem('ht-autoreg-dismiss'); if(savedProgram.autoReg)delete savedProgram.autoReg; renderToday(); const h=document.getElementById('autoreg-banner').innerHTML; return { shown:/weekly autoregulation/i.test(h), deload:/Deload/.test(h) }; }, seed);
 check('Today shows the autoregulation proposal banner', banner.shown && banner.deload, JSON.stringify(banner));
 
+
+// ── ACWR needs an established chronic base ─────────────────────────────────
+// With a thin history the 28-day denominator is near-empty and the ratio spikes;
+// a new/returning athlete must not be told to deload after a good week.
+const thin=await page.evaluate((seed)=>{ eval(seed)(74,76,3); const p=weeklyAutoregulation();
+  return { d:p.decision, acwr:p.inputs.acwr, conf:p.confidence, reasons:p.reasons }; }, seed);
+check('Thin history does not trigger a spurious deload', thin.d!=='deload', JSON.stringify({d:thin.d,acwr:thin.acwr}));
+check('ACWR is reported as no-signal until the base is built', thin.acwr===0 && thin.reasons.some(r=>/history still building/.test(r)), JSON.stringify(thin.reasons));
+check('Confidence is lower without a reliable load signal', thin.conf<0.95, String(thin.conf));
+
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));
 await browser.close();
