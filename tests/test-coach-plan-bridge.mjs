@@ -52,9 +52,16 @@ const ui=await page.evaluate(()=>{
   return { chip:/Change your plan\?/.test(h), btn:/coachApplyChatActions\(1\)/.test(h), desc:/Move Wed's session to Thu/.test(h) };
 });
 check('Coach reply renders plan-change confirm chips', ui.chip && ui.btn && ui.desc, JSON.stringify(ui));
-const applied=await page.evaluate(()=>{ coachApplyChatActions(1); const dm=savedProgram.dayMap;
-  return { thu:dm[3], wed:dm[2], marked:!!coachMessages[1].planApplied, h:/Applied to your plan/.test(document.getElementById('coach-messages').innerHTML) }; });
-check('Applying from chat moves the session in the real plan', applied.thu==='tempo' && applied.wed==null, JSON.stringify(applied));
+// Coach edits are scoped to the week being discussed, so read the RESOLVED week
+// (dayMap is the template and is deliberately left alone) and confirm the change
+// does not leak into future weeks.
+const applied=await page.evaluate(()=>{ const wk=_progActualWeek(); coachApplyChatActions(1);
+  const at=w=>{ const s=_progWeekSessions(w); const f=d=>{const x=s.find(y=>y.day===d&&y.session); return x?x.id:null;};
+                return { wed:f('Wed'), thu:f('Thu') }; };
+  return { wk, now:at(wk), next:at(wk+1), marked:!!coachMessages[1].planApplied,
+           h:/Applied to your plan/.test(document.getElementById('coach-messages').innerHTML) }; });
+check('Applying from chat moves the session in the real plan', applied.now.thu==='tempo' && applied.now.wed==null, JSON.stringify(applied));
+check('...for that week only — future weeks keep their session', applied.next.wed==='tempo' && applied.next.thu==null, JSON.stringify(applied.next));
 check('Chat message shows it was applied', applied.marked && applied.h);
 
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e));

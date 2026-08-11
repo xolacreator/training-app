@@ -42,7 +42,9 @@ check('Hybrid program, date-anchored to BLOCK C (2026-06-22), 12 weeks', meta.ty
 await page.evaluate(()=>{ nav('plan',document.querySelectorAll('.nb')[2]); renderPlan(5); });
 await page.waitForTimeout(300);
 const planText=await page.locator('#plan-days').innerText();
-check('Plan shows LIFT + runs (Zone 2 / Tempo / Long)', /LIFT/.test(planText)&&/(Zone 2|Tempo|Long)/.test(planText), JSON.stringify(planText.slice(0,100)));
+// Session names render uppercased, so match case-insensitively. ("Zone 2" was the
+// old label for the easy run; the run types are now easy/tempo/long.)
+check('Plan shows LIFT + runs (easy / tempo / long)', /LIFT/i.test(planText)&&/(zone 2|easy|tempo|long)/i.test(planText), JSON.stringify(planText.slice(0,100)));
 
 // Fitstop LIFT day still shows the published per-week format (BLOCK C wk5 Fri = LIFT 5RM)
 await page.evaluate(()=>openProgramSessionOverlay('lift',5,'Fri'));
