@@ -4742,22 +4742,28 @@ function _planContextForBrain(week){
   return { wk, days, state };
 }
 // Validate one brain action against the real week; drop anything unsafe/unknown.
+// Day-level edits carry a SCOPE. Coach edits used to be hard-coded to 'once', so
+// "move my long run to Sunday from now on" silently changed a single week — the
+// coach appeared to agree and then didn't do it. 'forward' updates the template
+// and every future week; 'once' touches only the week under discussion.
+function _actionScope(a){ return String(a && a.scope||'').toLowerCase()==='forward' ? 'forward' : 'once'; }
 function _validatePlanAction(a, wk){
   if(!a || typeof a!=='object') return null;
   const DOW=_PLAN_DOW, has=d=>DOW.includes(d);
   const slot=d=>{ try{ return _progWeekSessions(wk).find(x=>x.day===d); }catch(e){ return null; } };
   const t=String(a.action||'').toLowerCase();
+  const sc=_actionScope(a);
   if(t==='move'){ const f=a.from,to=a.to;
     if(!has(f)||!has(to)||f===to) return null;
     const s=slot(f); if(!s||!s.session) return null;                     // nothing to move
-    return { action:'move', from:f, to, why:String(a.why||'').slice(0,160) }; }
+    return { action:'move', from:f, to, scope:sc, why:String(a.why||'').slice(0,160) }; }
   if(t==='remove'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
     if(!s||!s.session) return null;
-    return { action:'remove', day:d, why:String(a.why||'').slice(0,160) }; }
+    return { action:'remove', day:d, scope:sc, why:String(a.why||'').slice(0,160) }; }
   if(t==='add'){ const d=a.day; if(!has(d)) return null;
     const ty=String(a.type||'easy').toLowerCase();
     if(!_ADD_PLAN_TYPES.some(([v])=>v===ty)) return null;
-    return { action:'add', day:d, type:ty, why:String(a.why||'').slice(0,160) }; }
+    return { action:'add', day:d, type:ty, scope:sc, why:String(a.why||'').slice(0,160) }; }
   if(t==='rename'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
     if(!s||!s.session||!a.name) return null;
     return { action:'rename', day:d, id:s.id, name:String(a.name).slice(0,60), why:String(a.why||'').slice(0,160) }; }
@@ -4802,9 +4808,13 @@ function _sessionForType(ty){
   return id;
 }
 function _describePlanAction(a){
-  if(a.action==='move')   return `Move ${a.from}'s session to ${a.to}`;
-  if(a.action==='remove') return `Remove ${a.day}'s session`;
-  if(a.action==='add')    return `Add a ${(_ADD_PLAN_TYPES.find(([v])=>v===a.type)||[,a.type])[1].toLowerCase()} on ${a.day}`;
+  // Day-level edits state their scope outright — "just this week" and "every week
+  // from now on" are very different promises and the chip must not hide which.
+  const S=a && ['move','remove','add'].includes(a.action)
+    ? (_actionScope(a)==='forward' ? ' — every week from now on' : ' — just this week') : '';
+  if(a.action==='move')   return `Move ${a.from}'s session to ${a.to}${S}`;
+  if(a.action==='remove') return `Remove ${a.day}'s session${S}`;
+  if(a.action==='add')    return `Add a ${(_ADD_PLAN_TYPES.find(([v])=>v===a.type)||[,a.type])[1].toLowerCase()} on ${a.day}${S}`;
   if(a.action==='rename') return `Rename ${a.day}'s session to "${a.name}"`;
   if(a.action==='set_taper') return `Switch to a ${a.weeks}-week taper into race day`;
   if(a.action==='reanchor')  return `Re-anchor the block to your race date`;
@@ -4867,9 +4877,10 @@ function applyCoachPlanProposal(){
     try{
       // Coach proposals adjust THIS week explicitly — never silently rewrite the
       // template (and never trigger the athlete-facing scope prompt).
-      if(a.action==='move')        { if(moveProgramSession(a.from,a.to,{silent:true,scope:'once',week:p.week})) n++; }
-      else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true,scope:'once',week:p.week})) n++; }
-      else if(a.action==='add')    { _addPlan={day:a.day,type:a.type,scope:'once'}; _confirmAddToPlan(); n++; }
+      const sc=_actionScope(a);   // honour what the athlete actually asked for
+      if(a.action==='move')        { if(moveProgramSession(a.from,a.to,{silent:true,scope:sc,week:p.week})) n++; }
+      else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true,scope:sc,week:p.week})) n++; }
+      else if(a.action==='add')    { _addPlan={day:a.day,type:a.type,scope:sc,week:p.week}; _confirmAddToPlan(); n++; }
       else if(a.action==='rename') { if(editProgramSession(a.id,{name:a.name},{silent:true})) n++; }
       else if(a.action==='set_taper'){ if(setTaperPlan(a.weeks,{silent:true})) n++; }
       else if(a.action==='reanchor'){ if(reanchorProgramToRace({silent:true})) n++; }
@@ -9804,6 +9815,11 @@ function _coachTemporalContext(){
     if(rd){ const r=new Date(rd+'T12:00:00'); if(!isNaN(r)){ const d=Math.ceil((r-now)/86400000);
       L.push(`KEY DATE: ${fmt(r)} - ${d>0?`${d} days away`:'passed'}.`); } } }catch(e){}
   L.push(`When you propose a plan change, name the WEEKDAY (Mon-Sun) of the current week - the app maps it to the real date.`);
+  // Scope is the athlete's intent, not a default. Getting this wrong is the
+  // difference between "I moved it this week" and "I changed your training."
+  L.push(`Every move/add/remove MUST carry "scope": "once" or "forward".`);
+  L.push(`Use "forward" when they mean an ongoing change - "from now on", "every week", "permanently", "switch my long run to Sundays", "I always work late Wednesdays".`);
+  L.push(`Use "once" for a one-off - "this week", "tomorrow", "I'm travelling Thursday", "skip today". If it is genuinely ambiguous, choose "once" (the reversible one) and ask which they meant.`);
   return L.join('\n');
 }
 // ── Chat → plan actions ──────────────────────────────────────────────────────
