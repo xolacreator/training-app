@@ -661,6 +661,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--accent);border-color:rgba(212,175,55,.4);font-family:var(--mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em;border-radius:10px;">＋ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
+    <div id="goal-drift-prompt"></div>
     <div id="race-anchor-prompt"></div>
     <div id="plan-overview" style="display:none;margin-bottom:12px;"></div>
     <div id="week-adaptations"></div>
@@ -743,7 +744,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-11 · rev28</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev29</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -4373,6 +4374,7 @@ function _renderProgramPlan(w){
   currentProgramWeek=Math.max(1,w);
   try{localStorage.setItem('ht-program-week',String(currentProgramWeek));}catch(e){}
   _renderProgramPlanTabs();
+  try{ renderGoalDriftPrompt(); }catch(e){}
   try{ renderRaceAnchorPrompt(); }catch(e){}
   _renderProgramOverview(currentProgramWeek);
 
@@ -10504,6 +10506,57 @@ function _raceWeekCount(raceDate, startISO){
   if(diff<0) return null;
   return Math.floor(diff/7)+1;                                     // the week containing the race
 }
+// ── Goal drift: the athlete changed what they're training for ────────────────
+// The block keeps its original shape (changing a program's type/sessions under an
+// athlete mid-block is destructive, and only they know whether to rebuild or ride
+// it out) — but the mismatch is recorded and surfaced instead of staying silent.
+function _noteGoalChange(prevGoal, prevRace){
+  const nowGoal=((coachProfile&&coachProfile.goal)||'').trim();
+  const nowRace=((coachProfile&&coachProfile.raceDate)||'').trim();
+  const goalChanged = nowGoal && prevGoal && nowGoal!==prevGoal;
+  const raceChanged = nowRace && prevRace && nowRace!==prevRace;
+  if(!goalChanged && !raceChanged) return false;
+  if(typeof savedProgram==='undefined' || !savedProgram) return false;   // nothing to realign
+  savedProgram.goalDrift={ from:prevGoal, to:nowGoal, raceFrom:prevRace, raceTo:nowRace,
+                           goalChanged:!!goalChanged, raceChanged:!!raceChanged };
+  try{ localStorage.setItem('ht-program', JSON.stringify(savedProgram)); }catch(e){}
+  return true;
+}
+function dismissGoalDrift(){
+  try{ if(savedProgram){ delete savedProgram.goalDrift;
+        localStorage.setItem('ht-program', JSON.stringify(savedProgram)); } }catch(e){}
+  try{ renderGoalDriftPrompt(); }catch(e){}
+  try{ renderRaceAnchorPrompt(); }catch(e){}
+}
+// "Build a new block for this goal" — hand off to the builder, pre-seeded with the
+// new goal, and clear the drift so the prompt doesn't outlive the decision.
+function rebuildForNewGoal(){
+  try{ if(typeof programBuilderConfig==='object' && programBuilderConfig)
+         programBuilderConfig.goal=((coachProfile&&coachProfile.goal)||''); }catch(e){}
+  dismissGoalDrift();
+  try{ openBuilder(null,null); }catch(e){ try{ nav('plan'); }catch(_){} }
+}
+function renderGoalDriftPrompt(){
+  const el=document.getElementById('goal-drift-prompt'); if(!el) return;
+  el.innerHTML='';
+  const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  const d=prog&&prog.goalDrift; if(!d) return;
+  const esc=s=>String(s||'').slice(0,60).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const line = d.goalChanged
+    ? `This block was built for <b>${esc(d.from)}</b>. You're now training for <b>${esc(d.to)}</b>.`
+    : `Your race date moved from <b>${esc(d.raceFrom)}</b> to <b>${esc(d.raceTo)}</b>, but this block is still built around the old one.`;
+  // Offer re-anchoring only when the new date is actually usable.
+  let canAnchor=false;
+  try{ const nd=_parseRaceDate(d.raceTo||''); canAnchor=!!(nd && nd.getTime()>Date.now()-86400000); }catch(e){}
+  el.innerHTML=`<div class="card" style="border:1px solid rgba(240,180,41,.45);background:rgba(240,180,41,.08);margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;color:#f0b429;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Your goal changed</div>
+      <div style="font-size:14px;color:var(--text);line-height:1.55;">${line} Nothing has been changed for you — pick what should happen to your training.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button onclick="rebuildForNewGoal()" style="flex:1 1 100%;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">Build a new block for this goal</button>
+        ${canAnchor?`<button onclick="reanchorProgramToRace();dismissGoalDrift();" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-weight:600;font-size:13px;cursor:pointer;">🏁 Re-anchor this block</button>`:''}
+        <button onclick="dismissGoalDrift()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-weight:600;font-size:13px;cursor:pointer;">Keep this block</button>
+      </div></div>`;
+}
 // ── Race-anchor prompt (Plan screen) ─────────────────────────────────────────
 // Re-anchoring used to be a button buried at the bottom of Edit mode that vanished
 // silently when the date could not be parsed — no way to tell "already anchored"
@@ -12949,6 +13002,27 @@ async function _callCoachAPI() {
   }
 }
 
+// Opening line after profile setup. The original was hardcoded to HYROX / June 20
+// 2026 and was removed when the app went multi-goal — but its CALL SITE survived,
+// so saving the profile threw a ReferenceError and the setup overlay never closed.
+// This reads the profile that was just saved, so it reflects the CURRENT goal.
+function coachIntro() {
+  const p = coachProfile || {};
+  const name = p.name || 'your coach';
+  const goal = String(p.goal || '').trim();
+  let when = '';
+  try {
+    const d = _parseRaceDate(p.raceDate || '');
+    if (d && d.getTime() > Date.now() - 86400000) {
+      const days = Math.max(0, Math.ceil((d - new Date()) / 86400000));
+      when = ` on ${d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} (${days} days)`;
+    }
+  } catch(e) {}
+  return goal
+    ? `Hey — I'm ${name}. I'll be coaching you toward ${goal}${when}. Ask me anything about your training, your plan, or your race prep.`
+    : `Hey — I'm ${name}. Tell me what you're training for and I'll build everything around it.`;
+}
+
 function openCoachSetup() {
   coachSetupStep = 0;
   coachSetupAnswers = coachProfile ? {...coachProfile} : {};
@@ -13013,8 +13087,15 @@ function coachSetupNext() {
     coachSetupStep++;
     renderCoachSetupStep();
   } else {
+    // Saving the profile used to be a dead end: the goal changed but the active
+    // block kept training for the OLD one, with nothing anywhere saying so. Record
+    // the change against the program so the Plan screen can surface it.
+    const _prevGoal = (coachProfile && coachProfile.goal) || '';
+    const _prevRace = (coachProfile && coachProfile.raceDate) || '';
     coachProfile = {...coachSetupAnswers};
     try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
+    try { if (coachProfile.raceDate) localStorage.setItem('ht-race-date', coachProfile.raceDate); } catch(e) {}
+    try { _noteGoalChange(_prevGoal, _prevRace); } catch(e) {}
     renderCoachCard();
     coachMessages = [{role:'assistant', text:coachIntro()}];
     closeOv('coach-setup-overlay');
