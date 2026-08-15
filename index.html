@@ -2608,6 +2608,7 @@ function loadBaselines() {
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════
 let sessions = [];
+let _sessionsLoadFailed = false;   // true when ht-v4 exists but could not be parsed
 let feel = null;
 let cat = 'run';
 let sUnit    = localStorage.getItem('ht-units-weight') || 'kg';
@@ -2688,7 +2689,17 @@ function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      sessions = JSON.parse(raw);
+      try {
+        sessions = JSON.parse(raw);
+      } catch(parseErr) {
+        // The stored history exists but will not parse. Previously this fell to the
+        // outer catch, replaced sessions with SEED, and the next save overwrote the
+        // real data — silently. Keep the raw bytes so it can be recovered by hand.
+        try { if(!localStorage.getItem(STORAGE_KEY+'-corrupt')) localStorage.setItem(STORAGE_KEY+'-corrupt', raw); } catch(e) {}
+        _sessionsLoadFailed = true;
+        sessions = [];
+        throw parseErr;
+      }
     } else {
       // Migration: check legacy keys newest-first
       let migrated = false;
@@ -2707,7 +2718,11 @@ function load() {
       }
       if (!migrated) { sessions = [...SEED]; saveData(); }
     }
-  } catch(e) { sessions = [...SEED]; }
+  } catch(e) {
+    // Do NOT seed-and-save here. If the read failed while stored data exists, the
+    // old behaviour destroyed it on the next write.
+    if (!_sessionsLoadFailed) sessions = [...SEED];
+  }
 
   // Recompute WMAP if user has a custom plan start date
   try { const ps=localStorage.getItem('ht-plan-start'); if(ps) WMAP=computeWMAP(ps); } catch(e) {}
@@ -2739,7 +2754,24 @@ function load() {
   try { renderAll(); } catch(e) { console.error('renderAll failed on load:', e); }
 }
 
-function saveData() {
+// Refuse to let an empty in-memory array replace stored history. A failed load
+// leaves sessions empty; without this, the very next save wipes months of logs and
+// nothing anywhere reports it. Pass {force:true} for a deliberate wipe.
+function _wouldDestroyHistory(){
+  if (Array.isArray(sessions) && sessions.length > 0) return false;   // nothing to lose
+  let prevRaw=null; try { prevRaw = localStorage.getItem(STORAGE_KEY); } catch(e) { return false; }
+  if (!prevRaw) return false;
+  let prev=null; try { prev = JSON.parse(prevRaw); } catch(e) { return true; }  // unreadable = precious
+  return Array.isArray(prev) && prev.length > 0;
+}
+function saveData(opts) {
+  if (!(opts && opts.force) && _wouldDestroyHistory()) {
+    try { const r=localStorage.getItem(STORAGE_KEY);
+          if(r && !localStorage.getItem(STORAGE_KEY+'-rescue')) localStorage.setItem(STORAGE_KEY+'-rescue', r); } catch(e) {}
+    try { console.warn('saveData blocked: refusing to overwrite stored sessions with an empty list'); } catch(e) {}
+    try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
+    return;
+  }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch(e) {}
   try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
   driveAutoSave();
@@ -2766,7 +2798,13 @@ function normaliseSessions(arr) {
 
 // Export all data (sessions + custom plan + templates) as a dated JSON file
 // Keys included in a full backup (everything that isn't a device-specific token/secret).
-const BACKUP_KEYS = ['ht-program','ht-program-week','ht-baselines','ht-recovery','ht-availability',
+// 'ht-v4' is the LOGGED SESSION HISTORY and its omission here cost a real backup:
+// the export's top-level `sessions` field reads the in-memory array, so a failed
+// load produced a backup containing recovery data and no training history at all,
+// with no error. The rescue/corrupt keys ride along so a damaged store is never
+// left behind on the dead device. Keep raw storage authoritative.
+const BACKUP_KEYS = ['ht-v4','ht-v4-rescue','ht-v4-corrupt',
+  'ht-program','ht-program-week','ht-baselines','ht-recovery','ht-availability',
   'ht-plan-start','ht-plan-type','ht-goal','ht-goal-category','ht-goal-race-type',
   'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
   'ht-coach-memory','ht-custom','ht-tmpl','ht-theme','ht-palette','ht-card-theme',
