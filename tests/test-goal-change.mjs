@@ -31,6 +31,12 @@ const seed=(newGoal,newRace)=>page.evaluate(({newGoal,newRace})=>{
   coachProfile={name:'EV',style:'balanced',background:'b',focus:'f',detail:'d',
                 goal:'sub-3:30 marathon',raceDate:'2027-10-10'};
   localStorage.setItem('ht-coach',JSON.stringify(coachProfile));
+  // Start with the ENGINE store aligned to the profile, so each scenario begins
+  // from a coherent state and only the change under test differs.
+  localStorage.setItem('ht-goal','sub-3:30 marathon');
+  localStorage.setItem('ht-goal-category','race');
+  localStorage.setItem('ht-goal-race-type','marathon');
+  trainGoal='sub-3:30 marathon';
   delete window.__saveThrew;
   saveProgramData({id:'p1',name:'Marathon Block',type:'endurance',startDate:_mondayISO(d),weeks:8,sessionsPerWeek:3,
     sessions:[{id:'easy',type:'endurance',name:'Easy Run',runType:'easy'},{id:'long',type:'endurance',name:'Long Run',runType:'long'}],

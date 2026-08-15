@@ -744,7 +744,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev29</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev30</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -10506,6 +10506,74 @@ function _raceWeekCount(raceDate, startISO){
   if(diff<0) return null;
   return Math.floor(diff/7)+1;                                     // the week containing the race
 }
+// ── The two goal stores ──────────────────────────────────────────────────────
+// The app kept the athlete's goal in two places that never talked to each other:
+//   ht-coach  (coachProfile.goal)  — written by the coach setup wizard, read by
+//                                    the LLM prompt. The only editor after signup.
+//   ht-goal + ht-goal-*            — written ONLY by onboarding, read by _asGoal()
+//                                    which feeds the decision/adaptation engine,
+//                                    race cues and program generation.
+// So editing your goal changed what the coach SAID and nothing about what the app
+// PRESCRIBED — the block kept training for whatever was picked at signup, with no
+// way to change it short of re-onboarding. These keep the engine store in step.
+function _classifyGoal(text){
+  const t=String(text||'').toLowerCase();
+  if(!t.trim()) return null;
+  if(/hyrox/.test(t))                                  return {category:'race', raceType:'hyrox'};
+  if(/triathlon|ironman|70\.3/.test(t))                return {category:'race', raceType:'triathlon'};
+  if(/half[\s-]*marathon|\b21\.1\b|\b21k\b/.test(t))   return {category:'race', raceType:'half'};
+  if(/marathon/.test(t))                               return {category:'race', raceType:'marathon'};
+  if(/\b5k\b|\b10k\b|\b5 ?km\b|\b10 ?km\b/.test(t))    return {category:'race', raceType:'5k10k'};
+  if(/\bdeka\b|ocr|spartan|adventure|obstacle/.test(t))return {category:'race', raceType:'other'};
+  if(/^strength-|squat|deadlift|bench|1rm|hypertroph|muscle|\bstrength\b|\blift/.test(t))
+                                                       return {category:'strength', raceType:''};
+  if(/fitness|general|health|conditioning|base/.test(t))return {category:'fitness', raceType:''};
+  return {category:'custom', raceType:''};             // unrecognised — don't fake a race type
+}
+// Push the profile's goal into the engine store so prescriptions follow it.
+function _syncGoalToEngine(goalText){
+  const g=String(goalText||'').trim(); if(!g) return false;
+  const c=_classifyGoal(g); if(!c) return false;
+  try{
+    localStorage.setItem('ht-goal', g);
+    localStorage.setItem('ht-goal-category', c.category);
+    localStorage.setItem('ht-goal-race-type', c.raceType);
+    if(c.category!=='strength'){                        // stale lift targets would skew strength work
+      localStorage.removeItem('ht-goal-strength-type');
+      localStorage.removeItem('ht-goal-strength-lift');
+      localStorage.removeItem('ht-goal-strength-target');
+    }
+  }catch(e){}
+  try{ trainGoal = g; }catch(e){}
+  // Recompute so athleteState.identity.goal (what the engine branches on) reflects
+  // the new goal immediately rather than at the next incidental recompute.
+  try{ if(typeof recomputeAthleteState==='function') recomputeAthleteState(); }catch(e){}
+  return true;
+}
+// True when the engine is still prescribing for a goal the athlete has replaced.
+// This catches accounts that ALREADY diverged before this fix shipped — they have
+// no recorded transition, just a quietly stale engine goal.
+function _liveGoalMismatch(){
+  const pg=((typeof coachProfile==='object'&&coachProfile&&coachProfile.goal)||'').trim();
+  if(!pg) return null;
+  let eg=''; try{ eg=((typeof trainGoal==='string'&&trainGoal)||localStorage.getItem('ht-goal')||'').trim(); }catch(e){}
+  if(!eg || eg===pg) return null;
+  const a=_classifyGoal(pg), b=_classifyGoal(eg);
+  const sameShape = a&&b&&a.category===b.category&&a.raceType===b.raceType;
+  if(sameShape) return null;                            // same kind of goal, just reworded
+  return { profileGoal:pg, engineGoal:eg };
+}
+function adoptCurrentGoal(){
+  const m=_liveGoalMismatch(); if(!m) return false;
+  _syncGoalToEngine(m.profileGoal);
+  try{ if(savedProgram){ savedProgram.goalDrift={ from:m.engineGoal, to:m.profileGoal,
+        raceFrom:'', raceTo:'', goalChanged:true, raceChanged:false };
+        localStorage.setItem('ht-program', JSON.stringify(savedProgram)); } }catch(e){}
+  try{ recomputeAthleteState(); }catch(e){}
+  try{ renderPlan(typeof currentProgramWeek!=='undefined'?currentProgramWeek:1); }catch(e){}
+  try{ toast('Training for: '+m.profileGoal.slice(0,40)); }catch(e){}
+  return true;
+}
 // ── Goal drift: the athlete changed what they're training for ────────────────
 // The block keeps its original shape (changing a program's type/sessions under an
 // athlete mid-block is destructive, and only they know whether to rebuild or ride
@@ -10540,6 +10608,20 @@ function renderGoalDriftPrompt(){
   const el=document.getElementById('goal-drift-prompt'); if(!el) return;
   el.innerHTML='';
   const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  // Accounts that diverged before this shipped have no recorded transition — the
+  // engine is just quietly prescribing for an old goal. Surface that first.
+  const live=(!(prog&&prog.goalDrift)) ? _liveGoalMismatch() : null;
+  if(live){
+    const e=s=>String(s||'').slice(0,60).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    el.innerHTML=`<div class="card" style="border:1px solid rgba(240,180,41,.45);background:rgba(240,180,41,.08);margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;color:#f0b429;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Your plan is following an old goal</div>
+      <div style="font-size:14px;color:var(--text);line-height:1.55;">Your profile says <b>${e(live.profileGoal)}</b>, but your training is still being generated for <b>${e(live.engineGoal)}</b> — the goal set when you first signed up.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button onclick="adoptCurrentGoal()" style="flex:1 1 100%;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">Train for ${e(live.profileGoal)}</button>
+        <button onclick="openCoachSetup()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-weight:600;font-size:13px;cursor:pointer;">Change my goal</button>
+      </div></div>`;
+    return;
+  }
   const d=prog&&prog.goalDrift; if(!d) return;
   const esc=s=>String(s||'').slice(0,60).replace(/&/g,'&amp;').replace(/</g,'&lt;');
   const line = d.goalChanged
@@ -13096,6 +13178,9 @@ function coachSetupNext() {
     try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
     try { if (coachProfile.raceDate) localStorage.setItem('ht-race-date', coachProfile.raceDate); } catch(e) {}
     try { _noteGoalChange(_prevGoal, _prevRace); } catch(e) {}
+    // Keep the ENGINE's goal in step — without this the prescription keeps
+    // following whatever was chosen at onboarding, forever.
+    try { if (coachProfile.goal && coachProfile.goal !== _prevGoal) _syncGoalToEngine(coachProfile.goal); } catch(e) {}
     renderCoachCard();
     coachMessages = [{role:'assistant', text:coachIntro()}];
     closeOv('coach-setup-overlay');
