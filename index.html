@@ -541,6 +541,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 </style>
 </head>
 <body>
+<div id="stale-origin-banner"></div>
 <div id="app">
 
 <!-- TODAY -->
@@ -744,7 +745,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev30</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev31</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -2770,6 +2771,34 @@ const BACKUP_KEYS = ['ht-program','ht-program-week','ht-baselines','ht-recovery'
   'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
   'ht-coach-memory','ht-custom','ht-tmpl','ht-theme','ht-palette','ht-card-theme',
   'ht-units-run','ht-units-strength','ht-pending-review'];
+// ── Dead-origin guard ────────────────────────────────────────────────────────
+// The repo moved from bruces6 → xolacreator, so GitHub Pages moved with it. The
+// old origin keeps serving its last pre-transfer build forever: three deploys in
+// a row landed correctly and were invisible, and the frozen build looked like the
+// app had REGRESSED because it predates recent work. localStorage is per-origin,
+// so the data is stranded there too — the only safe move is export, then import
+// on the live origin. A dead origin must say so instead of quietly serving 2026.
+const LIVE_ORIGIN = 'xolacreator.github.io';
+const DEAD_ORIGINS = ['bruces6.github.io'];
+function _liveAppURL(){ return 'https://'+LIVE_ORIGIN+'/training-app/'; }
+function isStaleOrigin(){
+  try{ return DEAD_ORIGINS.indexOf(location.hostname) !== -1; }catch(e){ return false; }
+}
+function renderStaleOriginBanner(){
+  const el=document.getElementById('stale-origin-banner'); if(!el) return;
+  if(!isStaleOrigin()){ el.innerHTML=''; return; }
+  el.innerHTML=`<div style="position:fixed;top:0;left:0;right:0;z-index:99999;padding:calc(var(--sat,0px) + 10px) 14px 12px;background:#7a1f1f;color:#fff;font-family:var(--font);box-shadow:0 2px 12px rgba(0,0,0,.4);">
+    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.85;margin-bottom:5px;">This version is no longer updated</div>
+    <div style="font-size:13.5px;line-height:1.5;">The app moved to <b>${LIVE_ORIGIN}</b>. This address stopped receiving updates, so what you're looking at is an old build. <b>Export your data first</b> — it does not move with you.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+      <button onclick="exportData()" style="flex:1 1 46%;padding:10px;border:none;border-radius:9px;background:#fff;color:#7a1f1f;font-weight:700;font-size:13px;cursor:pointer;">1 · Export my data</button>
+      <a href="${_liveAppURL()}" style="flex:1 1 46%;padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,.5);color:#fff;font-weight:600;font-size:13px;text-align:center;text-decoration:none;">2 · Open the new app</a>
+    </div></div>`;
+  // Push the app down so the banner never covers the header.
+  try{ const a=document.getElementById('app'); if(a) a.style.paddingTop=(el.firstChild.offsetHeight||120)+'px'; }catch(e){}
+}
+try{ window.addEventListener('load', ()=>{ try{ renderStaleOriginBanner(); }catch(e){} }); }catch(e){}
+
 function exportData() {
   try {
     const storage={}; BACKUP_KEYS.forEach(k=>{ const v=localStorage.getItem(k); if(v!=null) storage[k]=v; });

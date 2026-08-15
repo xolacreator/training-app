@@ -53,6 +53,30 @@ The remote was updated by another process. Re-run the script — or pass the cur
 SHA from the error message as the 5th arg:
 `python3 scripts/github-push.py index.html bruces6 training-app <branch> <currentSHA>`.
 
+## ⚠️ The live URL — verify this before believing any deploy
+
+The repo was transferred `bruces6` → `xolacreator`, and GitHub Pages moved with it.
+
+| | |
+|---|---|
+| **Live app** | `https://xolacreator.github.io/training-app/` |
+| **Dead origin** | `https://bruces6.github.io/training-app/` — frozen at its last pre-transfer build, serves forever, never updates |
+
+`bruces6/training-app` still works as a **git/API remote** (GitHub redirects it), which is
+why pushes and Actions succeed against that name — that is NOT evidence the athlete is
+seeing the change.
+
+**A green Action is not proof of delivery.** Three consecutive deploys (rev28–30) landed
+correctly and were invisible, because the device was loading the dead origin — whose
+frozen build was *older* than recent work, so it looked like the app had regressed.
+
+**Verify a deploy by the build stamp actually served**, not by the workflow result:
+ask which URL is open and what More → build stamp reads. The stamp exists for this.
+
+`localStorage` is per-origin, so data does not follow the URL: export on the old origin,
+import on the new one. `index.html` carries a `isStaleOrigin()` guard that shows a
+migration banner on any origin in `DEAD_ORIGINS` — add to that list if this happens again.
+
 ## Deploying to production (GitHub Pages, `main` branch)
 
 Production is served by GitHub Pages via the **Deploy Action on push to `main`**
@@ -115,7 +139,7 @@ Set these in **Workers & Pages → training-app-api → Settings → Variables &
 |----------|-------|
 | `STRAVA_CLIENT_ID` | From Strava developer portal |
 | `STRAVA_CLIENT_SECRET` | From Strava developer portal |
-| `APP_URL` | `https://bruces6.github.io/training-app` (or wherever the PWA is hosted) |
+| `APP_URL` | `https://xolacreator.github.io/training-app` — **must match the live origin**; it is the Strava OAuth redirect target (`worker/index.js:61,80`), so a stale value bounces auth to the dead origin |
 | `HEALTH_DATA` | KV namespace binding |
 
 If Strava token refresh fails, check these first.
