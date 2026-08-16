@@ -745,7 +745,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev34</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-08-15 · rev35</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -2803,7 +2803,7 @@ function normaliseSessions(arr) {
 // load produced a backup containing recovery data and no training history at all,
 // with no error. The rescue/corrupt keys ride along so a damaged store is never
 // left behind on the dead device. Keep raw storage authoritative.
-const BACKUP_KEYS = ['ht-v4','ht-v4-rescue','ht-v4-corrupt',
+const BACKUP_KEYS = ['ht-v4','ht-v4-rescue','ht-v4-corrupt','ht-race-date',
   'ht-program','ht-program-week','ht-baselines','ht-recovery','ht-availability',
   'ht-plan-start','ht-plan-type','ht-goal','ht-goal-category','ht-goal-race-type',
   'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
@@ -4787,6 +4787,9 @@ function _planContextForBrain(week){
 function _actionScope(a){ return String(a && a.scope||'').toLowerCase()==='forward' ? 'forward' : 'once'; }
 function _validatePlanAction(a, wk){
   if(!a || typeof a!=='object') return null;
+  // Locality is structural: the validated action carries the week it applies to,
+  // so it can never be re-targeted by a flag set somewhere else.
+  const _wk = parseInt(a.week) || parseInt(wk) || 1;
   const DOW=_PLAN_DOW, has=d=>DOW.includes(d);
   const slot=d=>{ try{ return _progWeekSessions(wk).find(x=>x.day===d); }catch(e){ return null; } };
   const t=String(a.action||'').toLowerCase();
@@ -4794,17 +4797,17 @@ function _validatePlanAction(a, wk){
   if(t==='move'){ const f=a.from,to=a.to;
     if(!has(f)||!has(to)||f===to) return null;
     const s=slot(f); if(!s||!s.session) return null;                     // nothing to move
-    return { action:'move', from:f, to, scope:sc, why:String(a.why||'').slice(0,160) }; }
+    return { action:'move', week:_wk, from:f, to, scope:sc, why:String(a.why||'').slice(0,160) }; }
   if(t==='remove'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
     if(!s||!s.session) return null;
-    return { action:'remove', day:d, scope:sc, why:String(a.why||'').slice(0,160) }; }
+    return { action:'remove', week:_wk, day:d, scope:sc, why:String(a.why||'').slice(0,160) }; }
   if(t==='add'){ const d=a.day; if(!has(d)) return null;
     const ty=String(a.type||'easy').toLowerCase();
     if(!_ADD_PLAN_TYPES.some(([v])=>v===ty)) return null;
-    return { action:'add', day:d, type:ty, scope:sc, why:String(a.why||'').slice(0,160) }; }
+    return { action:'add', week:_wk, day:d, type:ty, scope:sc, why:String(a.why||'').slice(0,160) }; }
   if(t==='rename'){ const d=a.day; if(!has(d)) return null; const s=slot(d);
     if(!s||!s.session||!a.name) return null;
-    return { action:'rename', day:d, id:s.id, name:String(a.name).slice(0,60), why:String(a.why||'').slice(0,160) }; }
+    return { action:'rename', week:_wk, day:d, id:s.id, name:String(a.name).slice(0,60), why:String(a.why||'').slice(0,160) }; }
   // Turn a day into an A/B choice. `types` are session TYPES (the app creates the
   // sessions); an optional readiness rule picks between them automatically.
   // ── Block-level actions (span weeks, not a single day) ───────────────────
@@ -4815,19 +4818,19 @@ function _validatePlanAction(a, wk){
     const n=Math.min(3, raw);                                        // clamp an over-long request
     try{ if(!savedProgram||!savedProgram.race) return null;          // needs a race anchor
          if(savedProgram.race.week-n < (typeof _progActualWeek==='function'?_progActualWeek():1)) return null; }catch(e){ return null; }
-    return { action:'set_taper', weeks:n, why:String(a.why||'').slice(0,160) };
+    return { action:'set_taper', week:_wk, weeks:n, why:String(a.why||'').slice(0,160) };
   }
   // Re-anchor the block to the athlete's race date.
   if(t==='reanchor'){
     try{ if(!athleteRaceDate()) return null; }catch(e){ return null; }
-    return { action:'reanchor', why:String(a.why||'').slice(0,160) };
+    return { action:'reanchor', week:_wk, why:String(a.why||'').slice(0,160) };
   }
   if(t==='set_options'){ const d=a.day; if(!has(d)) return null;
     const types=(a.types||[]).map(x=>String(x).toLowerCase()).filter(x=>_ADD_PLAN_TYPES.some(([v])=>v===x));
     if(types.length<2) return null;
     const rule=(a.rule&&String(a.rule.type||'').toLowerCase()==='readiness')
       ? { type:'readiness', threshold:Math.max(1,Math.min(99, parseInt(a.rule.threshold)||60)) } : null;
-    return { action:'set_options', day:d, types:types.slice(0,2), rule, why:String(a.why||'').slice(0,160) }; }
+    return { action:'set_options', week:_wk, day:d, types:types.slice(0,2), rule, why:String(a.why||'').slice(0,160) }; }
   return null;
 }
 // Create (or reuse) a program session for a plan type — used by option actions.
@@ -4908,31 +4911,159 @@ function _renderCoachPlanProposal(){
       <button onclick="closeInsight()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-weight:600;font-size:14px;cursor:pointer;">Not now</button>
     </div>`);
 }
+// ── Transactional plan edits ─────────────────────────────────────────────────
+// The old apply path ran seven mutators inside a per-action try/catch(e){} and
+// returned a count. An action that threw halfway left the plan partly rewritten
+// and still reported success. Every edit now runs against a CLONE; the result is
+// checked against structural invariants; and it commits whole or refuses whole.
+function _clonePlan(p){ try{ return JSON.parse(JSON.stringify(p)); }catch(e){ return null; } }
+
+// Invariants that must hold of any plan we are willing to commit. Returns a list
+// of violations — empty means the candidate is structurally sound.
+function _planInvariants(next, prev){
+  const bad=[];
+  if(!next || typeof next!=='object') return ['plan is not an object'];
+  if(!Array.isArray(next.dayMap) || next.dayMap.length!==7) bad.push('dayMap must have 7 days');
+  const ids=new Set((next.sessions||[]).map(s=>s&&s.id).filter(Boolean));
+  const refOk=e=>{
+    if(e==null) return true;
+    if(typeof e==='string') return ids.has(e);
+    if(Array.isArray(e&&e.opts)) return e.opts.every(x=>x==null||ids.has(x));
+    if(Array.isArray(e&&e.rotate)) return e.rotate.every(x=>x==null||ids.has(x));
+    return false;
+  };
+  (next.dayMap||[]).forEach((e,i)=>{ if(!refOk(e)) bad.push('dayMap['+i+'] references a session that does not exist'); });
+  Object.keys(next.overrides||{}).forEach(k=>{
+    const m=next.overrides[k];
+    if(!Array.isArray(m) || m.length!==7) { bad.push('overrides['+k+'] must have 7 days'); return; }
+    m.forEach((e,i)=>{ if(!refOk(e)) bad.push('overrides['+k+']['+i+'] references a session that does not exist'); });
+  });
+  if(!(parseInt(next.weeks)>=1)) bad.push('weeks must be at least 1');
+  // Elapsed weeks are history. An edit may never rewrite them.
+  if(prev){
+    let cur=1; try{ cur=_progActualWeek(); }catch(e){}
+    for(let w=1; w<cur; w++){
+      const a=(prev.overrides||{})[w], b=(next.overrides||{})[w];
+      if(a && JSON.stringify(a)!==JSON.stringify(b)) bad.push('week '+w+' is in the past and was modified');
+    }
+  }
+  return bad;
+}
+
+// Returns null when the action can run, or a human reason why it cannot. Evaluated
+// against whatever `savedProgram` currently points at — inside a transaction that is
+// the clone, so a batch is checked in sequence rather than all against the start state.
+function _actionPrecondition(a, wk){
+  const at=d=>{ try{ return _progWeekSessions(wk).find(x=>x.day===d); }catch(e){ return null; } };
+  const t=String(a&&a.action||'').toLowerCase();
+  if(t==='move'){
+    if(a.from===a.to) return 'move source and target are the same day';
+    const s=at(a.from);
+    if(!s || !s.session) return `nothing scheduled on ${a.from} in week ${wk}`;
+    const dst=at(a.to);
+    if(dst && dst.session) return `${a.to} already has a session in week ${wk}`;
+    return null;
+  }
+  if(t==='remove'){
+    const s=at(a.day);
+    if(!s || !s.session) return `nothing scheduled on ${a.day} in week ${wk}`;
+    return null;
+  }
+  if(t==='add'){
+    const s=at(a.day);
+    if(s && s.session) return `${a.day} already has a session in week ${wk}`;
+    return null;
+  }
+  if(t==='rename'){
+    try{ if(!(savedProgram.sessions||[]).some(x=>x.id===a.id)) return 'that session no longer exists'; }catch(e){}
+    return null;
+  }
+  return null;   // block-level verbs validate themselves
+}
+
+// Apply `actions` atomically. Every action must carry its own `week` — locality is
+// structural, not inferred from a scope flag set elsewhere.
+// Returns { ok, applied, failed, violations, error }.
+function applyPlanActionsTx(actions, opts){
+  opts = opts || {};
+  const list = Array.isArray(actions) ? actions : [];
+  if(!list.length) return { ok:false, applied:0, failed:[], violations:[], error:'no actions' };
+  if(typeof savedProgram==='undefined' || !savedProgram)
+    return { ok:false, applied:0, failed:[], violations:[], error:'no active program' };
+
+  const original = savedProgram;
+  const clone = _clonePlan(original);
+  if(!clone) return { ok:false, applied:0, failed:[], violations:[], error:'could not snapshot the plan' };
+
+  const failed=[]; let applied=0; let fatal=null;
+  _planTxnDepth++;
+  savedProgram = clone;                       // mutators operate on the clone
+  try{
+    for(const a of list){
+      const wk = parseInt(a && a.week) || parseInt(opts.week) || 1;
+      const sc = _actionScope(a);
+      // Preconditions are checked against the CLONE, so action N sees the effect of
+      // action N-1. The mutators cannot be trusted for this: moveProgramSession and
+      // removeProgramSessionFromDay both return true unconditionally, so a move from
+      // an empty day or a remove of nothing reports success. Other callers depend on
+      // that contract, so the check belongs here rather than in the mutators.
+      const pre=_actionPrecondition(a, wk);
+      if(pre){ failed.push({action:a, reason:pre}); continue; }
+      let ok=false;
+      try{
+        if(a.action==='move')             ok = !!moveProgramSession(a.from, a.to, {silent:true, scope:sc, week:wk});
+        else if(a.action==='remove')      ok = !!removeProgramSessionFromDay(a.day, {silent:true, scope:sc, week:wk});
+        else if(a.action==='add')       { _addPlan={day:a.day, type:a.type, scope:sc, week:wk}; _confirmAddToPlan(); ok=true; }
+        else if(a.action==='rename')      ok = !!editProgramSession(a.id, {name:a.name}, {silent:true});
+        else if(a.action==='set_taper')   ok = !!setTaperPlan(a.weeks, {silent:true});
+        else if(a.action==='reanchor')    ok = !!reanchorProgramToRace({silent:true});
+        else if(a.action==='set_options'){
+          const sids=(a.types||[]).map(t=>_sessionForType(t)).filter(Boolean);
+          const rule=a.rule?{ type:'readiness', threshold:a.rule.threshold, high:sids[0], low:sids[1] }:null;
+          ok = !!setDayOptions(a.day, sids, rule, {silent:true});
+        }
+        else { failed.push({action:a, reason:'unknown action'}); continue; }
+      }catch(err){
+        // A throw is fatal to the whole transaction — never a swallowed partial.
+        fatal = (err && err.message) || String(err);
+        failed.push({action:a, reason:fatal});
+        break;
+      }
+      if(ok) applied++; else failed.push({action:a, reason:'action did not apply'});
+    }
+  } finally {
+    savedProgram = original;                  // always restore before deciding
+    _planTxnDepth--;
+  }
+
+  if(fatal)          return { ok:false, applied:0, failed, violations:[], error:fatal };
+  if(failed.length)  return { ok:false, applied:0, failed, violations:[], error:'one or more actions did not apply' };
+
+  const violations=_planInvariants(clone, original);
+  if(violations.length) return { ok:false, applied:0, failed:[], violations, error:violations[0] };
+
+  saveProgramData(clone);                     // commit whole
+  return { ok:true, applied, failed:[], violations:[], error:null };
+}
+
 function applyCoachPlanProposal(){
   const p=_coachPlanProposal; if(!p) return 0;
-  let n=0;
-  p.actions.forEach(a=>{
-    try{
-      // Coach proposals adjust THIS week explicitly — never silently rewrite the
-      // template (and never trigger the athlete-facing scope prompt).
-      const sc=_actionScope(a);   // honour what the athlete actually asked for
-      if(a.action==='move')        { if(moveProgramSession(a.from,a.to,{silent:true,scope:sc,week:p.week})) n++; }
-      else if(a.action==='remove') { if(removeProgramSessionFromDay(a.day,{silent:true,scope:sc,week:p.week})) n++; }
-      else if(a.action==='add')    { _addPlan={day:a.day,type:a.type,scope:sc,week:p.week}; _confirmAddToPlan(); n++; }
-      else if(a.action==='rename') { if(editProgramSession(a.id,{name:a.name},{silent:true})) n++; }
-      else if(a.action==='set_taper'){ if(setTaperPlan(a.weeks,{silent:true})) n++; }
-      else if(a.action==='reanchor'){ if(reanchorProgramToRace({silent:true})) n++; }
-      else if(a.action==='set_options'){
-        const ids=a.types.map(t=>_sessionForType(t)).filter(Boolean);
-        const rule=a.rule?{ type:'readiness', threshold:a.rule.threshold, high:ids[0], low:ids[1] }:null;
-        if(setDayOptions(a.day, ids, rule, {silent:true})) n++; }
-    }catch(e){}
-  });
+  // Every action names its own week; the proposal week is only the fallback for
+  // actions authored before locality was structural.
+  const acts=(p.actions||[]).map(a=>({ ...a, week: parseInt(a.week)||parseInt(p.week)||1 }));
+  const r=applyPlanActionsTx(acts, {week:p.week});
   try{ closeInsight(); }catch(e){}
   try{ renderPlan(currentProgramWeek); }catch(e){}
-  toast(n?`Applied ${n} change${n>1?'s':''} to week ${p.week}`:'No changes applied');
+  if(r.ok){
+    const weeks=[...new Set(acts.map(a=>a.week))].sort((x,y)=>x-y);
+    toast(`Applied ${r.applied} change${r.applied>1?'s':''} to week ${weeks.join(', ')}`);
+  } else {
+    // Refuse whole. Say so — a half-applied plan reported as success is how the
+    // athlete ends up training something nobody chose.
+    toast('No changes made — ' + (r.error||'the plan would not be valid'));
+  }
   _coachPlanProposal=null;
-  return n;
+  return r.ok ? r.applied : 0;
 }
 // Render a Builder/AI-built session's authored content (name · detail · cue rows +
 // coaching notes) inside the program session overlay — no generated prescription.
@@ -8666,8 +8797,15 @@ function loadSavedProgram() {
   // (the calendar can still browse others; this just fixes "today").
   if (savedProgram && savedProgram.startDate) currentProgramWeek = _progActualWeek();
 }
+// Depth counter for a trial ("dry") plan mutation. While > 0 the existing mutators
+// still run and still mutate `savedProgram` — which is pointed at a CLONE — but
+// nothing is persisted and no derived state is recomputed. This is a flag the
+// writer checks, deliberately NOT a wrapper around saveProgramData: function
+// declarations hoist and a name-captured wrapper would recurse into itself.
+let _planTxnDepth = 0;
 function saveProgramData(data) {
   savedProgram = data;
+  if (_planTxnDepth > 0) return;                 // trial application — do not commit
   try { localStorage.setItem('ht-program', JSON.stringify(data)); } catch(e) {}
   try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
 }
