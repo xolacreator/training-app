@@ -4328,11 +4328,45 @@ function _programPhases(prog){
   });
 }
 // A relative weekly-load bar (0–1) from set bumps / deload, for the overview trend.
+// Relative load for week `w`, used by the plan overview's progression bars.
+//
+// This used to be a parallel formula — Math.min(1, (1 + 0.12*setsAdd) * ...) —
+// whose clamp made every working week return exactly 1.0, so the chart showed a
+// flat block no matter what was prescribed, and at setsAdd>=2 even the 4th-week
+// backoff vanished. It was computing its own answer instead of reading the one
+// the athlete actually trains. It now measures the REAL prescription: the same
+// ramp, cutback, deload and autoregulation scalar that _progressEndurance uses.
 function _weekLoadFactor(prog, w){
   const p=(prog.weeklyProgressions||[])[w-1]||{};
-  if(p.deload) return 0.5;
-  const base=1 + (p.setsAdd||0)*0.12;
-  return Math.min(1, base * (w%4===0?0.85:1));
+  const total=(prog.weeklyProgressions||[]).length || ((prog.weeks||6)+1);
+
+  // Preferred: sum the volume actually prescribed for that week's sessions.
+  try{
+    let km=0, mins=0, n=0;
+    (_progWeekSessions(w)||[]).forEach(slot=>{
+      const s=slot && slot.session; if(!s) return;
+      n++;
+      if(s.type==='endurance' && typeof _progressEndurance==='function'){
+        const rx=_progressEndurance(s, w, total);
+        const d=parseFloat(String(rx&&rx.distance||'').replace(/[^\d.]/g,''));
+        const m=parseFloat(String(rx&&rx.duration||'').replace(/[^\d.]/g,''));
+        if(!isNaN(d)&&d>0) km+=d; else if(!isNaN(m)&&m>0) mins+=m;
+      }
+    });
+    const measured = km>0 ? km : (mins>0 ? mins/6 : 0);   // ~6 min/km to a common scale
+    if(measured>0) return measured;
+    if(n===0) return 0;                                    // an empty week has no load
+  }catch(e){}
+
+  // Fallback when a week has no measurable prescription (strength/hybrid blocks):
+  // mirror the same shape rather than inventing a clamped one.
+  const build=Math.max(1, total-1);
+  const isDeload = p.deload || w>=total;
+  const wi=Math.min(w, build)-1;
+  const ramp = build>1 ? wi/(build-1) : 0;
+  const auto = (typeof _autoRegScalar==='function') ? _autoRegScalar(w) : 1;
+  const vmult = (isDeload?0.55 : (w%4===0?0.78:1)) * auto;
+  return (1 + (p.setsAdd||0)*0.12) * (0.75 + 0.35*ramp) * vmult;
 }
 // Program-level overview: periodization phases + a week-by-week progression table.
 // Answers "what's the shape of this block and why does each week change?"
