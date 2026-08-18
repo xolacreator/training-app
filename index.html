@@ -4193,6 +4193,48 @@ function _phaseRx(rt, phase){
   // what it means to change and mutating the base rx still reaches every phase.
   return { ...rx, ...ph[phase] };
 }
+// ── Responding to what actually happened ─────────────────────────────────────
+// You do not progress a session you did not do. Autoregulation already scales
+// the whole week's load, but that is a volume dial — it cannot tell "missed the
+// long run" from "missed an easy run", and it progresses the missed session
+// anyway. This holds the specific session at last week's step instead.
+//
+// Deliberately does NOT call computeWeekAbsorption: that derives prescribed load
+// through _progressEndurance, and this is consumed BY _progressEndurance, so
+// using it would recurse. Counts logged days against planned days only.
+function _missedRunTypes(week){
+  const out=new Set();
+  const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  if(!prog || !Array.isArray(prog.sessions)) return out;
+  let planned=[], logged=[];
+  try{ planned=(_progWeekSessions(week)||[]).filter(x=>x && x.session); }catch(e){ return out; }
+  if(!planned.length) return out;
+  try{ logged=_loggedInWindow(_weekWindow(week))||[]; }catch(e){ return out; }
+  // A week with nothing logged at all is more likely "not entered yet" than
+  // "skipped everything", so it must not silently freeze the whole block.
+  if(!logged.length) return out;
+  const loggedDays=new Set(logged.map(s=>String(s.day||'').slice(0,3)).filter(Boolean));
+  planned.forEach(slot=>{
+    if(loggedDays.has(String(slot.day||'').slice(0,3))) return;
+    const sess=slot.session;
+    const rt=(sess && sess.runType) ? (sess.runType==='threshold'?'tempo':sess.runType) : null;
+    if(rt) out.add(rt);
+  });
+  return out;
+}
+// Should `runType` hold at last week's step in `week`? Returns null or a reason.
+function progressionHold(runType, week, totalWeeks){
+  const w=parseInt(week)||1;
+  if(w<2) return null;
+  const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  // Only for the program that owns these weeks — never from ambient state.
+  const total=(prog && prog.weeklyProgressions) ? prog.weeklyProgressions.length : null;
+  if(!prog || total==null || (totalWeeks && total!==parseInt(totalWeeks))) return null;
+  let missed; try{ missed=_missedRunTypes(w-1); }catch(e){ return null; }
+  if(!missed || !missed.has(runType)) return null;
+  return { hold:true, runType, sinceWeek:w-1,
+           why:`held at week ${w-1}'s level — that session was missed last week` };
+}
 function _progressEndurance(sess, week, totalWeeks){
   const rt = (sess.runType==='threshold') ? 'tempo' : (sess.runType || 'easy');
   const baseRx = _rxForRunType(rt);
@@ -4210,7 +4252,11 @@ function _progressEndurance(sess, week, totalWeeks){
   const paces = _runPaces();
   const build = Math.max(1, (totalWeeks||6) - 1);      // last week = deload
   const isDeload = week >= (totalWeeks||6);
-  const wi = Math.min(week, build) - 1;
+  // If this session was missed last week, progress from where it actually left
+  // off rather than from where the calendar says it should be.
+  let _hold=null; try{ _hold=progressionHold(rt, week, totalWeeks); }catch(e){}
+  const rampWeek = _hold ? Math.max(1, week-1) : week;
+  const wi = Math.min(rampWeek, build) - 1;
   const ramp = build > 1 ? wi / (build - 1) : 0;       // 0 → 1 across the build
   const cutback = !isDeload && week % 4 === 0;
   // Weekly autoregulation scalar (progress/hold/cutback/deload) folds into the load.
@@ -4259,6 +4305,8 @@ function _progressEndurance(sess, week, totalWeeks){
   }
   // Phase 2: declare which library adaptation + prescription this run realises
   // (additive metadata; the concrete volume/pace above is unchanged).
+  if(_hold){ out.heldBack=true; out.heldReason=_hold.why;
+             out.note = (out.note?out.note+' · ':'') + 'Held at last week\'s level — you missed this session'; }
   try {
     out.adaptationId = _adaptationForRunType(rt);
     if (out.adaptationId){ const p = selectPrescription(out.adaptationId, {}); if (p) out.prescriptionId = p.id; }
