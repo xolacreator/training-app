@@ -4153,9 +4153,77 @@ function _strengthSetRows(ex, setsCount){
   return rows;
 }
 // Build the week-N prescription FROM the KB rx (KB-driven, not hardcoded) + baselines.
+// ── Phase-aware session design ───────────────────────────────────────────────
+// _programPhases() labelled Base/Build/Peak/Taper for the overview chart and
+// nothing consumed it, so every week was prescribed by one formula: same four
+// sessions, same interval format, add reps and add distance. A block was a
+// template with a volume ramp on it.
+//
+// This makes the phase a design input. The SHAPE of a session changes by phase —
+// interval distance, threshold format, and whether the long run carries race-pace
+// work — not merely its size. Volume progression still rides on top.
+function _phaseForWeek(prog, w){
+  try{
+    // A week explicitly marked as taper is a taper week. _programPhases only ever
+    // labels the FINAL week, so a 2- or 3-week taper set by setTaperPlan would
+    // otherwise still be prescribed peak-phase work.
+    const wp=(prog && prog.weeklyProgressions)||[];
+    if(wp[w-1] && wp[w-1].taper) return 'Taper';
+    if(wp[w-1] && wp[w-1].deload) return 'Deload';
+    const phases=_programPhases(prog);
+    const hit=phases.find(p=>p.w===w);
+    return hit ? hit.phase : 'Build';
+  }catch(e){ return 'Build'; }
+}
+// Per run type, what the work looks like in each phase. Reps stay a range so the
+// existing week-to-week ramp still applies WITHIN a phase.
+const _PHASE_DESIGN = {
+  intervals: {
+    Base:  { dist:'1 km',  repsStart:3, repsMax:5, recovery:'2 min jog',
+             note:'Aerobic power — longer reps, controlled effort' },
+    Build: { dist:'800 m', repsStart:5, repsMax:8, recovery:'90 s jog',
+             note:'Classic VO2max work — build repeatable volume' },
+    Peak:  { dist:'400 m', repsStart:8, repsMax:12, recovery:'60 s jog',
+             note:'Sharpening — shorter, faster, race-sharp' },
+    Taper: { dist:'400 m', repsStart:4, repsMax:5, recovery:'90 s jog',
+             note:'Taper — hold the pace, cut the volume' },
+  },
+  tempo: {
+    Base:  { repsStart:2, repsMax:3, minStart:8,  minMax:10, recovery:'90 s jog',
+             note:'Introduce threshold in broken blocks' },
+    Build: { repsStart:3, repsMax:4, minStart:10, minMax:12, recovery:'2 min jog',
+             note:'Build time-at-threshold' },
+    Peak:  { repsStart:1, repsMax:2, minStart:15, minMax:20, recovery:'3 min jog',
+             note:'Continuous threshold — race-specific sustained effort' },
+    Taper: { repsStart:2, repsMax:2, minStart:6,  minMax:8,  recovery:'2 min jog',
+             note:'Taper — short sharp threshold to stay honest' },
+  },
+  long: {
+    Base:  { segment:null,                                  note:'Build aerobic durability — all easy' },
+    Build: { segment:'final 20% at marathon effort',         note:'Introduce fatigue-resistant pace' },
+    Peak:  { segment:'2×5 km at goal race pace within the run', note:'Race specificity — rehearse the pace tired' },
+    Taper: { segment:null,                                  note:'Short and easy — stay fresh' },
+  },
+};
+function _phaseRx(rt, phase){
+  const d=_PHASE_DESIGN[rt==='threshold'?'tempo':rt];
+  if(!d) return null;
+  return d[phase] || d.Build || null;
+}
 function _progressEndurance(sess, week, totalWeeks){
   const rt = (sess.runType==='threshold') ? 'tempo' : (sess.runType || 'easy');
-  const rx = _rxForRunType(rt) || {};
+  const baseRx = _rxForRunType(rt);
+  // An unrecognised run type used to fall through to the easy-run branch, so a
+  // session labelled "Intervals" was silently prescribed as an easy run.
+  if(!baseRx && rt!=='easy' && rt!=='recovery'){
+    return { zone:'', unknownRunType:rt,
+             note:`No prescription defined for run type "${rt}" — this needs a known type before it can be programmed.` };
+  }
+  const rx = baseRx || {};
+  // Phase is a DESIGN input, not a chart label: it changes the shape of the work.
+  const _prog = (typeof savedProgram!=='undefined') ? savedProgram : null;
+  const _phase = (isDeloadPhaseHint=>isDeloadPhaseHint)(_prog ? _phaseForWeek(_prog, week) : 'Build');
+  const _pd = _phaseRx(rt, _phase) || {};
   const paces = _runPaces();
   const build = Math.max(1, (totalWeeks||6) - 1);      // last week = deload
   const isDeload = week >= (totalWeeks||6);
@@ -4172,20 +4240,35 @@ function _progressEndurance(sess, week, totalWeeks){
     let km = Math.round((rx.startKm + (rx.growKm||0)*ramp) * vmult);
     if (rx.capKm) km = Math.min(km, rx.capKm);
     out.distance = `${km} km`; out.duration = `~${Math.round(km*(rx.minPerKm||5.6))} min`; out.pace = pace;
-    out.note = isDeload ? 'Cutback long run' : cutback ? 'Cutback week — hold distance' : 'Build endurance — progress distance';
+    out.phase = _phase;
+    // The defining session of a race build: in Build and Peak it carries race-pace
+    // work, so the athlete rehearses goal pace on tired legs instead of only
+    // running further.
+    if(!isDeload && !cutback && _pd.segment){ out.segment = _pd.segment; out.intervals = _pd.segment; }
+    out.note = isDeload ? 'Cutback long run' : cutback ? 'Cutback week — hold distance' : (_pd.note || 'Build endurance — progress distance');
   } else if (rx.dist != null){                          // VO₂ intervals
-    const reps = isDeload ? (rx.deloadReps||4) : rampInt(rx.repsStart, rx.repsMax);
-    out.intervals = `${reps}×${rx.dist} @ ${pace}, ${rx.recovery||'90 s jog'}`;
+    const dist = _pd.dist || rx.dist;
+    const rec  = _pd.recovery || rx.recovery || '90 s jog';
+    const reps = isDeload ? (rx.deloadReps||4)
+               : rampInt(_pd.repsStart!=null?_pd.repsStart:rx.repsStart, _pd.repsMax!=null?_pd.repsMax:rx.repsMax);
+    out.intervals = `${reps}×${dist} @ ${pace}, ${rec}`;
     out.duration = `~${reps*4 + 20} min total`;
-    out.note = isDeload ? 'Deload — fewer reps' : 'Build VO₂max volume';
-    out.reps = reps; out.repSize = rx.dist; out.repPace = pace; out.recovery = rx.recovery||'90 s jog';
+    out.note = isDeload ? 'Deload — fewer reps' : (_pd.note || 'Build VO₂max volume');
+    out.phase = _phase;
+    out.reps = reps; out.repSize = dist; out.repPace = pace; out.recovery = rec;
   } else if (rx.minStart != null){                      // tempo / threshold (time-at-threshold)
-    const reps = isDeload ? (rx.deloadReps||2) : rampInt(rx.repsStart, rx.repsMax);
-    const mins = isDeload ? (rx.deloadMin||6) : rampInt(rx.minStart, rx.minMax);
-    out.intervals = `${reps}×${mins} min @ ${pace}, ${rx.recovery||'2 min jog'}`;
+    const rec  = _pd.recovery || rx.recovery || '2 min jog';
+    const reps = isDeload ? (rx.deloadReps||2)
+               : rampInt(_pd.repsStart!=null?_pd.repsStart:rx.repsStart, _pd.repsMax!=null?_pd.repsMax:rx.repsMax);
+    const mins = isDeload ? (rx.deloadMin||6)
+               : rampInt(_pd.minStart!=null?_pd.minStart:rx.minStart, _pd.minMax!=null?_pd.minMax:rx.minMax);
+    // A single long block is continuous threshold, not "1× n min".
+    out.intervals = reps===1 ? `${mins} min continuous @ ${pace}`
+                             : `${reps}×${mins} min @ ${pace}, ${rec}`;
     out.duration = `~${reps*mins + reps*2 + 20} min total`;
-    out.note = isDeload ? 'Deload — reduce threshold volume' : 'Build time-at-threshold';
-    out.reps = reps; out.repSize = `${mins} min`; out.repPace = pace; out.recovery = rx.recovery||'2 min jog';
+    out.note = isDeload ? 'Deload — reduce threshold volume' : (_pd.note || 'Build time-at-threshold');
+    out.phase = _phase;
+    out.reps = reps; out.repSize = `${mins} min`; out.repPace = pace; out.recovery = rec;
   } else {                                              // duration-based easy / recovery
     const dur = grow(rx.startMin!=null?rx.startMin:35)(rx.growMin!=null?rx.growMin:25);
     out.duration = `${dur} min`; out.pace = pace;
