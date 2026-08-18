@@ -4914,9 +4914,12 @@ Rules: max 3 actions; only the days Mon-Sun of THIS week; keep hard days separat
     txt=(r&&r.content&&r.content[0]&&r.content[0].text)||'';
   }catch(e){ _coachPlanFallback(wk, 'Coach unavailable right now - showing the engine proposal.'); return null; }
   let parsed=null; try{ const m=txt.match(/\{[\s\S]*\}/); parsed=m?JSON.parse(m[0]):null; }catch(e){}
-  const actions=((parsed&&parsed.actions)||[]).map(a=>_validatePlanAction(a,wk)).filter(Boolean).slice(0,3);
+  const _raw=((parsed&&parsed.actions)||[]);
+  const _cap=_capPlanActions(_raw.map(a=>_validatePlanAction(a,wk)).filter(Boolean), _raw.length);
+  const actions=_cap.actions;
   if(!actions.length){ _coachPlanFallback(wk, 'No safe changes suggested - here is the engine view.'); return null; }
-  _coachPlanProposal={ week:wk, summary:String((parsed&&parsed.summary)||'Proposed adjustments for this week.').slice(0,220), actions };
+  _coachPlanProposal={ week:wk, summary:String((parsed&&parsed.summary)||'Proposed adjustments for this week.').slice(0,220),
+                       actions, droppedInvalid:_cap.droppedInvalid, droppedCap:_cap.droppedCap };
   _renderCoachPlanProposal();
   return _coachPlanProposal;
 }
@@ -10202,6 +10205,18 @@ function _coachTemporalContext(){
   L.push(`Use "once" for a one-off - "this week", "tomorrow", "I'm travelling Thursday", "skip today". If it is genuinely ambiguous, choose "once" (the reversible one) and ask which they meant.`);
   return L.join('\n');
 }
+// Bound a proposal without hiding the bound. The old cap of 3 was compensating
+// for an apply path that could half-apply and report success; that path is now
+// transactional, so the limit exists only to stop a runaway proposal rewriting a
+// whole block in one go. A truncation is REPORTED — a silently dropped action
+// reads as "the coach chose not to do that", which is a lie.
+const MAX_PLAN_ACTIONS = 12;
+function _capPlanActions(valid, rawCount){
+  const kept = valid.slice(0, MAX_PLAN_ACTIONS);
+  const droppedInvalid = Math.max(0, (rawCount|0) - valid.length);
+  const droppedCap = Math.max(0, valid.length - kept.length);
+  return { actions: kept, droppedInvalid, droppedCap };
+}
 // ── Chat → plan actions ──────────────────────────────────────────────────────
 // Lets the conversational coach actually change the plan (same engine guardrails as
 // coachAdjustWeek): it may append a fenced ```plan {json} block; we validate every
@@ -10214,8 +10229,9 @@ function _extractPlanActions(text){
   let wk=1; try{ wk=_progActualWeek(); }catch(e){}
   let parsed=null; try{ parsed=JSON.parse(m[1]); }catch(e){ return {clean, actions:[]}; }
   const list=Array.isArray(parsed)?parsed:(parsed&&parsed.actions)||[];
-  const actions=list.map(a=>_validatePlanAction(a,wk)).filter(Boolean).slice(0,3);
-  return {clean, actions, week:wk};
+  const _cap=_capPlanActions(list.map(a=>_validatePlanAction(a,wk)).filter(Boolean), list.length);
+  return {clean, actions:_cap.actions, week:wk,
+          droppedInvalid:_cap.droppedInvalid, droppedCap:_cap.droppedCap};
 }
 function coachApplyChatActions(i){
   const msg=coachMessages[i]; if(!msg||!msg.planActions) return;
@@ -13501,7 +13517,8 @@ async function _callCoachAPI() {
     { const raw = data.content?.[0]?.text || '…';
       const pa = (typeof _extractPlanActions==='function') ? _extractPlanActions(raw) : {clean:raw,actions:[]};
       coachMessages.push({role:'assistant', text: pa.clean || raw,
-        ...(pa.actions && pa.actions.length ? {planActions:pa.actions, planWeek:pa.week} : {})}); }
+        ...(pa.actions && pa.actions.length ? {planActions:pa.actions, planWeek:pa.week,
+            droppedCap:pa.droppedCap||0, droppedInvalid:pa.droppedInvalid||0} : {})}); }
   } catch(err) {
     coachMessages.push({role:'assistant', text:`Sorry, something went wrong: ${err.message}`});
   } finally {
@@ -13660,6 +13677,7 @@ function renderCoachMessages() {
         : `<div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--border);">
              <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;">Change your plan?</div>
              ${rows}
+             ${(m.droppedCap||m.droppedInvalid) ? `<div style="font-family:var(--mono);font-size:9px;color:#f0b429;line-height:1.6;margin-top:7px;">${m.droppedCap?`${m.droppedCap} further change${m.droppedCap>1?'s were':' was'} proposed but not shown - ask again to continue. `:''}${m.droppedInvalid?`${m.droppedInvalid} suggestion${m.droppedInvalid>1?'s':''} didn't fit your plan and ${m.droppedInvalid>1?'were':'was'} discarded.`:''}</div>` : ''}
              <button onclick="coachApplyChatActions(${i})" style="width:100%;margin-top:9px;padding:9px;border:none;border-radius:9px;background:var(--accent);color:#0C0820;font-weight:700;font-size:12px;cursor:pointer;">Apply to plan</button></div>`;
     }
     return `<div style="display:flex;justify-content:${isUser?'flex-end':'flex-start'};margin-bottom:10px;">
