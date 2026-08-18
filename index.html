@@ -9752,6 +9752,77 @@ function weeklyAdaptationDashboard(week){
 }
 
 // Coach EV weekly review — adaptations + consistency + recovery/fatigue trend + next week.
+// ── Absorption: load absorbed against load prescribed ────────────────────────
+// The plan saying six sessions and the athlete doing four is the single most
+// useful fact available, and nothing computed it. Adherence existed only as a
+// session COUNT, derived inside weeklyAutoregulation — a surface computing its
+// own answer. This is the one computation; every surface reads it.
+//
+// Counts and load are reported separately on purpose: doing 4 of 6 sessions but
+// all the long ones is a different week from doing 6 of 6 short ones, and a
+// coach that cannot tell those apart is not reading the training.
+function computeWeekAbsorption(week){
+  const wk = parseInt(week) || 1;
+  const prog = (typeof savedProgram!=='undefined') ? savedProgram : null;
+  const out = { week:wk, prescribed:{sessions:0, km:0}, absorbed:{sessions:0, km:0},
+                sessionRatio:null, loadRatio:null, missed:[], unplanned:0, confidence:'none' };
+  if(!prog) return out;
+
+  const total = (prog.weeklyProgressions||[]).length || ((prog.weeks||6)+1);
+
+  // Prescribed: what the plan asks for in that week.
+  let planned=[];
+  try{ planned = (_progWeekSessions(wk)||[]).filter(x=>x && x.session); }catch(e){ planned=[]; }
+  out.prescribed.sessions = planned.length;
+  planned.forEach(slot=>{
+    const s=slot.session;
+    if(s && s.type==='endurance' && typeof _progressEndurance==='function'){
+      try{
+        const rx=_progressEndurance(s, wk, total);
+        const d=parseFloat(String(rx&&rx.distance||'').replace(/[^\d.]/g,''));
+        if(!isNaN(d)) out.prescribed.km += d;
+      }catch(e){}
+    }
+  });
+
+  // Absorbed: what was actually logged inside that week's calendar window.
+  let logged=[];
+  try{ logged = _loggedInWindow(_weekWindow(wk)) || []; }catch(e){ logged=[]; }
+  out.absorbed.sessions = logged.length;
+  out.absorbed.km = +logged.reduce((a,s)=>a+(parseFloat(s.dist||0)||0),0).toFixed(1);
+  out.prescribed.km = +out.prescribed.km.toFixed(1);
+
+  // Which prescribed days went untrained — the specific gap, not just a ratio.
+  const loggedDays = new Set(logged.map(s=>String(s.day||'').slice(0,3)).filter(Boolean));
+  out.missed = planned
+    .filter(slot=>!loggedDays.has(String(slot.day||'').slice(0,3)))
+    .map(slot=>({ day:slot.day, id:slot.id, name:(slot.session&&slot.session.name)||slot.id }));
+  out.unplanned = Math.max(0, logged.length - (planned.length - out.missed.length));
+
+  if(out.prescribed.sessions>0) out.sessionRatio = +(out.absorbed.sessions/out.prescribed.sessions).toFixed(3);
+  if(out.prescribed.km>0)       out.loadRatio    = +(out.absorbed.km/out.prescribed.km).toFixed(3);
+
+  // Say how much this is worth. A week with nothing prescribed supports no claim.
+  out.confidence = out.prescribed.sessions===0 ? 'none'
+                 : (out.absorbed.sessions===0 && out.prescribed.sessions>0) ? 'low'
+                 : (out.loadRatio!=null ? 'ok' : 'low');
+  return out;
+}
+// Absorption across the last `n` completed weeks plus the current one.
+function absorptionSummary(n){
+  const cur = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
+  const back = Math.max(1, parseInt(n)||4);
+  const weeks=[];
+  for(let w=Math.max(1,cur-back+1); w<=cur; w++){ try{ weeks.push(computeWeekAbsorption(w)); }catch(e){} }
+  const scored = weeks.filter(x=>x.sessionRatio!=null);
+  const mean = k => scored.length ? +(scored.reduce((a,x)=>a+(x[k]||0),0)/scored.length).toFixed(3) : null;
+  return { current: weeks[weeks.length-1]||null, weeks,
+           meanSessionRatio: mean('sessionRatio'),
+           meanLoadRatio: scored.filter(x=>x.loadRatio!=null).length
+             ? +(scored.filter(x=>x.loadRatio!=null).reduce((a,x)=>a+x.loadRatio,0)/scored.filter(x=>x.loadRatio!=null).length).toFixed(3)
+             : null };
+}
+
 function weeklyReview(opts={}){
   const wk = opts.week || (typeof _progActualWeek==='function'?_progActualWeek():1);
   const dash = weeklyAdaptationDashboard(wk);
@@ -9816,7 +9887,16 @@ function weeklyAutoregulation(opts={}){
   }catch(e){ return 0; } })();
   const acwrReliable = chronicSessions>=8;
   const acwr = acwrReliable ? (lm.acwr || 0) : 0;   // 0 = "no signal", never a trigger
-  const adherence = (rv.consistency && rv.consistency.planned) ? rv.consistency.done/Math.max(1,rv.consistency.planned) : null;
+  // Read absorption from the one athlete model rather than deriving a second,
+  // count-only adherence here. Falls back to the review only if the model is cold.
+  let adherence=null, loadAdherence=null;
+  try{
+    const st=(typeof athleteState==='function') ? athleteState() : null;   // accessor, not a variable
+    const ab=(st && st.absorption && st.absorption.current) || computeWeekAbsorption(rv.week);
+    if(ab){ adherence=ab.sessionRatio; loadAdherence=ab.loadRatio; }
+  }catch(e){}
+  if(adherence==null && rv.consistency && rv.consistency.planned)
+    adherence = rv.consistency.done/Math.max(1,rv.consistency.planned);
   const rThis = rv.recovery ? rv.recovery.thisWeek : null, rPrev = rv.recovery ? rv.recovery.prevWeek : null;
   const rDrop = (rThis!=null && rPrev!=null) ? (rPrev - rThis) : 0;   // +ve = readiness fell
   const overBudget = !!(rv.fatigue && rv.fatigue.overBudget);
@@ -9844,7 +9924,7 @@ function weeklyAutoregulation(opts={}){
   let conf=0.5; if(adherence!=null)conf+=0.15; if(rThis!=null&&rPrev!=null)conf+=0.2; if(acwrReliable)conf+=0.15; conf=Math.min(0.95,+conf.toFixed(2));
   const heads={progress:'Push on next week',hold:'Hold steady next week',cutback:'Ease back next week',deload:'Deload next week'};
   return { reviewWeek, targetWeek, decision, loadScalar:scalar, headline:heads[decision], reasons,
-    inputs:{ adherence, readinessThis:rThis, readinessPrev:rPrev, acwr:+acwr.toFixed(2), budgetPct, overBudget }, confidence:conf };
+    inputs:{ adherence, loadAdherence, readinessThis:rThis, readinessPrev:rPrev, acwr:+acwr.toFixed(2), budgetPct, overBudget }, confidence:conf };
 }
 // Apply a proposal → per-week load scalar the prescription progression multiplies in.
 function applyWeeklyAutoregulation(proposal, opts={}){
@@ -10473,6 +10553,7 @@ function recomputeAthleteState(){
     preferences,                          // per-day grouped {locked,preferred,available,avoid} or null
     equipment:  { shoes: [] },            // placeholder — Shoe Intelligence (Phase 7)
     events:     { nextRace: _asNextRace() },
+    absorption: (()=>{ try{ return absorptionSummary(4); }catch(e){ return null; } })(),
     sessionCount: Array.isArray(sessions) ? sessions.length : 0,
     trends: null,                         // placeholder — Athlete Timeline (Phase 1)
   };
@@ -13506,10 +13587,64 @@ function renderCoachMessages() {
   setTimeout(() => { el.scrollTop = el.scrollHeight; }, 40);
 }
 
+// ── Red-flag symptoms ────────────────────────────────────────────────────────
+// Cardiac-pattern symptoms end the conversation and are answered by this code,
+// never by the language model — no key, no network, no generated text, and no
+// setting that turns it off.
+//
+// Specificity is the whole design. An alert that fires on "my legs are dead"
+// teaches the athlete to swipe past the one that matters, so:
+//   · anatomy alone is never enough ("chest day", "chest press" must not fire)
+//   · exertional breathlessness and post-effort dizziness are NORMAL training
+//     sensations and only count when reported AT REST
+//   · "passed out" is excluded when it plainly means fell asleep
+const _RED_FLAG_EXCLUDE = /\b(chest (day|press|workout|fly|flye|session|routine)|leg day|dead ?legs|legs are dead|killed me|dying to|passed out (asleep|on the (couch|sofa|bed))|slept like)\b/i;
+// Rest context required for the two symptoms that are ordinary during exercise.
+const _AT_REST = /\b(at rest|resting|sitting|sat down|lying|lay|laying|in bed|woke|waking|overnight|doing nothing|standing still|watching|desk|all day|since (this )?morning|even when i'?m not)\b/i;
+const _RED_FLAGS = [
+  { id:'chest_pain',    re:/\b(chest (pain|tightness|pressure|heaviness|discomfort)|pain in my chest|tight(ness)? in my chest|pressure in my chest|crushing)\b/i, rest:false,
+    label:'chest pain, tightness or pressure' },
+  { id:'referred_pain', re:/\b((pain|ache|numbness|tingling) (radiating|spreading|going|shooting) (down|into|to) my (left |right )?(arm|jaw|shoulder|neck)|jaw pain|left arm (pain|ache|numb))\b/i, rest:false,
+    label:'pain spreading to your arm, jaw or neck' },
+  { id:'fainting',      re:/\b(faint(ed|ing)?|black(ed)? out|blacking out|lost consciousness|passed out)\b/i, rest:false,
+    label:'fainting or blacking out' },
+  { id:'palpitations',  re:/\b(palpitations?|heart (is )?(racing|pounding|fluttering|skipping)|irregular (heart ?beat|pulse)|heart ?beat (irregular|erratic))\b/i, rest:true,
+    label:'palpitations at rest' },
+  { id:'breathless',    re:/\b(short(ness)? of breath|breathless|can'?t (catch my |get my )?breath|struggling to breathe|gasping)\b/i, rest:true,
+    label:'breathlessness at rest' },
+  { id:'dizziness',     re:/\b(dizzy|dizziness|light ?headed|room (is )?spinning|nearly (fainted|blacked out))\b/i, rest:true,
+    label:'dizziness at rest' },
+];
+function detectRedFlags(text){
+  const t=String(text||'');
+  if(!t.trim()) return [];
+  if(_RED_FLAG_EXCLUDE.test(t)) {
+    // Only suppress matches the exclusion actually explains; a message that says
+    // "chest day and then chest pain sitting down" must still fire.
+    const stripped=t.replace(_RED_FLAG_EXCLUDE,' ');
+    return _RED_FLAGS.filter(f=>f.re.test(stripped) && (!f.rest || _AT_REST.test(stripped)));
+  }
+  return _RED_FLAGS.filter(f=>f.re.test(t) && (!f.rest || _AT_REST.test(t)));
+}
+function _redFlagReply(flags){
+  const what=flags.map(f=>f.label).join(' and ');
+  return `**Stop training and get medical help.**\n\nYou've described ${what}. That is not something I can coach you through, and I'm not going to try — symptoms like these need a person who can examine you, today.\n\nIf it is happening right now, or with chest pain, call emergency services. Otherwise contact your doctor or an urgent care service before your next session.\n\nI've not changed anything in your plan. Your training will still be here.`;
+}
+
 async function sendCoachMessage() {
   const input = document.getElementById('coach-input');
   const text = input?.value?.trim();
   if (!text || coachTyping) return;
+  // Checked BEFORE the API-key gate: a red flag must interrupt even for an
+  // athlete who has no key configured and would otherwise just get a toast.
+  const flags = detectRedFlags(text);
+  if (flags.length) {
+    input.value=''; input.style.height='';
+    coachMessages.push({role:'user', text});
+    coachMessages.push({role:'assistant', text:_redFlagReply(flags), redFlag:flags.map(f=>f.id)});
+    renderCoachMessages();
+    return;                                   // the model is never called
+  }
   if (!hasValidAIKey()) { toast(getAIProvider()==='openai' ? 'Add an OpenAI API key in AI Plan Builder first' : 'Add a Claude API key in AI Plan Builder first'); return; }
   input.value = '';
   input.style.height = '';
