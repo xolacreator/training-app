@@ -9752,6 +9752,83 @@ function weeklyAdaptationDashboard(week){
 }
 
 // Coach EV weekly review — adaptations + consistency + recovery/fatigue trend + next week.
+// ── Provenance: every prescription must resolve to a knowledge domain ────────
+// Prescriptions carry an `adaptation`; the knowledge base is organised by domain.
+// Nothing joined the two, so no prescription could state what governed it. This
+// is that join — structural, not editorial.
+const ADAPTATION_DOMAINS = {
+  aerobic_durability:   ['aerobic_development','long_runs'],
+  lactate_threshold:    ['lactate_threshold'],
+  vo2max:               ['energy_systems','aerobic_development'],
+  running_economy:      ['running_economy','biomechanics'],
+  force_production:     ['maximal_strength'],
+  strength_maintenance: ['maximal_strength','volume_landmarks'],
+  power:                ['power_explosiveness'],
+  work_capacity:        ['strength_endurance','energy_systems'],
+  race_specificity:     ['race_specific'],
+  recovery:             ['recovery_science','recovery_fatigue'],
+};
+// Citations, keyed by domain id. DELIBERATELY EMPTY.
+//
+// The knowledge base asserts 35 domains and cites nothing. Populating this with
+// plausible-looking references would be worse than leaving it bare: it would
+// make unsourced guidance read as evidence-based, which is the exact failure the
+// "language is capped by evidence" rule exists to prevent. Add entries only from
+// a source someone has actually read. Until then the app must say so, and
+// evidenceLanguage() below makes it say so.
+const KB_CITATIONS = {};
+function _kbDomain(id){
+  for(const kb of [typeof RUNNING_KB!=='undefined'?RUNNING_KB:null,
+                   typeof STRENGTH_KB!=='undefined'?STRENGTH_KB:null]){
+    if(!kb || !Array.isArray(kb.domains)) continue;
+    const d=kb.domains.find(x=>x && x.id===id);
+    if(d) return d;
+  }
+  return null;
+}
+// What governs this prescription, and how strongly can we speak about it?
+function resolvePrescriptionSource(rxId){
+  let rx=null;
+  try{ rx=(PRESCRIPTION_KB.prescriptions||[]).find(p=>p.id===rxId)||null; }catch(e){}
+  if(!rx) return { rxId, found:false, adaptation:null, domains:[], sourced:false, cited:false, tier:null };
+  const ids=ADAPTATION_DOMAINS[rx.adaptation]||[];
+  const domains=ids.map(id=>{ const d=_kbDomain(id);
+      return d ? { id, title:d.title, sourceTier:d.sourceTier||null,
+                   citations:(KB_CITATIONS[id]||[]).slice() } : null; })
+    .filter(Boolean);
+  // The weakest tier governs: a claim is only as good as its thinnest support.
+  const order={established:3, accepted:2, methodology:1, synthesis:0};
+  const tier = domains.length
+    ? domains.map(d=>d.sourceTier).filter(Boolean).sort((a,b)=>(order[a]??0)-(order[b]??0))[0] || null
+    : null;
+  return { rxId, found:true, adaptation:rx.adaptation, domains,
+           sourced: domains.length>0,
+           cited: domains.some(d=>d.citations.length>0),
+           tier };
+}
+// Coverage report — the honest answer to "is anything unsourced?".
+function auditPrescriptionSources(){
+  let all=[]; try{ all=(PRESCRIPTION_KB.prescriptions||[]).map(p=>p.id); }catch(e){}
+  const rows=all.map(resolvePrescriptionSource);
+  return {
+    total: rows.length,
+    resolved: rows.filter(r=>r.sourced).length,
+    unresolved: rows.filter(r=>!r.sourced).map(r=>r.rxId),
+    cited: rows.filter(r=>r.cited).length,
+    uncited: rows.filter(r=>r.sourced && !r.cited).map(r=>r.rxId),
+    byTier: rows.reduce((a,r)=>{ const k=r.tier||'none'; a[k]=(a[k]||0)+1; return a; }, {}),
+  };
+}
+// Caps how strongly a recommendation may be phrased. Strong claims need strong
+// support; where nothing governs a recommendation, say so rather than sounding
+// equally confident everywhere.
+function evidenceLanguage(rxId){
+  const r=resolvePrescriptionSource(rxId);
+  if(!r.sourced)  return { strength:'unsourced', hedge:"I don't have anything in my knowledge base governing this — treat it as a starting point, not a recommendation.", may:['suggest','try'], mustNot:['proven','evidence shows','research confirms'] };
+  if(!r.cited)    return { strength:'uncited',   hedge:`Based on ${r.domains.map(d=>d.title).join(' and ')}, which I hold as ${r.tier||'general'} practice rather than a cited result.`, may:['generally','commonly','typically'], mustNot:['proven','studies show','research confirms'] };
+  return { strength:'cited', hedge:`Supported by ${r.domains.map(d=>d.title).join(' and ')}.`, may:['research indicates','evidence supports'], mustNot:['proven beyond doubt'] };
+}
+
 // ── Absorption: load absorbed against load prescribed ────────────────────────
 // The plan saying six sessions and the athlete doing four is the single most
 // useful fact available, and nothing computed it. Adherence existed only as a
