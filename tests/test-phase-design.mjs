@@ -29,18 +29,31 @@ const block=await page.evaluate(()=>{
 });
 
 check('Phase design API exists', await page.evaluate(()=>
-  ['_phaseForWeek','_phaseRx','_PHASE_DESIGN'].every(n=>{try{return typeof eval(n)!=='undefined';}catch(e){return false;}})));
+  ['_phaseForWeek','_phaseRx'].every(n=>{try{return typeof eval(n)==='function';}catch(e){return false;}})));
+// Phase variants must live in the KNOWLEDGE BASE, not in app code.
+check('Phase variants are KB data, not hardcoded', await page.evaluate(()=>{
+  const rx=runningDomain('lactate_threshold').rx;
+  return !!(rx.phases && rx.phases.Peak) && typeof _PHASE_DESIGN==='undefined'; }));
+check('Mutating a KB phase variant changes the session', await page.evaluate(()=>{
+  const rx=runningDomain('vo2max').rx;
+  const before=_progressEndurance({runType:'intervals'},11,13).intervals;
+  rx.phases.Peak.dist='300 m';
+  const after=_progressEndurance({runType:'intervals'},11,13).intervals;
+  rx.phases.Peak.dist='400 m';
+  return /300 m/.test(after) && !/300 m/.test(before); }));
 
 // ── The interval FORMAT changes by phase, not just the rep count ───────────
 const fmt=w=>(block.find(r=>r.w===w).int.match(/×([\d\s]*(km|m))/)||[])[1];
-check('Base uses long reps (1 km)', /1 km/.test(block.find(r=>r.w===2).int), block.find(r=>r.w===2).int);
+// Base is the KB's canonical prescription — phases deviate FROM it rather than
+// replacing it, so mutating the base rx still reaches week 1.
+check('Base uses the canonical KB prescription', /800 m/.test(block.find(r=>r.w===2).int), block.find(r=>r.w===2).int);
 check('Build uses classic 800s', /800 m/.test(block.find(r=>r.w===6).int), block.find(r=>r.w===6).int);
 check('Peak sharpens to 400s', /400 m/.test(block.find(r=>r.w===11).int), block.find(r=>r.w===11).int);
 check('The interval distance genuinely changes across the block',
-  new Set(block.map(r=>fmt(r.w))).size>=3, JSON.stringify([...new Set(block.map(r=>fmt(r.w)))]));
+  new Set(block.map(r=>fmt(r.w))).size>=2, JSON.stringify([...new Set(block.map(r=>fmt(r.w)))]));
 
 // ── Threshold format changes: broken blocks → continuous ──────────────────
-check('Base threshold is broken into short blocks', /2×8 min/.test(block.find(r=>r.w===1).tempo), block.find(r=>r.w===1).tempo);
+check('Base threshold is broken into short blocks', /^\d×[89] min/.test(block.find(r=>r.w===1).tempo), block.find(r=>r.w===1).tempo);
 check('Peak threshold is long sustained work', /\d\d min/.test(block.find(r=>r.w===10).tempo) &&
   parseInt(block.find(r=>r.w===10).tempo.match(/×(\d+) min/)[1])>=15, block.find(r=>r.w===10).tempo);
 check('Peak threshold is capped at a sane volume (not 2×30)', await page.evaluate(()=>{
@@ -64,10 +77,13 @@ check('...and in long-run specificity', (w2.long.segment||null)!==(w11.long.segm
 // ── A real taper phase, not just the final week ───────────────────────────
 check('Weeks flagged as taper are prescribed as taper', await page.evaluate(()=>{
   savedProgram.weeklyProgressions[9].taper=true;   // week 10
-  const ph=_phaseForWeek(savedProgram,10);
+  const ph=_phaseForWeek(10, 13, savedProgram);
   const t=_progressEndurance(savedProgram.sessions.find(s=>s.id==='int'), 10, 13);
   delete savedProgram.weeklyProgressions[9].taper;
-  return ph==='Taper' && /4×400 m|5×400 m/.test(t.intervals); }));
+  return ph==='Taper' && /[45]×400 m/.test(t.intervals); }));
+check('Phase does not depend on ambient program state', await page.evaluate(()=>{
+  const a=_phaseForWeek(2,13,null), b=_phaseForWeek(11,13,null);
+  return a==='Base' && b==='Peak'; }));
 
 // ── An unknown run type is refused, not silently made an easy run ─────────
 check('An unrecognised run type is reported, not degraded to easy', await page.evaluate(()=>{

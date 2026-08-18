@@ -66,7 +66,16 @@ export const RUNNING_DOMAINS = [
     recovery: ['Moderate cost; avoid stacking with VO₂max or hard lifting on adjacent days.'],
     contraindications: ['Overuse → chronic "grey-zone" grind with little adaptation.'],
     relatedTo: ['vo2max','energy_systems','race_specific'],
-    rx: { runType:'tempo', paceKey:'threshold', zone:'Z3–4', repsStart:3, repsMax:5, minStart:8, minMax:10, recovery:'2 min jog', deloadReps:2, deloadMin:6 },
+    rx: { runType:'tempo', paceKey:'threshold', zone:'Z3–4', repsStart:3, repsMax:5, minStart:8, minMax:10, recovery:'2 min jog', deloadReps:2, deloadMin:6,
+          // How threshold work is SHAPED by training phase. Broken blocks introduce
+          // the intensity; the build accumulates time at threshold; the peak makes it
+          // continuous and race-specific. Volume still ramps within each phase.
+          phases: {
+            Base:  { note:'Introduce threshold in broken blocks' },   // canonical rx: 3×8 → 5×10
+            Build: { repsStart:3, repsMax:4, minStart:10, minMax:12, recovery:'2 min jog', note:'Build time-at-threshold' },
+            Peak:  { repsStart:1, repsMax:2, minStart:15, minMax:20, recovery:'3 min jog', note:'Continuous threshold — race-specific sustained effort' },
+            Taper: { repsStart:2, repsMax:2, minStart:6,  minMax:8,  recovery:'2 min jog', note:'Taper — hold the pace, cut the volume' },
+          } },
   },
   {
     id: 'vo2max', title: 'VO₂max', sourceTier: 'methodology',
@@ -78,7 +87,15 @@ export const RUNNING_DOMAINS = [
     recovery: ['High cost — most injury-prone; requires an aerobic base first; never adjacent to heavy lower-body lifting.'],
     contraindications: ['No aerobic base, or stacking with other hard sessions.'],
     relatedTo: ['energy_systems','speed_development','aerobic_development'],
-    rx: { runType:'intervals', paceKey:'vo2', zone:'Z5', repsStart:5, repsMax:10, dist:'800 m', recovery:'90 s jog', deloadReps:4 },
+    rx: { runType:'intervals', paceKey:'vo2', zone:'Z5', repsStart:5, repsMax:10, dist:'800 m', recovery:'90 s jog', deloadReps:4,
+          // Rep DISTANCE changes by phase, not just rep count: longer reps build
+          // aerobic power, 800s are the classic VO2max dose, 400s sharpen for racing.
+          phases: {
+            Base:  { note:'Build repeatable VO2max volume' },          // canonical rx: 5×800 m
+            Build: { dist:'800 m', repsStart:5, repsMax:8,  recovery:'90 s jog', note:'Classic VO2max work — build repeatable volume' },
+            Peak:  { dist:'400 m', repsStart:8, repsMax:12, recovery:'60 s jog', note:'Sharpening — shorter, faster, race-sharp' },
+            Taper: { dist:'400 m', repsStart:4, repsMax:5,  recovery:'90 s jog', note:'Taper — hold the pace, cut the volume' },
+          } },
   },
   {
     id: 'running_economy', title: 'Running Economy', sourceTier: 'established',
@@ -112,7 +129,16 @@ export const RUNNING_DOMAINS = [
     recovery: ['High mechanical/connective load — schedule easy/rest after.'],
     contraindications: ['Jumping long-run distance too fast — common injury cause.'],
     relatedTo: ['aerobic_development','race_specific','recovery_science'],
-    rx: { runType:'long', paceKey:'easy', zone:'Z2', startKm:12, growKm:9, capKm:32, minPerKm:5.6 },
+    rx: { runType:'long', paceKey:'easy', zone:'Z2', startKm:12, growKm:9, capKm:32, minPerKm:5.6,
+          // The long run is the session that most defines a race build, so it gains
+          // specificity rather than only distance: aerobic in base, fatigue-resistant
+          // pace in the build, goal race pace rehearsed tired at the peak.
+          phases: {
+            Base:  { segment:null, note:'Build aerobic durability — all easy' },
+            Build: { segment:'final 20% at marathon effort', note:'Introduce fatigue-resistant pace' },
+            Peak:  { segment:'2×5 km at goal race pace within the run', note:'Race specificity — rehearse the pace tired' },
+            Taper: { segment:null, note:'Short and easy — stay fresh' },
+          } },
   },
   {
     id: 'race_specific', title: 'Race-Specific Programming', sourceTier: 'methodology',
