@@ -78,9 +78,14 @@ const auto=await seed(['Mon']);
 check('Autoregulation reports load adherence, not just counts', await page.evaluate(()=>{
   const p=weeklyAutoregulation();
   return p && p.inputs && typeof p.inputs.loadAdherence!=='undefined'; }));
-check('Its adherence matches the model exactly', await page.evaluate(()=>{
+// Autoregulation reviews the week just finished, not the current one, so it must
+// match the model's entry for THAT week. Asserting against `current` was what let
+// the wrong-week bug through.
+check('Its adherence matches the model entry for the week it reviewed', await page.evaluate(()=>{
   const p=weeklyAutoregulation();
-  const m=athleteState().absorption.current;
+  const reviewed=p.targetWeek-1;
+  const st=athleteState();
+  const m=(st.absorption.weeks||[]).find(w=>w.week===reviewed) || computeWeekAbsorption(reviewed);
   return p.inputs.adherence===m.sessionRatio; }));
 
 // ── A multi-week view ──────────────────────────────────────────────────────

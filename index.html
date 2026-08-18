@@ -9968,8 +9968,13 @@ function weeklyAutoregulation(opts={}){
   // count-only adherence here. Falls back to the review only if the model is cold.
   let adherence=null, loadAdherence=null;
   try{
+    // Read the model's entry for the week UNDER REVIEW. `absorption.current` is
+    // this week; autoregulation reviews the week just finished, so using current
+    // silently scored the wrong week as 0% completed.
     const st=(typeof athleteState==='function') ? athleteState() : null;   // accessor, not a variable
-    const ab=(st && st.absorption && st.absorption.current) || computeWeekAbsorption(rv.week);
+    const fromModel=(st && st.absorption && Array.isArray(st.absorption.weeks))
+      ? st.absorption.weeks.find(w=>w && w.week===rv.week) : null;
+    const ab=fromModel || computeWeekAbsorption(rv.week);
     if(ab){ adherence=ab.sessionRatio; loadAdherence=ab.loadRatio; }
   }catch(e){}
   if(adherence==null && rv.consistency && rv.consistency.planned)
