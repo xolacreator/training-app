@@ -662,6 +662,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--accent);border-color:rgba(212,175,55,.4);font-family:var(--mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em;border-radius:10px;">＋ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
+    <div id="design-cta"></div>
     <div id="goal-drift-prompt"></div>
     <div id="race-anchor-prompt"></div>
     <div id="plan-overview" style="display:none;margin-bottom:12px;"></div>
@@ -3737,7 +3738,28 @@ function renderPlanTabs(){
   }).join('');
 }
 
+// The Plan screen leads with designing a block by talking about it. With no
+// program this is the primary action; with one it stays available but quiet.
+function renderDesignCTA(){
+  const el=document.getElementById('design-cta'); if(!el) return;
+  const has=(typeof savedProgram!=='undefined') && !!savedProgram;
+  if(has){
+    el.innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <button onclick="openProgramDesign()" style="padding:7px 12px;border-radius:9px;border:1px solid rgba(212,175,55,.35);background:transparent;color:var(--accent);font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;">Design next block</button></div>`;
+    return;
+  }
+  let sub='Talk it through and I\'ll build it around you.';
+  try{ const w=weeksToRace(); if(w) sub=`Your race is ${w} weeks out — let's build the runway to it.`; }catch(e){}
+  el.innerHTML=`<div class="card" style="border:1px solid rgba(212,175,55,.45);background:rgba(212,175,55,.08);margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">No program yet</div>
+      <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;">Design your training block</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.55;">${sub}</div>
+      <button onclick="openProgramDesign()" style="width:100%;margin-top:12px;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:14px;cursor:pointer;">💬 Design it with your coach</button>
+      <button onclick="openProgramOverlay()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-weight:600;font-size:12px;cursor:pointer;">Use the builder form instead</button>
+    </div>`;
+}
 function renderPlan(w){
+  try{ renderDesignCTA(); }catch(e){}
   try{ renderWeekAdaptations(parseInt(w)||currentProgramWeek); }catch(e){}
   try{ const ab=document.getElementById('plan-add-session-btn'); if(ab) ab.style.display=savedProgram?'':'none'; }catch(e){}
   if (savedProgram) { _renderProgramPlan(parseInt(w)||currentProgramWeek); return; }
@@ -13524,6 +13546,114 @@ function autoGrowCoachInput(el) {
   });
 })();
 
+// ── Conversational program design ────────────────────────────────────────────
+// The builder was a form: pick a type, pick a duration from four pills, type a
+// goal, press generate. The intake now runs through the coach, because the useful
+// questions are the ones the app CANNOT already answer — it knows the race date,
+// recent volume, adherence and available days without asking, so asking those
+// again would make the conversation worse than the form, not better.
+function _designKnownFacts(){
+  const known=[];
+  try{ if(weeksToRace()) known.push('race timing'); }catch(e){}
+  try{ const st=athleteState(); if(st && st.absorption && st.absorption.meanSessionRatio!=null) known.push('what they complete vs prescribed'); }catch(e){}
+  try{ if(Array.isArray(sessions) && sessions.some(x=>x.ts && (Date.now()-x.ts)<28*86400000)) known.push('recent volume'); }catch(e){}
+  try{ const cfg=programBuilderConfig||{}; if(Array.isArray(cfg.trainDays)&&cfg.trainDays.length) known.push('available days'); }catch(e){}
+  try{ if(typeof savedProgram!=='undefined' && savedProgram) known.push('their current block'); }catch(e){}
+  return known;
+}
+function _designSystemPrompt(){
+  const L=[];
+  L.push(`You are designing a training block WITH this athlete, in conversation. Ask, listen, then design.`);
+  const athCtx=(()=>{ try{ return _builderAthleteContext(); }catch(e){ return ''; } })();
+  if(athCtx) L.push('\n'+athCtx);
+  const known=_designKnownFacts();
+  if(known.length) L.push(`\nYou ALREADY KNOW: ${known.join(', ')}. Do NOT ask about these — reflect them back so they know you know, and correct them only if the athlete says they are wrong.`);
+  L.push(`\nASK ONLY WHAT YOU CANNOT INFER. Good questions: injury history and current niggles; training age and what they have responded to before; what they enjoy or dread; hard constraints the calendar does not show; how much they actually want to commit versus what looks good on paper.`);
+  L.push(`Ask ONE question at a time. Keep it short. Three to six questions is usually enough — do not interrogate.`);
+  L.push(`\nWhen you have enough, propose the block in prose AND append a fenced program block:`);
+  L.push('```program\n{"name":"...","type":"endurance|strength|hybrid","weeks":12,"sessionsPerWeek":4,"why":"one sentence on the shape you chose and why",\n "sessions":[{"id":"easy","type":"endurance","name":"Easy Run","runType":"easy"}],\n "dayMap":["easy",null,"tempo",null,null,"long",null]}\n```');
+  L.push(`dayMap has EXACTLY 7 entries, Mon→Sun; each is a session id from "sessions" or null. Every non-null id must exist in "sessions".`);
+  L.push(`Ground the design in the coaching knowledge you were given. If something is not supported by it, say so rather than asserting it.`);
+  return L.join('\n');
+}
+// Parse + validate a proposed block. Nothing is created until the athlete confirms.
+function _extractProgramSpec(text){
+  if(!text) return {clean:text, spec:null};
+  const m=text.match(/```program\s*([\s\S]*?)```/i);
+  if(!m) return {clean:text, spec:null};
+  const clean=text.replace(m[0],'').trim();
+  let parsed=null; try{ parsed=JSON.parse(m[1]); }catch(e){ return {clean, spec:null}; }
+  return {clean, spec:_validateProgramSpec(parsed)};
+}
+function _validateProgramSpec(d){
+  if(!d || typeof d!=='object') return null;
+  const weeks=parseInt(d.weeks);
+  if(!(weeks>=2 && weeks<=52)) return null;
+  const spw=parseInt(d.sessionsPerWeek);
+  if(!(spw>=1 && spw<=7)) return null;
+  const sessions=Array.isArray(d.sessions)?d.sessions.filter(x=>x&&x.id):[];
+  if(!sessions.length) return null;
+  const ids=new Set(sessions.map(x=>x.id));
+  let dayMap=Array.isArray(d.dayMap)?d.dayMap.slice(0,7):null;
+  if(!dayMap || dayMap.length!==7) return null;
+  // Every referenced session must exist — the same invariant the plan enforces.
+  if(!dayMap.every(x=>x==null || ids.has(x))) return null;
+  return { name:String(d.name||'Training Block').slice(0,60), type:String(d.type||'endurance'),
+           weeks, sessionsPerWeek:spw, sessions, dayMap,
+           why:String(d.why||'').slice(0,240) };
+}
+function _describeProgramSpec(sp){
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const byId=Object.fromEntries(sp.sessions.map(x=>[x.id,x]));
+  const week=sp.dayMap.map((id,i)=>id?`${days[i]} ${byId[id]?byId[id].name:id}`:null).filter(Boolean).join(' · ');
+  return `${sp.weeks} weeks · ${sp.sessionsPerWeek}/week<br><span style="color:var(--text3);">${week}</span>`;
+}
+// Create the block from a confirmed proposal, through the same normalise + save
+// path the form builder uses, so both routes produce the same shape.
+function coachCreateProgram(i){
+  const msg=coachMessages[i]; const sp=msg && msg.programSpec; if(!sp) return false;
+  const data={ name:sp.name, type:sp.type, weeks:sp.weeks, sessionsPerWeek:sp.sessionsPerWeek,
+               sessions:sp.sessions, dayMap:sp.dayMap,
+               weeklyProgressions:Array.from({length:sp.weeks+1},(_,k)=>({week:k+1, deload:k===sp.weeks})) };
+  try{
+    _normalizeProgram(data, { type:sp.type, weeks:sp.weeks, sessionsPerWeek:sp.sessionsPerWeek });
+    saveProgramData(data);
+    currentProgramWeek=1;
+    try{ programViewWeek=1; }catch(e){}
+    msg.programApplied=true;
+    try{ renderCoachMessages(); }catch(e){}
+    try{ renderAll(); }catch(e){}
+    try{ closeOv('coach-overlay'); }catch(e){}
+    try{ nav('plan'); renderPlan(1); }catch(e){}
+    toast(`"${sp.name}" created — ${sp.weeks} weeks`);
+    return true;
+  }catch(e){ toast('Could not create that block: '+(e.message||'invalid')); return false; }
+}
+// Entry point from the Plan screen.
+function openProgramDesign(){
+  if(!coachProfile){ openCoachSetup(); return; }
+  // Without a key the conversation cannot run; send them to the form rather than
+  // to a dead end.
+  if(typeof hasValidAIKey==='function' && !hasValidAIKey()){
+    toast('Add an AI key to design by conversation — opening the builder instead');
+    try{ openProgramOverlay(); }catch(e){}
+    return;
+  }
+  coachMode='design';
+  coachMessages=[{role:'assistant', text:_designOpener()}];
+  try{ renderCoachHeader(); }catch(e){}
+  try{ renderCoachMessages(); }catch(e){}
+  openOv('coach-overlay');
+}
+function _designOpener(){
+  const known=_designKnownFacts();
+  const L=[];
+  L.push(`Let's build your next block together.`);
+  if(known.length) L.push(`\nI've already got ${known.join(', ')} — so I won't ask you about those.`);
+  try{ const w=weeksToRace(); if(w) L.push(`Your race is ${w} weeks out, so that's the runway we're working with.`); }catch(e){}
+  L.push(`\nFirst: any injuries or niggles I should design around right now?`);
+  return L.join('\n');
+}
 function openCoach() {
   if (!coachProfile) { openCoachSetup(); return; }
   localStorage.setItem('ht-last-coach-open', Date.now().toString());
@@ -13738,7 +13868,10 @@ async function _callCoachAPI() {
     });
     { const raw = data.content?.[0]?.text || '…';
       const pa = (typeof _extractPlanActions==='function') ? _extractPlanActions(raw) : {clean:raw,actions:[]};
-      coachMessages.push({role:'assistant', text: pa.clean || raw,
+      // A design conversation can also propose a whole block.
+      const ps = (typeof _extractProgramSpec==='function') ? _extractProgramSpec(pa.clean || raw) : {clean:pa.clean||raw, spec:null};
+      coachMessages.push({role:'assistant', text: ps.clean || pa.clean || raw,
+        ...(ps.spec ? {programSpec:ps.spec} : {}),
         ...(pa.actions && pa.actions.length ? {planActions:pa.actions, planWeek:pa.week,
             droppedCap:pa.droppedCap||0, droppedInvalid:pa.droppedInvalid||0} : {})}); }
   } catch(err) {
@@ -13902,6 +14035,17 @@ function renderCoachMessages() {
              ${(m.droppedCap||m.droppedInvalid) ? `<div style="font-family:var(--mono);font-size:9px;color:#f0b429;line-height:1.6;margin-top:7px;">${m.droppedCap?`${m.droppedCap} further change${m.droppedCap>1?'s were':' was'} proposed but not shown - ask again to continue. `:''}${m.droppedInvalid?`${m.droppedInvalid} suggestion${m.droppedInvalid>1?'s':''} didn't fit your plan and ${m.droppedInvalid>1?'were':'was'} discarded.`:''}</div>` : ''}
              <button onclick="coachApplyChatActions(${i})" style="width:100%;margin-top:9px;padding:9px;border:none;border-radius:9px;background:var(--accent);color:#0C0820;font-weight:700;font-size:12px;cursor:pointer;">Apply to plan</button></div>`;
     }
+    if(!isUser && m.programSpec){
+      const sp=m.programSpec;
+      act += m.programApplied
+        ? `<div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--green);">✓ Block created</div>`
+        : `<div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--border);">
+             <div style="font-family:var(--mono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;">Build this block?</div>
+             <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${sp.name}</div>
+             <div style="font-size:12px;color:var(--text);line-height:1.6;">${_describeProgramSpec(sp)}</div>
+             ${sp.why?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;margin-top:6px;">${sp.why}</div>`:''}
+             <button onclick="coachCreateProgram(${i})" style="width:100%;margin-top:9px;padding:10px;border:none;border-radius:9px;background:var(--accent);color:#0C0820;font-weight:700;font-size:12px;cursor:pointer;">Create this block</button></div>`;
+    }
     return `<div style="display:flex;justify-content:${isUser?'flex-end':'flex-start'};margin-bottom:10px;">
       <div style="max-width:84%;padding:10px 13px;border-radius:${isUser?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isUser?'var(--accent)':'var(--bg2)'};color:${isUser?'#000':'var(--text)'};border:${isUser?'none':'.5px solid var(--border)'};font-size:13px;line-height:1.55;white-space:pre-wrap;">${m.text}${act}</div>
     </div>`;
@@ -13977,6 +14121,11 @@ async function sendCoachMessage() {
 }
 
 function buildCoachSystemPrompt() {
+  // A design conversation has a different job from day-to-day coaching.
+  if (typeof coachMode!=='undefined' && coachMode==='design'){
+    try{ return _designSystemPrompt() + '\n\n' + getKnowledgeContext(
+      (typeof savedProgram!=='undefined' && savedProgram && savedProgram.type) || 'endurance', {}); }catch(e){}
+  }
   const p = coachProfile;
   const goalMap = {
     sub60:'finish HYROX sub 60 minutes (elite)',sub75:'finish HYROX sub 75 minutes (competitive)',
