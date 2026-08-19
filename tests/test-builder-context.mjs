@@ -68,9 +68,18 @@ check('No logged history is stated as unknown, not guessed', await page.evaluate
   return /no sessions logged in the last 28 days/.test(c) && /begin conservatively/.test(c); }));
 
 // ── The context actually reaches the design prompt ─────────────────────────
-check('The builder prompt includes the athlete section', await page.evaluate(()=>{
-  const src=String(generateProgram);
-  return /athCtx/.test(src) && /_builderAthleteContext/.test(src); }));
+// Assert the WIRING via a name that survives minification. `mangle.toplevel:false`
+// keeps top-level function names, but local variables are renamed, so asserting on
+// a local like `athCtx` passes on source and fails on the shipped artifact.
+check('The builder calls the athlete-context builder', await page.evaluate(()=>
+  /_builderAthleteContext/.test(String(generateProgram))));
+check('...and that context is non-empty for a real athlete', await page.evaluate(()=>{
+  const race=new Date(); race.setDate(race.getDate()+70);
+  coachProfile={name:'EV',goal:'sub-3:30 marathon',raceDate:race.toISOString().slice(0,10)};
+  localStorage.setItem('ht-race-date',race.toISOString().slice(0,10));
+  recomputeAthleteState();
+  const c=_builderAthleteContext();
+  return c.length>40 && /THIS ATHLETE/.test(c); }));
 
 // ── The duration UI is no longer four fixed pills ──────────────────────────
 const ui=await page.evaluate(()=>{
