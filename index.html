@@ -8959,7 +8959,7 @@ function setUnitWeight(u) {
 // PROGRAM BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
 let savedProgram = null;
-let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '', trainDays: ['Mon','Wed','Fri','Sat'], longRunDay: 'Sat' };
+let programBuilderConfig = { weeks: 5, sessionsPerWeek: 4, type: 'strength', goal: '', trainDays: ['Mon','Wed','Fri','Sat'], longRunDay: 'Sat', startDate: '' };
 let programViewWeek = 1;
 
 function loadSavedProgram() {
@@ -8983,6 +8983,57 @@ function saveProgramData(data) {
   try { if (typeof recomputeAthleteState==='function') recomputeAthleteState(); } catch(e) {}
 }
 
+// ── Deleting a program / goal, completely ────────────────────────────────────
+// "Delete Program" removed ht-program and nulled savedProgram, and nothing else.
+// Everything scoped to that block survived it: the week pointer, the per-program
+// dismissals, the decision log, the pending review, and the cached athlete state.
+// The next block then opened on the dead one's week, with its prompts already
+// dismissed and its reasoning still on file.
+const PROGRAM_SCOPED_KEYS = ['ht-program','ht-program-week','ht-anchor-dismissed',
+  'ht-autoreg-dismiss','ht-resched-dismissed','ht-decision-log','ht-pending-review'];
+// Goal lives in TWO stores (see _syncGoalToEngine). Clearing one leaves the app
+// permanently mismatched against the other, so both go together.
+const GOAL_SCOPED_KEYS = ['ht-goal','ht-goal-category','ht-goal-race-type',
+  'ht-goal-strength-type','ht-goal-strength-lift','ht-goal-strength-target','ht-race-date','ht-hyrox'];
+
+function deleteProgram(opts){
+  opts=opts||{};
+  PROGRAM_SCOPED_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  savedProgram = null;
+  currentProgramWeek = 1;
+  try{ programViewWeek = 1; }catch(e){}
+  try{ _coachPlanProposal = null; }catch(e){}
+  try{ pendingReview = []; }catch(e){}
+  try{ AthleteState = null; }catch(e){}          // drop the cached snapshot
+  try{ recomputeAthleteState(); }catch(e){}
+  if(!opts.silent){
+    try{ renderAll(); }catch(e){}
+    try{ renderProgramBuilder(); }catch(e){}
+    try{ renderMyProgramCard(); }catch(e){}
+    toast('Program deleted');
+  }
+  return true;
+}
+// Clear what the athlete is training FOR. Deliberately separate from deleting a
+// block — finishing a block does not mean abandoning the goal.
+function clearGoal(opts){
+  opts=opts||{};
+  GOAL_SCOPED_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  try{ trainGoal=''; }catch(e){}
+  try{
+    if(coachProfile){ delete coachProfile.goal; delete coachProfile.raceDate;
+      localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); }
+  }catch(e){}
+  // A drift prompt recorded against the old goal would otherwise outlive it.
+  try{ if(savedProgram && savedProgram.goalDrift){ delete savedProgram.goalDrift;
+        localStorage.setItem('ht-program', JSON.stringify(savedProgram)); } }catch(e){}
+  try{ AthleteState=null; recomputeAthleteState(); }catch(e){}
+  if(!opts.silent){
+    try{ renderAll(); }catch(e){}
+    toast('Goal cleared');
+  }
+  return true;
+}
 function openProgramOverlay() {
   loadSavedProgram();
   renderProgramBody();
@@ -9099,6 +9150,21 @@ function renderProgramBuilder() {
       <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Goal & weekly structure</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Describe your target and how you want the week split across disciplines${cfg.type==='hybrid'||cfg.type==='fitstop'?' (e.g. how many of each per week)':''}</div>
       <textarea id="prog-goal" placeholder="${goalPlaceholder}" oninput="programBuilderConfig.goal=this.value" style="width:100%;box-sizing:border-box;min-height:80px;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);font-size:13px;font-family:var(--font);line-height:1.5;">${cfg.goal||''}</textarea>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Start date</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Week 1 begins on this Monday — pick a past date to log a block already underway</div>
+      <input type="date" id="bld-start" value="${cfg.startDate || _mondayISO(new Date())}"
+        onchange="programBuilderConfig.startDate=_mondayISO(new Date(this.value+'T12:00:00'));renderProgramBuilder();"
+        style="width:100%;box-sizing:border-box;padding:11px;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;">
+      ${(()=>{ const iso=cfg.startDate||_mondayISO(new Date());
+        const d=new Date(iso+'T12:00:00');
+        const lbl=d.toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'short',year:'numeric'});
+        const diff=Math.round((d-new Date(_mondayISO(new Date())+'T12:00:00'))/86400000);
+        const when = diff===0 ? 'starts this week' : diff>0 ? `starts in ${Math.round(diff/7)} week${diff>7?'s':''}`
+                    : `started ${Math.round(-diff/7)} week${diff<-7?'s':''} ago`;
+        return `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Week 1 Monday: ${lbl} — ${when}</div>`; })()}
     </div>
 
     <div style="margin-bottom:20px;">
@@ -11983,7 +12049,7 @@ function renderSavedProgram() {
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
       <button class="btn" onclick="restartProgramToday()" style="color:var(--accent);border-color:rgba(212,175,55,.25);">↻ Restart from this week</button>
       <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
-      <button class="btn" onclick="if(confirm('Delete this program?')){localStorage.removeItem('ht-program');savedProgram=null;renderProgramBuilder();renderMyProgramCard();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
+      <button class="btn" onclick="if(confirm('Delete this program? Your logged sessions and your goal are kept.')){deleteProgram();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
     </div>
   </div>`;
 }
@@ -12386,7 +12452,8 @@ Working weeks: ${workingWeeks} + 1 deload week (total ${totalWeeks})`;
 // ensure per-session types, and guarantee a valid 7-day dayMap.
 function _normalizeProgram(data, cfg){
   data.id = 'prog-' + Date.now();
-  data.startDate = _mondayISO(new Date());
+  // Respect a chosen start date; a block can begin later or already be underway.
+  data.startDate = (cfg && cfg.startDate) ? cfg.startDate : _mondayISO(new Date());
   data.type = data.type || cfg.type || 'strength';
   data.weeks = data.weeks || (cfg.weeks+1);
   data.sessionsPerWeek = data.sessionsPerWeek || cfg.sessionsPerWeek;
@@ -13598,8 +13665,10 @@ function _validateProgramSpec(d){
   if(!dayMap || dayMap.length!==7) return null;
   // Every referenced session must exist — the same invariant the plan enforces.
   if(!dayMap.every(x=>x==null || ids.has(x))) return null;
+  let startDate='';
+  try{ if(d.startDate && /^\d{4}-\d{2}-\d{2}$/.test(d.startDate)) startDate=_mondayISO(new Date(d.startDate+'T12:00:00')); }catch(e){}
   return { name:String(d.name||'Training Block').slice(0,60), type:String(d.type||'endurance'),
-           weeks, sessionsPerWeek:spw, sessions, dayMap,
+           weeks, sessionsPerWeek:spw, sessions, dayMap, startDate,
            why:String(d.why||'').slice(0,240) };
 }
 function _describeProgramSpec(sp){
@@ -13616,7 +13685,8 @@ function coachCreateProgram(i){
                sessions:sp.sessions, dayMap:sp.dayMap,
                weeklyProgressions:Array.from({length:sp.weeks+1},(_,k)=>({week:k+1, deload:k===sp.weeks})) };
   try{
-    _normalizeProgram(data, { type:sp.type, weeks:sp.weeks, sessionsPerWeek:sp.sessionsPerWeek });
+    _normalizeProgram(data, { type:sp.type, weeks:sp.weeks, sessionsPerWeek:sp.sessionsPerWeek,
+                              startDate:(sp.startDate || (programBuilderConfig&&programBuilderConfig.startDate) || '') });
     saveProgramData(data);
     currentProgramWeek=1;
     try{ programViewWeek=1; }catch(e){}
