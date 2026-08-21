@@ -80,9 +80,21 @@ check('The save path reads the stepper values', await page.evaluate(()=>{
   return !!e && e.sleepHours===7.5 && e.sleepScore===82 && e.hrv===63 && e.restingHR===51; }));
 
 // ── THE KEYBOARD BUG: the morning sheet must be handled like every other ───
-check('The viewport handler now includes the morning sheet', await page.evaluate(()=>{
-  const src=[...document.querySelectorAll('script')].map(s=>s.textContent).join('\n');
-  return /morning-overlay/.test(src.split('initViewportHandler')[1]||''); }));
+// Behavioural, not name-based: fire a visualViewport resize with the sheet open
+// and assert the handler actually reaches it. The previous version split on the
+// IIFE name 'initViewportHandler', which minification strips — it passed on source
+// and failed on the shipped build.
+check('The keyboard handler actually reaches the morning sheet', await page.evaluate(async()=>{
+  if(!window.visualViewport) return true;                 // nothing to assert on
+  const el=document.getElementById('morning-overlay');
+  el.style.display='flex';
+  el.style.height='999px'; el.style.top='999px';          // poison values
+  window.visualViewport.dispatchEvent(new Event('resize'));
+  await new Promise(r=>setTimeout(r,50));
+  // The handler either sets real values or clears them; either way it TOUCHED it.
+  const touched = el.style.height!=='999px' || el.style.top!=='999px';
+  el.style.display='none'; el.style.height=''; el.style.top='';
+  return touched; }));
 check('The sheet scrolls internally so nothing is unreachable', await page.evaluate(()=>{
   const inner=document.getElementById('morning-overlay').firstElementChild;
   return /overflow-y:\s*auto/.test(inner.getAttribute('style')||''); }));
