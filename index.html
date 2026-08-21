@@ -1297,30 +1297,10 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button onclick="skipMorningCheckin()" style="background:none;border:none;color:var(--text3);font-size:26px;cursor:pointer;padding:0;line-height:1;margin-top:2px;">×</button>
     </div>
 
-    <label style="display:block;margin-bottom:16px;">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">Sleep hours <span style="color:var(--accent);">*</span></div>
-      <input id="mc-sleep" type="number" min="0" max="24" step="0.5" inputmode="decimal" placeholder="e.g. 7.5"
-        style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
-    </label>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-      <label>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">Sleep score</div>
-        <input id="mc-sleep-score" type="number" min="0" max="100" inputmode="numeric" placeholder="0–100"
-          style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
-      </label>
-      <label>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">HRV (ms)</div>
-        <input id="mc-hrv" type="number" min="0" max="300" inputmode="numeric" placeholder="e.g. 55"
-          style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
-      </label>
-    </div>
-
-    <label style="display:block;margin-bottom:24px;">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;">Resting heart rate (bpm)</div>
-      <input id="mc-rhr" type="number" min="0" max="220" inputmode="numeric" placeholder="e.g. 52"
-        style="width:100%;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text1);font-size:17px;box-sizing:border-box;outline:none;">
-    </label>
+    <!-- Steppers, not typed fields. These are four numbers in known ranges entered
+         half asleep on a phone; a keyboard is the wrong instrument. The field is
+         still there and still typeable, but nothing REQUIRES the keyboard. -->
+    <div id="mc-steppers"></div>
 
     <button onclick="saveMorningCheckin()"
       style="width:100%;background:var(--accent);color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:600;cursor:pointer;letter-spacing:-.01em;margin-bottom:10px;">
@@ -13596,7 +13576,13 @@ function autoGrowCoachInput(el) {
     const vt = window.visualViewport.offsetTop;
     const keyboardOpen = vh < lastH;
     // Apply to every open overlay
-    document.querySelectorAll('.overlay.open').forEach(overlay => {
+    // #morning-overlay is not a .overlay/.open element, so it was the one sheet in
+    // the app the keyboard handler skipped — it stayed pinned to the layout
+    // viewport while the keyboard covered HRV, RHR and Save.
+    const sheets=[...document.querySelectorAll('.overlay.open')];
+    const mo=document.getElementById('morning-overlay');
+    if(mo && mo.style.display && mo.style.display!=='none') sheets.push(mo);
+    sheets.forEach(overlay => {
       overlay.style.height = vh + 'px';
       overlay.style.top = vt + 'px';
       if (!keyboardOpen) {
@@ -14862,10 +14848,71 @@ function maybeShowMorningCheckin() {
   }
   setTimeout(() => {
     const el = document.getElementById('morning-overlay');
-    if (el) el.style.display = 'flex';
+    if (el) { try{ renderMorningSteppers(); }catch(e){} el.style.display = 'flex'; }
   }, 800);
 }
 
+// ── Morning check-in inputs ──────────────────────────────────────────────────
+// Four numbers in known ranges, entered half asleep on a phone. A full keyboard
+// is the wrong instrument: the targets are small, the sheet used to sit under the
+// keyboard, and typing "58" needs two precise taps on a surface that is covering
+// the field you are typing into. Steppers give large targets, sensible increments
+// and a readout you can check at a glance. The number can still be typed.
+const MC_FIELDS = [
+  { id:'mc-sleep',        label:'Sleep hours', required:true, min:0,   max:24,  step:0.5, dflt:7.5, unit:'h',  decimals:1 },
+  { id:'mc-sleep-score',  label:'Sleep score', min:0, max:100, step:1,  dflt:75,  unit:'',   big:5 },
+  { id:'mc-hrv',          label:'HRV',         min:0, max:300, step:1,  dflt:55,  unit:'ms', big:5 },
+  { id:'mc-rhr',          label:'Resting HR',  min:0, max:220, step:1,  dflt:52,  unit:'bpm',big:5 },
+];
+function _mcVal(f){
+  const el=document.getElementById(f.id);
+  const v=el ? parseFloat(el.value) : NaN;
+  return isNaN(v) ? null : v;
+}
+function mcStep(id, delta){
+  const f=MC_FIELDS.find(x=>x.id===id); if(!f) return;
+  const el=document.getElementById(id); if(!el) return;
+  const cur=parseFloat(el.value);
+  const base=isNaN(cur) ? f.dflt : cur;
+  let next=Math.round((base+delta)/f.step)*f.step;
+  next=Math.max(f.min, Math.min(f.max, next));
+  el.value=(f.decimals? next.toFixed(f.decimals) : String(Math.round(next)));
+  try{ renderMorningSteppers(); }catch(e){}
+}
+function mcClear(id){
+  const el=document.getElementById(id); if(el) el.value='';
+  try{ renderMorningSteppers(); }catch(e){}
+}
+function renderMorningSteppers(){
+  const host=document.getElementById('mc-steppers'); if(!host) return;
+  // Preserve values across re-render.
+  const vals={}; MC_FIELDS.forEach(f=>{ const el=document.getElementById(f.id); if(el) vals[f.id]=el.value; });
+  host.innerHTML = MC_FIELDS.map(f=>{
+    const v = vals[f.id]!=null ? vals[f.id] : '';
+    const shown = v==='' ? '—' : v;
+    const btn=(lbl,d,wide)=>`<button type="button" onclick="mcStep('${f.id}',${d})"
+        style="flex:${wide?'1.1':'1'};padding:14px 0;border-radius:11px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:${wide?'15':'17'}px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;">${lbl}</button>`;
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;">${f.label}${f.required?' <span style="color:var(--accent);">*</span>':''}</span>
+        ${v!==''?`<button type="button" onclick="mcClear('${f.id}')" style="background:none;border:none;color:var(--text3);font-family:var(--mono);font-size:9px;cursor:pointer;padding:0;">clear</button>`:''}
+      </div>
+      <div style="display:flex;align-items:stretch;gap:7px;">
+        ${f.big?btn('−'+f.big,-f.big,true):''}
+        ${btn('−',-f.step)}
+        <div style="flex:2.2;display:flex;align-items:center;justify-content:center;gap:4px;background:var(--bg2);border:.5px solid var(--border);border-radius:11px;padding:0 6px;">
+          <input id="${f.id}" type="number" inputmode="${f.step<1?'decimal':'numeric'}" min="${f.min}" max="${f.max}" step="${f.step}"
+            value="${v}" placeholder="${shown}" oninput="renderMorningStepperHint()"
+            style="width:100%;background:none;border:none;color:var(--text1);font-size:22px;font-weight:600;text-align:center;outline:none;padding:12px 0;-moz-appearance:textfield;">
+          ${f.unit?`<span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${f.unit}</span>`:''}
+        </div>
+        ${btn('+',f.step)}
+        ${f.big?btn('+'+f.big,f.big,true):''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderMorningStepperHint(){ /* value lives in the input; nothing to sync */ }
 function skipMorningCheckin() {
   sessionStorage.setItem('mc-shown', '1');
   const el = document.getElementById('morning-overlay');
