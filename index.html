@@ -662,6 +662,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
       <button class="btn btn-sm" onclick="openBuilder(null,null)" style="color:var(--accent);border-color:rgba(212,175,55,.4);font-family:var(--mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em;border-radius:10px;">＋ Build</button>
     </div>
     <div class="ptabs" id="plan-tabs"></div>
+    <div id="fitness-proposal"></div>
     <div id="design-cta"></div>
     <div id="goal-drift-prompt"></div>
     <div id="race-anchor-prompt"></div>
@@ -3720,6 +3721,50 @@ function renderPlanTabs(){
 
 // The Plan screen leads with designing a block by talking about it. With no
 // program this is the primary action; with one it stays available but quiet.
+// Surface a measured change as a PROPOSAL. The athlete sees what moved, by how
+// much, and on what evidence — then decides. Dismissal is remembered per estimate
+// so it does not nag about the same shift twice.
+function _fitnessDismissKey(p){
+  return 'fit:'+p.changes.map(c=>c.key+':'+c.to).join('|');
+}
+function dismissFitnessUpdate(){
+  const p=proposeFitnessUpdate(); if(!p) return;
+  try{ localStorage.setItem('ht-fitness-dismissed', _fitnessDismissKey(p)); }catch(e){}
+  try{ renderFitnessProposal(); }catch(e){}
+}
+function acceptFitnessUpdate(){
+  applyFitnessUpdate();
+  try{ localStorage.removeItem('ht-fitness-dismissed'); }catch(e){}
+  try{ renderFitnessProposal(); }catch(e){}
+}
+function renderFitnessProposal(){
+  const el=document.getElementById('fitness-proposal'); if(!el) return;
+  el.innerHTML='';
+  const p=(()=>{ try{ return proposeFitnessUpdate(); }catch(e){ return null; } })();
+  if(!p) return;
+  try{ if(localStorage.getItem('ht-fitness-dismissed')===_fitnessDismissKey(p)) return; }catch(e){}
+  const faster=p.changes.some(c=>c.deltaSec>0);
+  const rows=p.changes.map(c=>{
+    const dir = c.deltaSec==null ? '' : (c.deltaSec>0?'▲':'▼');
+    const col = c.deltaSec==null ? 'var(--text)' : (c.deltaSec>0?'var(--green,#34c759)':'#f0b429');
+    return `<div style="margin-top:8px;">
+      <div style="font-size:13.5px;color:var(--text);line-height:1.5;">
+        <b>${c.label}</b> ${c.from?`${c.from} → `:''}<span style="color:${col};font-weight:600;">${c.to}/km ${dir}</span>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;margin-top:2px;">${c.why}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="card" style="border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.07);margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--green,#34c759);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Your training says you've changed</div>
+      <div style="font-size:14px;color:var(--text);line-height:1.55;">${faster?'You\'re running faster than the paces your plan is built on.':'Your recent sessions are slower than the paces your plan is built on.'}</div>
+      ${rows}
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.6;margin-top:9px;">Nothing changes until you say so. Updating moves every future prescription onto these paces.</div>
+      <div style="display:flex;gap:8px;margin-top:11px;">
+        <button onclick="acceptFitnessUpdate()" style="flex:2;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">Update my paces</button>
+        <button onclick="dismissFitnessUpdate()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-weight:600;font-size:13px;cursor:pointer;">Not yet</button>
+      </div>
+    </div>`;
+}
 function renderDesignCTA(){
   const el=document.getElementById('design-cta'); if(!el) return;
   const has=(typeof savedProgram!=='undefined') && !!savedProgram;
@@ -3739,6 +3784,7 @@ function renderDesignCTA(){
     </div>`;
 }
 function renderPlan(w){
+  try{ renderFitnessProposal(); }catch(e){}
   try{ renderDesignCTA(); }catch(e){}
   try{ renderWeekAdaptations(parseInt(w)||currentProgramWeek); }catch(e){}
   try{ const ab=document.getElementById('plan-add-session-btn'); if(ab) ab.style.display=savedProgram?'':'none'; }catch(e){}
@@ -3959,6 +4005,147 @@ function _sessType(sess){ return (sess && sess.type) ? sess.type : 'strength'; }
 // Run sessions are templates; the concrete week-N prescription is computed here from
 // the athlete's baselines (pace targets) + the week within the block (volume/intensity
 // build, cutback weeks, taper, deload). This is what makes the running actually progress.
+// ── Fitness model: what the athlete can currently do ─────────────────────────
+// Prescription used to be a function of the CALENDAR and one Cooper test taken in
+// week 1: _runPaces() read baselines['run-cooper'], and saveBaselines() was only
+// ever called from the assessment flow. Forty logged tempo sessions changed
+// nothing. Week 9 was identical whether you crushed every session or scraped
+// through them — which is exactly "it doesn't learn from experience".
+//
+// This estimates current ability from what was actually run. It is a FIELD
+// estimate, not a lab test: threshold is taken from sustained hard efforts,
+// easy pace from easy running. Every estimate carries n and a confidence, and
+// nothing here silently changes a prescription — see proposeFitnessUpdate().
+const FITNESS_WINDOW_DAYS = 42;      // ~6 weeks: recent enough to be current
+const FITNESS_MIN_KM      = 3;       // shorter efforts are too noisy to read
+
+function _paceToSec(p){
+  const m=String(p||'').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return null;
+  const s=parseInt(m[1])*60+parseInt(m[2]);
+  return (s>=120 && s<=1200) ? s : null;      // 2:00–20:00 per km is the plausible band
+}
+function _secToPace(sec){
+  if(sec==null || !isFinite(sec)) return null;
+  const s=Math.round(sec);
+  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+// Which quality does this logged session evidence? Uses what the athlete recorded
+// rather than guessing from pace alone, so a slow athlete's hard effort still
+// counts as threshold work.
+function _sessionQuality(x){
+  const name=String(x.session||'').toLowerCase();
+  const inten=String(x.intensity||'').toLowerCase();
+  if(/interval|rep|track|400|800|vo2/.test(name)) return 'vo2';
+  if(/tempo|threshold|progression/.test(name))    return 'threshold';
+  if(/long/.test(name))                            return 'long';
+  if(/recovery|shake/.test(name))                  return 'recovery';
+  if(inten==='hard')     return 'vo2';
+  if(inten==='moderate') return 'threshold';
+  if(inten==='easy')     return 'easy';
+  return null;
+}
+// Recency-weighted median: robust to one bad day, still moves as fitness moves.
+function _weightedMedian(pairs){
+  if(!pairs.length) return null;
+  const sorted=[...pairs].sort((a,b)=>a.v-b.v);
+  const total=sorted.reduce((a,x)=>a+x.w,0);
+  let acc=0;
+  for(const x of sorted){ acc+=x.w; if(acc>=total/2) return x.v; }
+  return sorted[sorted.length-1].v;
+}
+function _estimatePace(quality){
+  const now=Date.now(), day=86400000;
+  const pool=(Array.isArray(sessions)?sessions:[])
+    .filter(x=>{
+      if(!x.ts || (now-x.ts) > FITNESS_WINDOW_DAYS*day) return false;
+      if(_sessionQuality(x)!==quality) return false;
+      const km=parseFloat(x.dist||0)||0;
+      if(km < FITNESS_MIN_KM) return false;
+      return _paceToSec(x.pace)!=null;
+    })
+    .map(x=>{
+      const ageDays=(now-x.ts)/day;
+      return { v:_paceToSec(x.pace), w:Math.exp(-ageDays/21), ts:x.ts };  // 3-week half-life
+    });
+  if(!pool.length) return { value:null, n:0, confidence:'none' };
+  const med=_weightedMedian(pool);
+  // Spread tells us how much to trust it — inconsistent efforts mean less.
+  const vals=pool.map(x=>x.v).sort((a,b)=>a-b);
+  const spread=vals[vals.length-1]-vals[0];
+  let confidence='low';
+  if(pool.length>=4 && spread<=45) confidence='ok';
+  else if(pool.length>=6)          confidence='ok';
+  else if(pool.length>=2)          confidence='low';
+  return { value:med, pace:_secToPace(med), n:pool.length, confidence,
+           spreadSec:spread, newest:Math.max(...pool.map(x=>x.ts)) };
+}
+// The model. Read it; never recompute these numbers elsewhere.
+function fitnessModel(){
+  const threshold=_estimatePace('threshold');
+  const easy=_estimatePace('easy');
+  const vo2=_estimatePace('vo2');
+  const baseline=(typeof baselines==='object' && baselines) ? baselines['run-cooper'] : null;
+  return {
+    asOf: Date.now(),
+    running: { threshold, easy, vo2 },
+    baseline: baseline ? {
+      threshold:_paceToSec(baseline.run_threshold_pace),
+      easy:_paceToSec(baseline.run_zone2_lo_pace),
+      vo2:_paceToSec(baseline.run_vo2max_pace),
+      source:'Week 1 assessment' } : null,
+    // Stated plainly so no surface has to infer it.
+    strength: { supported:false,
+      why:'Strength sessions do not record sets, reps or load, so no lift estimate can be made from the log.' },
+  };
+}
+// Has measured ability diverged from what prescriptions are currently using?
+// Returns a PROPOSAL — this never changes a pace by itself. A plan that moves
+// under the athlete without asking is not coaching.
+const FITNESS_PROPOSE_SEC = 8;       // ignore noise; 8 s/km is a real shift
+function proposeFitnessUpdate(){
+  const m=fitnessModel();
+  const out=[];
+  [['threshold','Threshold'],['easy','Easy']].forEach(([k,label])=>{
+    const est=m.running[k];
+    if(!est || est.value==null || est.confidence!=='ok') return;
+    const cur=(m.baseline && m.baseline[k]!=null) ? m.baseline[k] : null;
+    if(cur==null){
+      out.push({ key:k, label, from:null, to:est.pace, deltaSec:null, n:est.n,
+                 why:`${est.n} recent ${label.toLowerCase()} sessions give a ${est.pace}/km estimate. Nothing is set yet.` });
+      return;
+    }
+    const delta=cur-est.value;                       // positive = faster now
+    if(Math.abs(delta) < FITNESS_PROPOSE_SEC) return;
+    out.push({ key:k, label, from:_secToPace(cur), to:est.pace, deltaSec:delta, n:est.n,
+               why:`Your last ${est.n} ${label.toLowerCase()} sessions average ${est.pace}/km — ` +
+                   `${Math.abs(delta)}s/km ${delta>0?'faster':'slower'} than the ${_secToPace(cur)}/km your plan is using.` });
+  });
+  return out.length ? { changes:out, asOf:Date.now() } : null;
+}
+// Accept a proposal: this is the ONLY thing that moves the numbers driving
+// prescriptions, and it only runs when the athlete says so.
+function applyFitnessUpdate(){
+  const p=proposeFitnessUpdate(); if(!p) return false;
+  try{
+    baselines=baselines||{};
+    const b=baselines['run-cooper']=baselines['run-cooper']||{};
+    p.changes.forEach(c=>{
+      if(c.key==='threshold') b.run_threshold_pace=c.to;
+      if(c.key==='easy'){
+        b.run_zone2_lo_pace=c.to;
+        const hi=_paceToSec(c.to); if(hi) b.run_zone2_hi_pace=_secToPace(hi-25);
+      }
+    });
+    b.updatedFrom='measured sessions';
+    b.updatedAt=new Date().toISOString();
+    if(typeof saveBaselines==='function') saveBaselines();
+    try{ AthleteState=null; recomputeAthleteState(); }catch(e){}
+    try{ renderAll(); }catch(e){}
+    toast('Paces updated from your training');
+    return true;
+  }catch(e){ return false; }
+}
 function _runPaces(){
   const r = (typeof baselines==='object' && baselines) ? baselines['run-cooper'] : null;
   return {
@@ -8969,7 +9156,7 @@ function saveProgramData(data) {
 // dismissals, the decision log, the pending review, and the cached athlete state.
 // The next block then opened on the dead one's week, with its prompts already
 // dismissed and its reasoning still on file.
-const PROGRAM_SCOPED_KEYS = ['ht-program','ht-program-week','ht-anchor-dismissed',
+const PROGRAM_SCOPED_KEYS = ['ht-program','ht-program-week','ht-anchor-dismissed','ht-fitness-dismissed',
   'ht-autoreg-dismiss','ht-resched-dismissed','ht-decision-log','ht-pending-review'];
 // Goal lives in TWO stores (see _syncGoalToEngine). Clearing one leaves the app
 // permanently mismatched against the other, so both go together.
