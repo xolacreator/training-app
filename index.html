@@ -13858,11 +13858,53 @@ function _designSystemPrompt(){
   L.push(`\nOne question at a time. Follow up when an answer is thin — "what does a good race feel like for you?" is a better second question than moving on. A real intake is six to ten exchanges, not three. Take the time.`);
   L.push(`Never assume a goal or date carried over from a previous block. If something on file looks stale, ask about it directly.`);
 
-  L.push(`\nOnly once steps 1-3 are answered, propose the block in prose AND append a fenced program block:`);
-  L.push('```program\n{"name":"...","type":"endurance|strength|hybrid","weeks":12,"sessionsPerWeek":4,"startDate":"YYYY-MM-DD","why":"one sentence on the shape you chose and why",\n "sessions":[{"id":"easy","type":"endurance","name":"Easy Run","runType":"easy"}],\n "dayMap":["easy",null,"tempo",null,null,"long",null]}\n```');
+  L.push(`\nAs you learn each thing, record it by appending a fenced intake block. Update it as you go — send it again with more filled in:`);
+  L.push('```intake\n{"goal":"...","timeline":"...","history":"...","constraints":"...","reflection":"..."}\n```');
+  L.push(`The app REFUSES to accept a program until goal, timeline and history are recorded there. If you propose early it will be rejected and you will be told what is missing. This is not advisory.`);
+  L.push(`\nOnly once steps 1-3 are answered, propose the block in prose AND append a fenced program block. Include the goal and race date you established:`);
+  L.push('```program\n{"name":"...","type":"endurance|strength|hybrid","weeks":12,"sessionsPerWeek":4,"startDate":"YYYY-MM-DD",\n "goal":"the goal you established, in their words","raceDate":"YYYY-MM-DD",\n "why":"one sentence on the shape you chose and why",\n "sessions":[{"id":"easy","type":"endurance","name":"Easy Run","runType":"easy"}],\n "dayMap":["easy",null,"tempo",null,null,"long",null]}\n```');
   L.push(`dayMap has EXACTLY 7 entries, Mon→Sun; each is a session id from "sessions" or null. Every non-null id must exist in "sessions".`);
   L.push(`Ground the design in the coaching knowledge you were given. If something is not supported by it, say so rather than asserting it.`);
   return L.join('\n');
+}
+// ── Intake: what the interview must establish before it may propose ──────────
+// The prompt asked for a goal-first interview and the model skipped to proposing,
+// because nothing enforced it. Instruction without a gate is a suggestion. The
+// coach now records what it has learned in a fenced `intake` block, and a program
+// is REFUSED until the intake is complete — the same deterministic-gate pattern
+// used for plan actions.
+const INTAKE_REQUIRED = [
+  { key:'goal',        label:'what you are training for',        minLen:6 },
+  { key:'timeline',    label:'when it is, and how firm that is', minLen:4 },
+  { key:'history',     label:'whether you have done this before and what happened', minLen:6 },
+];
+function _extractIntake(text){
+  if(!text) return {clean:text, intake:null};
+  const m=text.match(/```intake\s*([\s\S]*?)```/i);
+  if(!m) return {clean:text, intake:null};
+  const clean=text.replace(m[0],'').trim();
+  let parsed=null; try{ parsed=JSON.parse(m[1]); }catch(e){ return {clean, intake:null}; }
+  if(!parsed || typeof parsed!=='object') return {clean, intake:null};
+  const out={};
+  ['goal','timeline','history','constraints','reflection'].forEach(k=>{
+    if(typeof parsed[k]==='string' && parsed[k].trim()) out[k]=parsed[k].trim().slice(0,400);
+  });
+  return {clean, intake:Object.keys(out).length?out:null};
+}
+// Merge everything the coach has recorded so far in this conversation.
+function _intakeSoFar(){
+  const acc={};
+  (Array.isArray(coachMessages)?coachMessages:[]).forEach(m=>{
+    if(m && m.intake) Object.assign(acc, m.intake);
+  });
+  return acc;
+}
+function _intakeMissing(intake){
+  const got=intake||_intakeSoFar();
+  return INTAKE_REQUIRED.filter(r=>{
+    const v=got[r.key];
+    return !(typeof v==='string' && v.trim().length>=r.minLen);
+  }).map(r=>r.label);
 }
 // Parse + validate a proposed block. Nothing is created until the athlete confirms.
 function _extractProgramSpec(text){
@@ -13873,8 +13915,14 @@ function _extractProgramSpec(text){
   let parsed=null; try{ parsed=JSON.parse(m[1]); }catch(e){ return {clean, spec:null}; }
   return {clean, spec:_validateProgramSpec(parsed)};
 }
-function _validateProgramSpec(d){
+function _validateProgramSpec(d, opts){
+  opts=opts||{};
   if(!d || typeof d!=='object') return null;
+  // A block cannot be proposed before the interview has done its job.
+  if(!opts.skipIntakeGate){
+    const missing=_intakeMissing();
+    if(missing.length) return { blocked:true, missing };
+  }
   const weeks=parseInt(d.weeks);
   if(!(weeks>=2 && weeks<=52)) return null;
   const spw=parseInt(d.sessionsPerWeek);
@@ -13888,8 +13936,12 @@ function _validateProgramSpec(d){
   if(!dayMap.every(x=>x==null || ids.has(x))) return null;
   let startDate='';
   try{ if(d.startDate && /^\d{4}-\d{2}-\d{2}$/.test(d.startDate)) startDate=_mondayISO(new Date(d.startDate+'T12:00:00')); }catch(e){}
+  const intake=_intakeSoFar();
   return { name:String(d.name||'Training Block').slice(0,60), type:String(d.type||'endurance'),
            weeks, sessionsPerWeek:spw, sessions, dayMap, startDate,
+           // The conclusion of the interview, so creating the block can commit it.
+           goal:String(d.goal || intake.goal || '').slice(0,120),
+           raceDate:String(d.raceDate||'').slice(0,40),
            why:String(d.why||'').slice(0,240) };
 }
 function _describeProgramSpec(sp){
@@ -13906,11 +13958,25 @@ function coachCreateProgram(i){
                sessions:sp.sessions, dayMap:sp.dayMap,
                weeklyProgressions:Array.from({length:sp.weeks+1},(_,k)=>({week:k+1, deload:k===sp.weeks})) };
   try{
+    // Commit the conclusion of the interview. Without this the coach agreed a new
+    // goal in conversation, built for it, and left coachProfile/ht-goal on the old
+    // one — so the next conversation started stale again.
+    if(sp.goal){
+      try{
+        coachProfile=coachProfile||{};
+        coachProfile.goal=sp.goal;
+        if(sp.raceDate) coachProfile.raceDate=sp.raceDate;
+        localStorage.setItem('ht-coach', JSON.stringify(coachProfile));
+        if(sp.raceDate) localStorage.setItem('ht-race-date', sp.raceDate);
+      }catch(e){}
+      try{ _syncGoalToEngine(sp.goal); }catch(e){}
+    }
     _normalizeProgram(data, { type:sp.type, weeks:sp.weeks, sessionsPerWeek:sp.sessionsPerWeek,
                               startDate:(sp.startDate || (programBuilderConfig&&programBuilderConfig.startDate) || '') });
     saveProgramData(data);
     currentProgramWeek=1;
     try{ programViewWeek=1; }catch(e){}
+    try{ if(savedProgram && savedProgram.goalDrift) delete savedProgram.goalDrift; }catch(e){}
     msg.programApplied=true;
     try{ renderCoachMessages(); }catch(e){}
     try{ renderAll(); }catch(e){}
@@ -14164,9 +14230,13 @@ async function _callCoachAPI() {
     { const raw = data.content?.[0]?.text || '…';
       const pa = (typeof _extractPlanActions==='function') ? _extractPlanActions(raw) : {clean:raw,actions:[]};
       // A design conversation can also propose a whole block.
-      const ps = (typeof _extractProgramSpec==='function') ? _extractProgramSpec(pa.clean || raw) : {clean:pa.clean||raw, spec:null};
-      coachMessages.push({role:'assistant', text: ps.clean || pa.clean || raw,
-        ...(ps.spec ? {programSpec:ps.spec} : {}),
+      const ik = (typeof _extractIntake==='function') ? _extractIntake(pa.clean || raw) : {clean:pa.clean||raw, intake:null};
+      const ps = (typeof _extractProgramSpec==='function') ? _extractProgramSpec(ik.clean) : {clean:ik.clean, spec:null};
+      const blocked = ps.spec && ps.spec.blocked ? ps.spec : null;
+      coachMessages.push({role:'assistant', text: ps.clean || ik.clean || pa.clean || raw,
+        ...(ik.intake ? {intake:ik.intake} : {}),
+        ...(blocked ? {intakeBlocked:blocked.missing} : {}),
+        ...(ps.spec && !ps.spec.blocked ? {programSpec:ps.spec} : {}),
         ...(pa.actions && pa.actions.length ? {planActions:pa.actions, planWeek:pa.week,
             droppedCap:pa.droppedCap||0, droppedInvalid:pa.droppedInvalid||0} : {})}); }
   } catch(err) {
@@ -14329,6 +14399,12 @@ function renderCoachMessages() {
              ${rows}
              ${(m.droppedCap||m.droppedInvalid) ? `<div style="font-family:var(--mono);font-size:9px;color:#f0b429;line-height:1.6;margin-top:7px;">${m.droppedCap?`${m.droppedCap} further change${m.droppedCap>1?'s were':' was'} proposed but not shown - ask again to continue. `:''}${m.droppedInvalid?`${m.droppedInvalid} suggestion${m.droppedInvalid>1?'s':''} didn't fit your plan and ${m.droppedInvalid>1?'were':'was'} discarded.`:''}</div>` : ''}
              <button onclick="coachApplyChatActions(${i})" style="width:100%;margin-top:9px;padding:9px;border:none;border-radius:9px;background:var(--accent);color:#0C0820;font-weight:700;font-size:12px;cursor:pointer;">Apply to plan</button></div>`;
+    }
+    if(!isUser && m.intakeBlocked && m.intakeBlocked.length){
+      act += `<div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--border);">
+          <div style="font-family:var(--mono);font-size:9px;color:#f0b429;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;">Not enough to build on yet</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.6;">Still to cover: ${m.intakeBlocked.join('; ')}.</div>
+        </div>`;
     }
     if(!isUser && m.programSpec){
       const sp=m.programSpec;
