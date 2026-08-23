@@ -13915,14 +13915,13 @@ function _extractProgramSpec(text){
   let parsed=null; try{ parsed=JSON.parse(m[1]); }catch(e){ return {clean, spec:null}; }
   return {clean, spec:_validateProgramSpec(parsed)};
 }
+// Returns null when the block is MALFORMED, {blocked,missing} when it is
+// well-formed but proposed before the interview has done its job, and the spec
+// otherwise. Structure is checked first so a broken block is reported as broken
+// rather than as merely premature.
 function _validateProgramSpec(d, opts){
   opts=opts||{};
   if(!d || typeof d!=='object') return null;
-  // A block cannot be proposed before the interview has done its job.
-  if(!opts.skipIntakeGate){
-    const missing=_intakeMissing();
-    if(missing.length) return { blocked:true, missing };
-  }
   const weeks=parseInt(d.weeks);
   if(!(weeks>=2 && weeks<=52)) return null;
   const spw=parseInt(d.sessionsPerWeek);
@@ -13936,6 +13935,11 @@ function _validateProgramSpec(d, opts){
   if(!dayMap.every(x=>x==null || ids.has(x))) return null;
   let startDate='';
   try{ if(d.startDate && /^\d{4}-\d{2}-\d{2}$/.test(d.startDate)) startDate=_mondayISO(new Date(d.startDate+'T12:00:00')); }catch(e){}
+  // Structure is sound; now require the interview to have happened.
+  if(!opts.skipIntakeGate){
+    const missing=_intakeMissing();
+    if(missing.length) return { blocked:true, missing };
+  }
   const intake=_intakeSoFar();
   return { name:String(d.name||'Training Block').slice(0,60), type:String(d.type||'endurance'),
            weeks, sessionsPerWeek:spw, sessions, dayMap, startDate,
@@ -13945,6 +13949,7 @@ function _validateProgramSpec(d, opts){
            why:String(d.why||'').slice(0,240) };
 }
 function _describeProgramSpec(sp){
+  if(!sp || !Array.isArray(sp.dayMap) || !Array.isArray(sp.sessions)) return '';
   const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const byId=Object.fromEntries(sp.sessions.map(x=>[x.id,x]));
   const week=sp.dayMap.map((id,i)=>id?`${days[i]} ${byId[id]?byId[id].name:id}`:null).filter(Boolean).join(' · ');
@@ -14406,7 +14411,7 @@ function renderCoachMessages() {
           <div style="font-size:12px;color:var(--text);line-height:1.6;">Still to cover: ${m.intakeBlocked.join('; ')}.</div>
         </div>`;
     }
-    if(!isUser && m.programSpec){
+    if(!isUser && m.programSpec && Array.isArray(m.programSpec.dayMap) && !m.programSpec.blocked){
       const sp=m.programSpec;
       act += m.programApplied
         ? `<div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--green);">✓ Block created</div>`

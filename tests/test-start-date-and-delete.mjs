@@ -50,16 +50,17 @@ check('No chosen date still defaults to this Monday', await page.evaluate(()=>{
   return data.startDate===_mondayISO(new Date()); }));
 check('A conversationally proposed block can name its own start date', await page.evaluate(()=>{
   const f=new Date(); f.setDate(f.getDate()+14);
+  // Not testing the intake gate here — that has its own suite.
   const sp=_validateProgramSpec({name:'B',type:'endurance',weeks:8,sessionsPerWeek:2,
     startDate:f.toISOString().slice(0,10),
     sessions:[{id:'easy',type:'endurance',name:'E',runType:'easy'}],
-    dayMap:['easy',null,null,null,null,null,null]});
+    dayMap:['easy',null,null,null,null,null,null]}, {skipIntakeGate:true});
   return sp && sp.startDate===_mondayISO(f); }));
 check('A malformed start date is ignored, not crashed on', await page.evaluate(()=>{
   const sp=_validateProgramSpec({name:'B',type:'endurance',weeks:8,sessionsPerWeek:2,
     startDate:'next tuesday-ish',
     sessions:[{id:'easy',type:'endurance',name:'E',runType:'easy'}],
-    dayMap:['easy',null,null,null,null,null,null]});
+    dayMap:['easy',null,null,null,null,null,null]}, {skipIntakeGate:true});
   return sp && sp.startDate===''; }));
 
 // ── DELETION LEAVES NO RESIDUE ─────────────────────────────────────────────

@@ -100,14 +100,20 @@ const e2e=await page.evaluate(()=>{
     '{"id":"tempo","type":"endurance","name":"Tempo","runType":"tempo"},'+
     '{"id":"long","type":"endurance","name":"Long Run","runType":"long"}],'+
     '"dayMap":["easy",null,"tempo",null,null,"long",null]}\n```';
-  const ex=_extractProgramSpec(reply);
   coachMessages.length=0;
+  // A block can only be proposed once the interview has established goal,
+  // timeline and history — so record those first, as the coach now must.
+  const ik=_extractIntake('```intake\n{"goal":"sub-3:30 marathon at Melbourne",'+
+    '"timeline":"11 October, entered and paid",'+
+    '"history":"Ran 3:41 last year, faded hard after 30k"}\n```');
+  coachMessages.push({role:'assistant',text:'noted',intake:ik.intake});
+  const ex=_extractProgramSpec(reply);
   coachMessages.push({role:'user',text:'no injuries, I can do three days'});
   coachMessages.push({role:'assistant',text:ex.clean,programSpec:ex.spec});
   renderCoachMessages();
   const html=document.getElementById('coach-messages').innerHTML;
   const before=!!savedProgram;
-  coachCreateProgram(1);
+  coachCreateProgram(2);
   return { parsed:!!ex.spec, fenceStripped:!/```program/.test(ex.clean),
            chip:/Build this block\?/.test(html), why:/12 weeks to your race/.test(html),
            beforeHadProgram:before,
@@ -115,7 +121,7 @@ const e2e=await page.evaluate(()=>{
            weeks:savedProgram&&savedProgram.weeks,
            sat:(()=>{const s=_progWeekSessions(1);const x=s.find(y=>y.day==='Sat'&&y.session);return x?x.id:null;})(),
            persisted:(()=>{try{return !!JSON.parse(localStorage.getItem('ht-program'));}catch(e){return false;}})(),
-           marked:!!coachMessages[1].programApplied };
+           marked:!!coachMessages[2].programApplied };
 });
 check('E2E: the proposal parses out of the reply', e2e.parsed);
 check('E2E: the fenced JSON is stripped from what the athlete reads', e2e.fenceStripped);
