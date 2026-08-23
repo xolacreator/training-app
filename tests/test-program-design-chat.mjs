@@ -51,11 +51,20 @@ const prompt=await page.evaluate(()=>{
   coachMode='design';
   return buildCoachSystemPrompt();
 });
-check('The design prompt carries the athlete context', /THIS ATHLETE/.test(prompt));
-check('It is told what it already knows', /You ALREADY KNOW/.test(prompt), (prompt.match(/You ALREADY KNOW[^\n]*/)||[''])[0]);
-check('...and told not to ask about those', /Do NOT ask about these/.test(prompt));
-check('It is steered to the questions data cannot answer', /injury history/.test(prompt) && /training age/.test(prompt));
-check('One question at a time, not an interrogation', /ONE question at a time/.test(prompt) && /do not interrogate/.test(prompt));
+// These assert the PRINCIPLE, not the wording. The first version matched exact
+// phrases from the prompt, so rewording it produced five false failures while the
+// behaviour was fine — and one of them ("do not interrogate") was pinning a
+// behaviour that turned out to be wrong.
+check('The design prompt carries what the log shows', /log shows/i.test(prompt) || /THIS ATHLETE/.test(prompt));
+check('It is told which facts it already has', /already know/i.test(prompt), (prompt.match(/already know[^\n]*/i)||[''])[0]);
+check('...and told not to ask about those', /(don'?t|do not) ask about th/i.test(prompt));
+check('It is steered to the questions data cannot answer',
+  /injur/i.test(prompt) && /training age/i.test(prompt));
+check('One question at a time', /one question at a time/i.test(prompt));
+// Depth is now REQUIRED. Brevity was the bug: the interview skipped the goal.
+check('A real intake is expected to take several exchanges', /exchanges/i.test(prompt) && !/do not interrogate/i.test(prompt));
+check('The goal is established before a block is proposed',
+  /THE GOAL/i.test(prompt) && /not propose a block until/i.test(prompt));
 check('It still carries the coaching knowledge base', /COACHING KNOWLEDGE/.test(prompt));
 check('Day-to-day coaching keeps its own prompt', await page.evaluate(()=>{
   coachMode='ask'; const p=buildCoachSystemPrompt();
