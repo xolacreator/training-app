@@ -12392,13 +12392,25 @@ const KNOWLEDGE_CONTEXT = {
 function _runningDomainsForType(type){
   if (type==='endurance') return ['aerobic_development','lactate_threshold','vo2max','long_runs','running_economy','race_specific','recovery_science'];
   if (type==='hybrid')    return ['aerobic_development','lactate_threshold','vo2max','long_runs','concurrent_training','hyrox_running','recovery_science'];
+  // Compromised running under fatigue is the defining running quality in these,
+  // and neither had a knowledge type at all.
+  if (type==='hyrox')     return ['hyrox_running','aerobic_development','lactate_threshold','vo2max','concurrent_training','recovery_science'];
+  if (type==='deka')      return ['deka_running','aerobic_development','lactate_threshold','concurrent_training','recovery_science'];
+  // 'discovery' — the interview before a goal is established. Broad enough to ask
+  // an informed question about whatever the athlete says they are chasing.
+  if (type==='discovery') return ['aerobic_development','lactate_threshold','vo2max','long_runs','hyrox_running','concurrent_training','recovery_science'];
   return [];
 }
 function _strengthDomainsForType(type, method){
   if (method==='fitstop') return ['fitstop_method','strength_endurance','concurrent_training','recovery_fatigue'];
   if (type==='strength') return ['maximal_strength','hypertrophy','volume_landmarks','autoregulation','periodization_strength','exercise_selection','recovery_fatigue'];
-  if (type==='hybrid')   return ['maximal_strength','strength_endurance','concurrent_training','recovery_fatigue'];
+  // hyrox_strength was selected by NOTHING — the stations are strength-endurance
+  // work and no conversation could reach that knowledge.
+  if (type==='hyrox')    return ['hyrox_strength','strength_endurance','maximal_strength','concurrent_training','recovery_fatigue'];
+  if (type==='deka')     return ['deka_strength','strength_endurance','power_explosiveness','concurrent_training','recovery_fatigue'];
+  if (type==='hybrid')   return ['maximal_strength','strength_endurance','hyrox_strength','concurrent_training','recovery_fatigue'];
   if (type==='fitstop')  return ['fitstop_method','strength_endurance','concurrent_training'];
+  if (type==='discovery')return ['maximal_strength','strength_endurance','hyrox_strength','concurrent_training','volume_landmarks','recovery_fatigue'];
   return [];
 }
 // ── Athlete context for program design ───────────────────────────────────────
@@ -12496,6 +12508,36 @@ function weeksToRace(){
     if(days<7) return null;
     return Math.max(2, Math.min(52, Math.floor(days/7)));
   }catch(e){ return null; }
+}
+// Which knowledge the conversation needs, derived from the goal being discussed.
+// The interview used to receive `savedProgram.type || 'endurance'` — the block the
+// athlete is leaving — so designing a HYROX block handed the coach a marathon
+// textbook. Same root cause as the goal store and the interview context: reading
+// the previous program instead of current intent.
+function _knowledgeTypeForGoal(goalText){
+  const c=(typeof _classifyGoal==='function') ? _classifyGoal(goalText||'') : null;
+  if(!c) return null;
+  if(c.raceType==='hyrox')    return 'hyrox';
+  if(c.raceType==='other')    return 'hybrid';
+  if(c.category==='strength') return 'strength';
+  if(c.category==='race')     return 'endurance';
+  if(c.category==='fitness')  return 'hybrid';
+  return null;
+}
+// For a design conversation: the intake goal wins, then the profile, then the
+// current block. Before anything is established, use broad discovery knowledge so
+// the coach can ask an informed question whatever the answer turns out to be.
+function _designKnowledgeType(){
+  try{
+    const ik=(typeof _intakeSoFar==='function') ? _intakeSoFar() : {};
+    const fromIntake=_knowledgeTypeForGoal(ik.goal||'');
+    if(fromIntake) return fromIntake;
+  }catch(e){}
+  // Deliberately NOT falling back to the profile goal. Loading marathon knowledge
+  // because that is what they did last time is the same anchoring bug as asserting
+  // the old race — the interview exists precisely because intent may have changed.
+  // Discovery costs prompt size; being anchored costs the conversation.
+  return 'discovery';
 }
 function getKnowledgeContext(type, opts={}){
   const lines = (KNOWLEDGE_CONTEXT.core||[]).map(p=>`• ${p}`);   // cross-cutting core only
@@ -14499,8 +14541,7 @@ async function sendCoachMessage() {
 function buildCoachSystemPrompt() {
   // A design conversation has a different job from day-to-day coaching.
   if (typeof coachMode!=='undefined' && coachMode==='design'){
-    try{ return _designSystemPrompt() + '\n\n' + getKnowledgeContext(
-      (typeof savedProgram!=='undefined' && savedProgram && savedProgram.type) || 'endurance', {}); }catch(e){}
+    try{ return _designSystemPrompt() + '\n\n' + getKnowledgeContext(_designKnowledgeType(), {}); }catch(e){}
   }
   const p = coachProfile;
   const goalMap = {
