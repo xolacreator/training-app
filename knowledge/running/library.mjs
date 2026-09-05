@@ -239,6 +239,39 @@ export const RUNNING_DOMAINS = [
     recovery: ['High combined cost — manage concurrent strength/conditioning load.'],
     contraindications: ['Only practising fresh running; stacking with heavy lifting.'],
     relatedTo: ['concurrent_training','race_specific','lactate_threshold'],
+    // The brick session — a station block straight into a run, repeated. This is
+    // the highest-leverage HYROX-specific session and the one the app could not
+    // previously produce (rx was null, so nothing could be generated).
+    //
+    // Sourced: 1–2 compromised-running sessions/week from ~8 weeks out; 4–6 rounds
+    // of 800 m–1 km at goal race pace paired with a leg-heavy station; 1–2 min
+    // between rounds to mimic the roxzone rather than to recover.
+    // (compromisedrunning.com; coachway.io "How to Coach HYROX Athletes";
+    //  xendurance "Compromised Running"; roxzone.training)
+    rx: {
+      runType: 'hyrox_brick',
+      paceKey: 'threshold',        // HYROX run pace sits near threshold for most
+      zone: 'Z3–4',
+      station: 'rotate',           // rotation, not weakness-targeting — see note
+      stationDosePct: 0.75,   // fraction of the station's RACE dose
+      runDistM: 800,
+      roundsStart: 3, roundsMax: 5,
+      recovery: '90 s — walk it like a roxzone, not a rest',
+      // No measured per-station splits exist in the app, so a "weakest station"
+      // cannot be identified without fabricating it. Rotation covers all eight;
+      // weakness-targeting unlocks once race splits are captured.
+      selection: 'Rotate stations across the block so all eight are trained; bias to leg-heavy stations (sled push, sandbag lunges, wall balls, burpee broad jumps) which most degrade the following run.',
+      phases: {
+        Base:  { roundsStart:2, roundsMax:3, runDistM:400, stationDosePct:0.5, recovery:'2 min',
+                 note:'Introduce running on tired legs — short exposures, technique intact' },
+        Build: { roundsStart:3, roundsMax:5, runDistM:800, stationDosePct:0.75, recovery:'90 s',
+                 note:'The core HYROX session — accumulate quality running off stations' },
+        Peak:  { roundsStart:4, roundsMax:6, runDistM:1000, stationDosePct:1.0, recovery:'60 s',
+                 note:'Race-pace bricks at race station dose — rehearse the real thing' },
+        Taper: { roundsStart:2, roundsMax:3, runDistM:1000, stationDosePct:1.0, recovery:'2 min',
+                 note:'Short and sharp — hold race pace, cut the volume' },
+      },
+    },
   },
   {
     id: 'deka_running', title: 'DEKA Running', sourceTier: 'methodology',

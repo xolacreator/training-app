@@ -184,6 +184,40 @@ export const STRENGTH_DOMAINS = [
     recovery: ['Combine with running carefully (concurrent load is high).'],
     contraindications: ['Only training heavy strength while neglecting station endurance/grip.'],
     relatedTo: ['strength_endurance','concurrent_training','deka_strength'],
+    // Station work as an actual prescription. rx was null, so no station session
+    // could ever be generated — the stations existed only in the race-time
+    // calculator, never in the training plan.
+    //
+    // Sourced interval doses: wall balls 5×20 @60 s; SkiErg 5×200 m @90 s;
+    // sled push 6×25 m @90 s. Race distances/loads come from HYROX_SPEC, so a
+    // prescription can name the athlete's real division load.
+    // (coachway.io; hyroxfitness.com workout formats; roxzone.training)
+    rx: {
+      mode: 'stations',
+      // Race doses live in HYROX_SPEC (single source of truth for the event).
+      // These are TRAINING doses — fractions of race distance, repeated.
+      stations: [
+        { id:'sledPush',        name:'Sled Push',         repDistM:25,  setsStart:4, setsMax:6, rest:'90 s', cue:'Low hips, short choppy steps, never stop moving' },
+        { id:'sledPull',        name:'Sled Pull',         repDistM:25,  setsStart:4, setsMax:6, rest:'90 s', cue:'Hand-over-hand, drop the hips, load the back' },
+        { id:'wallBalls',       name:'Wall Balls',        reps:20,      setsStart:4, setsMax:5, rest:'60 s', cue:'Breathe at the top; a broken set beats a failed one' },
+        { id:'sandbagLunges',   name:'Sandbag Lunges',    repDistM:25,  setsStart:3, setsMax:4, rest:'90 s', cue:'Knee kisses the floor, chest tall, short stride' },
+        { id:'farmersCarry',    name:'Farmers Carry',     repDistM:50,  setsStart:3, setsMax:4, rest:'90 s', cue:'Grip is the limiter — train the hold, not the walk' },
+        { id:'burpeeBroadJump', name:'Burpee Broad Jumps',repDistM:20,  setsStart:4, setsMax:5, rest:'90 s', cue:'Small jumps, fast turnaround — this is a pacing station' },
+        { id:'ski',             name:'SkiErg',            repDistM:200, setsStart:4, setsMax:5, rest:'90 s', cue:'Full lat engagement, hinge — legs are for later' },
+        { id:'row',             name:'Rowing',            repDistM:250, setsStart:4, setsMax:5, rest:'90 s', cue:'Legs-back-arms; hold the split you can hold at km 5' },
+      ],
+      loadSource: 'HYROX_SPEC.divisions[division]',
+      phases: {
+        Base:  { loadPct:0.70, setsAdj:-1, rest:'2 min',
+                 note:'Technique and tissue tolerance — submaximal load, perfect standards' },
+        Build: { loadPct:0.90, setsAdj:0,  rest:'90 s',
+                 note:'Race load approached, volume accumulating' },
+        Peak:  { loadPct:1.00, setsAdj:1,  rest:'60 s',
+                 note:'Race load, race standards, compressed rest' },
+        Taper: { loadPct:1.00, setsAdj:-2, rest:'2 min',
+                 note:'Hold the load, cut the volume — stay sharp, arrive fresh' },
+      },
+    },
   },
   {
     id: 'deka_strength', title: 'DEKA Strength', sourceTier: 'methodology',
