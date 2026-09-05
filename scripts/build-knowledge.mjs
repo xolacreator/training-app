@@ -46,7 +46,11 @@ for (const kb of KBS){
     process.exit(2);
   }
   const listKey = kb.key || 'domains';
-  const count = Array.isArray(kb.data[listKey]) ? kb.data[listKey].length : 0;
+  // Some blocks key a list (domains, sessions), others key a map (divisions).
+  // Reporting 0 for a populated map makes the build log lie about what shipped.
+  const listVal = kb.data[listKey];
+  const count = Array.isArray(listVal) ? listVal.length
+              : (listVal && typeof listVal === 'object') ? Object.keys(listVal).length : 0;
   const block = `${kb.start}\nconst ${kb.name}=${JSON.stringify(kb.data)};\n${kb.end}`;
   const current = html.slice(si, ei + kb.end.length);
   if (current === block){ console.log(`${kb.name} up to date (v${kb.data.version}, ${count} ${listKey}).`); continue; }
