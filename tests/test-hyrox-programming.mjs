@@ -417,6 +417,40 @@ check('A deload never falls back to the Build phase dose',
   dl.deloads.every(d=>d.rounds < Math.max(...dl.all.filter(x=>!x.deload).map(x=>x.rounds))),
   dl.deloads.map(d=>`wk${d.w}:${d.rounds}`).join(' '));
 
+// ── HYROX built AROUND fixed Fitstop class days ────────────────────────────
+// An athlete who trains at a gym does not move their classes to suit a plan.
+const fs = await page.evaluate(()=>{
+  coachProfile={goal:'HYROX Pro sub-70', raceDate:'2026-12-04'};
+  localStorage.setItem('ht-race-date','2026-12-04');
+  const mk=(fitstopDays,spw)=>{
+    const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:spw,
+      trainDays:['Mon','Tue','Wed','Thu','Fri','Sat'], fitstopDays});
+    saveProgramData(pr);
+    const wk=(_progWeekSessions(1)||[]).filter(s=>s.session);
+    return { days:wk.map(s=>s.day), names:wk.map(s=>s.session.name),
+             byDay:Object.fromEntries(wk.map(s=>[s.day,s.session.name])),
+             ids:(pr.sessions||[]).map(s=>s.id) };
+  };
+  return { none:mk([],5), mwf:mk(['Mon','Wed','Fri'],6), tt:mk(['Tue','Thu'],5) };
+});
+check('Every Fitstop class day is honoured',
+  ['Mon','Wed','Fri'].every(d=>fs.mwf.byDay[d]==='Fitstop'), JSON.stringify(fs.mwf.byDay));
+check('...and nothing else is scheduled on a class day',
+  ['Mon','Wed','Fri'].every(d=>fs.mwf.byDay[d]==='Fitstop'));
+check('The compromised run survives — Fitstop cannot give him that',
+  fs.mwf.names.includes('Compromised Run'), fs.mwf.names.join(', '));
+check('Race-standard station work survives too',
+  fs.mwf.names.includes('Station Work'), fs.mwf.names.join(', '));
+check('The generic strength session is dropped — Fitstop LIFT is the strength work',
+  !fs.mwf.ids.includes('hx-strength'), fs.mwf.ids.join(','));
+check('The brick lands on the day least crowded by classes',
+  fs.mwf.byDay['Sat']==='Compromised Run', JSON.stringify(fs.mwf.byDay));
+check('A different class pattern produces a different week',
+  JSON.stringify(fs.mwf.byDay)!==JSON.stringify(fs.tt.byDay), JSON.stringify(fs.tt.byDay));
+check('With no Fitstop days the block is unchanged',
+  !fs.none.names.includes('Fitstop') && fs.none.names.includes('Compromised Run'),
+  fs.none.names.join(', '));
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();

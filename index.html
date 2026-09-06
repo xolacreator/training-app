@@ -12367,21 +12367,55 @@ function buildHyroxBlock(opts){
     ? opts.trainDays.slice(0,spw)
     : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].slice(0,spw);
 
-  const shape=HYROX_WEEK_SHAPES[spw]||HYROX_WEEK_SHAPES[5];
   const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  // ── Fitstop days are fixed points ─────────────────────────────────────────
+  // An athlete who trains at a gym does not move their classes to suit a plan. So
+  // the class days are placed FIRST and everything else is built around them.
+  //
+  // What Fitstop covers and what it does not:
+  //   LIFT days are barbell strength — they raise the ceiling, so the block's own
+  //   generic strength session is redundant and gets dropped.
+  //   Conditioning days (PERFORM/CONDITION/SWEAT) are mixed high-intensity. They are
+  //   NOT race-specific: no sled at 202 kg, no ski, no wall balls to a 3 m target.
+  //   So the station session and the compromised run stay — they are the sessions
+  //   Fitstop cannot give him — and hard running is placed away from class days.
+  const fsDays=(Array.isArray(opts.fitstopDays)?opts.fitstopDays:[]).filter(d=>DOW.includes(d));
+  const hasFitstop=fsDays.length>0;
+
+  let shape=(HYROX_WEEK_SHAPES[spw]||HYROX_WEEK_SHAPES[5]).slice();
+  if(hasFitstop){
+    // Drop generic strength — Fitstop LIFT is the strength work.
+    shape=shape.filter(k=>k!=='strength');
+    // Priority when days are scarce: the brick is the decisive HYROX session, then
+    // race-standard stations, then the long run, then quality, then easy volume.
+    const PRIORITY=['brick','stations','long','tempo','easy'];
+    shape.sort((a,b)=>PRIORITY.indexOf(a)-PRIORITY.indexOf(b));
+    const room=Math.max(0, spw-fsDays.length);
+    shape=shape.slice(0, room);
+  }
 
   // Sessions the block uses.
   const used=[...new Set(shape)];
   const sessions=used.map(k=>({...HYROX_SESSION_DEFS[k]}));
   // Simulations are scheduled per-week rather than weekly, so include both defs.
   sessions.push({...HYROX_SESSION_DEFS.sim}, {...HYROX_SESSION_DEFS.simHalf});
+  if(hasFitstop) sessions.push({ id:'fitstop', type:'fitstop', name:'Fitstop',
+                                 focus:'Class session', format:'Class session' });
 
-  // Interference-aware placement: the brick is the hardest session and gets the
-  // best day; the station session is kept off the day after it where possible.
   const dayMap=[null,null,null,null,null,null,null];
+  // Class days first — they are not ours to move.
+  fsDays.forEach(d=>{ const i=DOW.indexOf(d); if(i>=0) dayMap[i]='fitstop'; });
+
+  // Remaining days, hardest session on the day with the most recovery around it.
+  const freeDays=days.filter(d=>!fsDays.includes(d));
+  const _adjFitstop=(day)=>{ const i=DOW.indexOf(day);
+    return [DOW[(i+6)%7], DOW[(i+1)%7]].filter(n=>fsDays.includes(n)).length; };
+  const ranked=hasFitstop ? freeDays.slice().sort((a,b)=>_adjFitstop(a)-_adjFitstop(b)) : freeDays;
+
   const placed=[];
   shape.forEach((k,i)=>{
-    const day=days[i%days.length];
+    const day=ranked[i%Math.max(1,ranked.length)];
     const di=DOW.indexOf(day);
     if(di>=0 && !dayMap[di]){ dayMap[di]=HYROX_SESSION_DEFS[k].id; placed.push({day,k}); }
   });
@@ -12389,7 +12423,7 @@ function buildHyroxBlock(opts){
   shape.forEach(k=>{
     const id=HYROX_SESSION_DEFS[k].id;
     if(dayMap.includes(id)) return;
-    const free=DOW.findIndex((d,i)=>!dayMap[i] && days.includes(d));
+    const free=DOW.findIndex((d,i)=>!dayMap[i] && days.includes(d) && !fsDays.includes(d));
     if(free>=0) dayMap[free]=id;
   });
 
