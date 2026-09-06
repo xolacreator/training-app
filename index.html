@@ -9438,187 +9438,66 @@ function renderMyProgramCard() {
 function renderProgramBuilder() {
   const body = document.getElementById('program-overlay-body');
   if (!body) return;
-  const p = coachProfile || {};
-  const method = p.strengthMethod || 'auto';
-  const split  = p.trainingSplit  || 'ppl';
-  const hyApp  = p.hypertrophyApproach || '';
-  const cfg    = programBuilderConfig;
-  const methodLabels = {auto:'Auto',westside:'Westside Conjugate',jts:'Juggernaut (JTS)',kabuki:'Kabuki Strength'};
-  const splitLabels  = {'ppl':'Push / Pull / Legs','upper-lower':'Upper / Lower','total-body':'Total Body','body-part':'Body Part Split'};
-  const hyLabels     = {israetel:'Israetel (RP)',schoenfeld:'Schoenfeld',peters:'Jordan Peters',bennett:'Joe Bennett'};
+  // ── ONE DOOR ────────────────────────────────────────────────────────────────
+  // This screen used to offer six create buttons across four engines — build from
+  // days, adaptive week, three Fitstop splits, two concurrent splits, and a one-shot
+  // AI generate — plus a type dropdown that could contradict the stated goal. Which
+  // engine you got depended on which button you pressed, and the goal was never
+  // consulted, so a HYROX athlete could get Zone-2 runs and a generic strength day
+  // while the HYROX engine sat behind no button at all.
+  //
+  // Now there is one way in: say what you are training for. The goal picks the
+  // engine (_engineForGoal), the app builds the block, and you confirm the real week.
+  const goal = (() => { try {
+    return ((coachProfile && coachProfile.goal) || localStorage.getItem('ht-goal') || '').trim();
+  } catch(e){ return ''; } })();
+  const engine = (() => { try { return _engineForGoal(goal); } catch(e){ return null; } })();
+  const hasKey = (typeof hasValidAIKey === 'function') ? hasValidAIKey() : false;
+  const raceRaw = (typeof _rawRaceDateText === 'function') ? _rawRaceDateText() : '';
+  const raceD   = raceRaw && typeof _parseRaceDate === 'function' ? _parseRaceDate(raceRaw) : null;
+  const racePast = raceD && raceD.getTime() <= Date.now() - 86400000;
 
-  const pill = (val, label, cur, fn) =>
-    `<button onclick="${fn}(${val});renderProgramBuilder();" style="flex:1;padding:10px;font-family:var(--mono);font-size:12px;font-weight:500;border:none;cursor:pointer;border-radius:6px;background:${cur===val?'var(--accent)':'var(--bg2)'};color:${cur===val?'#000':'var(--text3)'};">${label}</button>`;
-  const typePill = (val, label, desc) =>
-    `<button onclick="programBuilderConfig.type='${val}';renderProgramBuilder();" style="flex:1;padding:10px 6px;border:none;cursor:pointer;border-radius:8px;text-align:center;background:${cfg.type===val?'var(--accent)':'var(--bg2)'};color:${cfg.type===val?'#000':'var(--text2)'};">
-      <div style="font-size:12px;font-weight:600;">${label}</div>
-      <div style="font-family:var(--mono);font-size:8px;opacity:.8;margin-top:2px;line-height:1.3;">${desc}</div></button>`;
+  const ENGINE_BLURB = {
+    hyrox:    ['HYROX', 'Built from the verified race spec — your division\'s real sled, carry and wall-ball loads, compromised runs, and two race simulations.'],
+    fitstop:  ['Fitstop + endurance', 'Your real Fitstop block, with running scheduled around those class days and hard runs kept off them.'],
+    adaptive: ['Endurance / strength', 'Adaptations ordered by value, scheduled around your availability, and progressed week to week.'],
+  };
+  const eb = engine ? ENGINE_BLURB[engine] : null;
 
-  const isStrengthy = cfg.type==='strength';
-  const goalPlaceholder = ({
-    strength:'e.g. Build my squat and bench, 4 days/week upper-lower',
-    endurance:'e.g. Sub-45 10K — Zone 2 base, one tempo + one interval/week, long run Sun',
-    hybrid:'e.g. HYROX prep — 2 strength days + 3 runs + 1 erg/conditioning per week',
-    fitstop:'e.g. 2× Fitstop LIFT + 2× Fitstop PERFORM, plus a Zone 2 run',
-  })[cfg.type] || 'Describe your goal and weekly structure…';
+  const goalCard = goal
+    ? `<div class="card" style="margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Training for</div>
+        <div style="font-size:16px;font-weight:600;line-height:1.4;">${_dash(goal).slice(0,90)}</div>
+        ${racePast ? `<div style="font-family:var(--mono);font-size:10px;color:#f0b429;margin-top:6px;line-height:1.6;">That race date has passed — set what's next before building.</div>` : ''}
+        ${eb ? `<div style="margin-top:10px;padding-top:10px;border-top:.5px solid var(--border);">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;">Will be built as · ${eb[0]}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">${eb[1]}</div></div>`
+        : `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;">Your coach will work out the shape of this in the interview.</div>`}
+        <button onclick="if(confirm('Clear this goal and race date? Your logged sessions are kept.')){clearGoal();renderProgramBody();}" style="margin-top:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:var(--mono);font-size:10px;cursor:pointer;">Not training for this any more</button>
+      </div>`
+    : `<div class="card" style="margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">No goal set</div>
+        <div style="font-size:13.5px;color:var(--text);line-height:1.55;">Nothing is being trained for yet. Your coach will start by asking what you're chasing — the goal is what decides how the block is built.</div>
+      </div>`;
 
-  body.innerHTML = `<div style="padding-bottom:40px;">
-    <div style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Program Type</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">What kind of block — one discipline or a mix</div>
-      <div style="display:flex;gap:6px;margin-bottom:6px;">
-        ${typePill('strength','Strength','Lifting mesocycle')}
-        ${typePill('endurance','Endurance','Run / cardio block')}
-      </div>
-      <div style="display:flex;gap:6px;">
-        ${typePill('hybrid','Hybrid','Strength + endurance')}
-        ${typePill('fitstop','Fitstop','LIFT / PERFORM mix')}
-      </div>
+  const cta = hasKey
+    ? `<button class="btn btn-accent" onclick="openProgramDesign()" style="font-size:15px;padding:15px;margin-bottom:10px;width:100%;">💬 Design my block with your coach</button>
+       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
+         A real intake — goal, timeline, history, constraints — then the app builds the block<br>from its knowledge base and shows you the week before anything is created.
+       </div>`
+    : `<div class="card" style="border-color:rgba(240,180,41,.4);background:rgba(240,180,41,.06);margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:9px;color:#f0b429;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">AI key needed</div>
+        <div style="font-size:13.5px;color:var(--text);line-height:1.55;">Programs are designed through the coach interview, which needs your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key. Add it and the builder opens up.</div>
+        <button class="btn btn-accent" onclick="closeOv('program-overlay');nav('more');" style="width:100%;margin-top:12px;">Add my API key</button>
+      </div>`;
+
+  body.innerHTML = `<div style="padding:4px 0 40px;">
+    <div style="margin-bottom:14px;">
+      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">Build a block</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;">One way in: say what you're training for, and the goal decides how it's programmed.</div>
     </div>
-
-    ${isStrengthy ? `<div class="card" style="margin-bottom:20px;">
-      <div style="font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px;">Strength Settings</div>
-      ${[
-        ['Methodology', methodLabels[method]||method, 'var(--accent)'],
-        ['Split',       splitLabels[split]||split,    'var(--blue)'],
-        ...(hyApp ? [['Hypertrophy', hyLabels[hyApp]||hyApp, 'var(--green)']] : []),
-      ].map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
-        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${l}</span>
-        <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:${c};">${v}</span>
-      </div>`).join('')}
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding-top:8px;border-top:.5px solid var(--border);">Change in Settings → More → Strength Programming</div>
-    </div>` : ''}
-
-    ${(cfg.type==='endurance'||cfg.type==='hybrid') ? (()=>{
-      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-      const td=cfg.trainDays||[];
-      const chips=days.map(d=>{
-        const on=td.includes(d);
-        return `<button onclick="_toggleTrainDay('${d}')" style="flex:1;padding:9px 0;border:1px solid var(--border2);border-radius:7px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600;background:${on?'var(--accent)':'var(--bg2)'};color:${on?'#000':'var(--text3)'};">${d[0]}</button>`;
-      }).join('');
-      const lrOpts=td.map(d=>`<option value="${d}" ${cfg.longRunDay===d?'selected':''}>${d}</option>`).join('');
-      return `<div class="card" style="margin-bottom:20px;border-color:rgba(77,158,255,.3);">
-        <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Your week</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Pick the days you train and your long-run day — the coach builds the plan around them (placing hard sessions for recovery & avoiding interference).</div>
-        <div class="flbl" style="margin-bottom:5px;">Training days</div>
-        <div style="display:flex;gap:5px;margin-bottom:12px;">${chips}</div>
-        <div class="fg" style="margin-bottom:12px;">
-          <label class="flbl">Long-run day</label>
-          <select onchange="programBuilderConfig.longRunDay=this.value" ${td.length?'':'disabled'}>${lrOpts||'<option>—</option>'}</select>
-        </div>
-        <button class="btn btn-accent" onclick="buildFromSchedule(programBuilderConfig.trainDays,programBuilderConfig.longRunDay,programBuilderConfig.type)" style="width:100%;">Build my plan around these days →</button>
-      </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or —</div>`;
-    })() : ''}
-
-    <div style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Goal & weekly structure</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Describe your target and how you want the week split across disciplines${cfg.type==='hybrid'||cfg.type==='fitstop'?' (e.g. how many of each per week)':''}</div>
-      <textarea id="prog-goal" placeholder="${goalPlaceholder}" oninput="programBuilderConfig.goal=this.value" style="width:100%;box-sizing:border-box;min-height:80px;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r);padding:12px;color:var(--text);font-size:13px;font-family:var(--font);line-height:1.5;">${cfg.goal||''}</textarea>
-    </div>
-
-    <div style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Start date</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Week 1 begins on this Monday — pick a past date to log a block already underway</div>
-      <input type="date" id="bld-start" value="${cfg.startDate || _mondayISO(new Date())}"
-        onchange="programBuilderConfig.startDate=_mondayISO(new Date(this.value+'T12:00:00'));renderProgramBuilder();"
-        style="width:100%;box-sizing:border-box;padding:11px;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;">
-      ${(()=>{ const iso=cfg.startDate||_mondayISO(new Date());
-        const d=new Date(iso+'T12:00:00');
-        const lbl=d.toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'short',year:'numeric'});
-        const diff=Math.round((d-new Date(_mondayISO(new Date())+'T12:00:00'))/86400000);
-        const when = diff===0 ? 'starts this week' : diff>0 ? `starts in ${Math.round(diff/7)} week${diff>7?'s':''}`
-                    : `started ${Math.round(-diff/7)} week${diff<-7?'s':''} ago`;
-        return `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Week 1 Monday: ${lbl} — ${when}</div>`; })()}
-    </div>
-
-    <div style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Program Duration</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Working weeks — deload appended automatically</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${pill(4,'4 wks',cfg.weeks,'programBuilderConfig.weeks=')}
-        ${pill(6,'6 wks',cfg.weeks,'programBuilderConfig.weeks=')}
-        ${pill(8,'8 wks',cfg.weeks,'programBuilderConfig.weeks=')}
-        ${pill(12,'12 wks',cfg.weeks,'programBuilderConfig.weeks=')}
-        ${pill(16,'16 wks',cfg.weeks,'programBuilderConfig.weeks=')}
-      </div>
-      ${(()=>{ const w=(typeof weeksToRace==='function')?weeksToRace():null;
-        if(!w) return '';
-        // Block length should follow the goal, not a fixed menu.
-        return `<div onclick="programBuilderConfig.weeks=${Math.max(2,w-1)};renderProgramBuilder();"
-             style="margin-top:8px;padding:11px;border-radius:10px;cursor:pointer;border:1px solid ${cfg.weeks===Math.max(2,w-1)?'var(--accent)':'rgba(212,175,55,.4)'};background:${cfg.weeks===Math.max(2,w-1)?'var(--accent-dim)':'rgba(212,175,55,.07)'};">
-          <div style="font-size:13px;font-weight:600;color:var(--text);">🏁 All the way to my race — ${w} weeks</div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:3px;">Ends on race week and tapers into it</div>
-        </div>`; })()}
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">or</span>
-        <input type="number" min="2" max="52" value="${cfg.weeks}" inputmode="numeric"
-          oninput="programBuilderConfig.weeks=Math.max(2,Math.min(52,parseInt(this.value)||2));"
-          onchange="renderProgramBuilder();"
-          style="width:70px;padding:8px;background:var(--bg2);border:.5px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;text-align:center;">
-        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">weeks</span>
-      </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">${cfg.weeks} working weeks + 1 deload = ${cfg.weeks+1} total weeks</div>
-    </div>
-
-    <div style="margin-bottom:28px;">
-      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Sessions per Week</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Total training days/week${cfg.type==='hybrid'||cfg.type==='fitstop'?' across all disciplines':''}</div>
-      <div style="display:flex;gap:8px;">
-        ${pill(3,'3×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
-        ${pill(4,'4×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
-        ${pill(5,'5×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
-        ${pill(6,'6×',cfg.sessionsPerWeek,'programBuilderConfig.sessionsPerWeek=')}
-      </div>
-    </div>
-
-    ${cfg.type==='fitstop' ? `<div class="card" style="margin-bottom:12px;border-color:rgba(212,175,55,.3);">
-      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Official Fitstop block</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Follow the real Fitstop programming on its actual dates (BASE→BUILD→PERFORMANCE→PEAK).</div>
-      <button class="btn btn-accent" onclick="loadFitstopBlockC()" style="width:100%;">Load Fitstop BLOCK C 2026 (22 Jun – 12 Sep)</button>
-    </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a custom block with AI —</div>` : ''}
-
-    ${cfg.type==='strength' ? `<div class="card" style="margin-bottom:12px;border-color:rgba(212,175,55,.3);">
-      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Use Fitstop as your strength program</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Fitstop's BLOCK C is a complete strength system (main lifts BASE→5RM→3RM→1RM + conditioning). Loads the real block as your strength programming.</div>
-      <button class="btn btn-accent" onclick="loadFitstopBlockC()" style="width:100%;">Use Fitstop BLOCK C as my strength program</button>
-    </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a custom strength block with AI —</div>` : ''}
-
-    ${cfg.type==='hybrid' ? `<div class="card" style="margin-bottom:12px;border-color:rgba(212,175,55,.3);">
-      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Fitstop + Endurance</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Keep some Fitstop class days (real BLOCK C dates) and fill the rest with running — hard runs are placed away from Fitstop days, long run on Sunday.</div>
-      <div class="fg" style="margin-bottom:8px;">
-        <label class="flbl">Running goal (optional)</label>
-        <input type="text" id="hybrid-run-goal" placeholder="e.g. sub-45 10K, marathon base" value="${(cfg.goal||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" oninput="programBuilderConfig.goal=this.value">
-      </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:5px;">Fitstop as your strength (real BLOCK C LIFT days):</div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
-        <button class="btn btn-accent" onclick="buildFitstopHybrid(['Tue','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;">2 Fitstop (LIFT) + 4 runs</button>
-        <button class="btn" onclick="buildFitstopHybrid(['Mon','Tue','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);">3 Fitstop + 3 runs</button>
-        <button class="btn" onclick="buildFitstopHybrid(['Mon','Tue','Thu','Fri'],document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--accent);border-color:rgba(212,175,55,.25);">4 Fitstop + 2 runs</button>
-      </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:5px;">Or a generic strength program alongside endurance (concurrent):</div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <button class="btn" onclick="buildConcurrent(['Tue','Fri'],'Sun',document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--blue);border-color:rgba(77,158,255,.25);">2 strength + 4 runs</button>
-        <button class="btn" onclick="buildConcurrent(['Mon','Thu'],'Sat',document.getElementById('hybrid-run-goal').value)" style="width:100%;color:var(--blue);border-color:rgba(77,158,255,.25);">2 strength + endurance (long Sat)</button>
-      </div>
-    </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or build a fully custom hybrid block with AI —</div>` : ''}
-
-    ${hasAnyAvailability() ? `<div class="card" style="margin-bottom:12px;border-color:rgba(77,158,255,.3);">
-      <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Adaptive week (from your availability)</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Coach EV picks adaptations and schedules them on your Preferred/Available days — honouring Locked sessions, spacing hard days, and explaining each choice.</div>
-      <button class="btn btn-accent" onclick="buildAdaptiveWeek(programBuilderConfig.type, (programBuilderConfig.weeks||5)+1)" style="width:100%;">Build adaptive week →</button>
-    </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;">— or —</div>` : `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;margin-bottom:10px;line-height:1.6;">Tip: set your weekly availability in More → Training Preferences to unlock adaptive scheduling.</div>`}
-
-    <button class="btn btn-accent" onclick="generateProgram()" style="font-size:15px;padding:15px;margin-bottom:10px;">Generate ${cfg.weeks+1}-Week Program</button>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.7;">
-      Uses your ${getAIProvider()==='openai'?'OpenAI':'Claude'} key (set in AI Plan Builder).<br>
-      Generation takes 15–30 seconds.
-    </div>
+    ${goalCard}
+    ${cta}
   </div>`;
 }
 
@@ -11681,11 +11560,14 @@ function renderRaceAnchorPrompt(){
   const el=document.getElementById('race-anchor-prompt'); if(!el) return;
   el.innerHTML='';
   const prog=(typeof savedProgram!=='undefined')?savedProgram:null;
-  if(!prog || prog.race) return;                       // no program, or already anchored
   const raw=_rawRaceDateText();
   if(!raw) return;                                     // no race set - don't nag
-  try{ if(localStorage.getItem('ht-anchor-dismissed')===(prog.id||'1')) return; }catch(e){}
   const d=_parseRaceDate(raw), future=d && d.getTime()>Date.now()-86400000;
+  // A race that has been run is stale athlete state, not a property of the block —
+  // it needs saying whether or not a program exists, and even once anchored.
+  const stale=!future;
+  if(!stale && (!prog || prog.race)) return;           // no program, or already anchored
+  try{ if(localStorage.getItem('ht-anchor-dismissed')===((prog&&prog.id)||'1')) return; }catch(e){}
   const card=(border,bg,body)=>`<div class="card" style="border:1px solid ${border};background:${bg};margin-bottom:12px;">${body}</div>`;
   if(d && future){
     const label=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
@@ -11697,14 +11579,29 @@ function renderRaceAnchorPrompt(){
         <button onclick="reanchorProgramToRace()" style="flex:2;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">🏁 Anchor to race day</button>
         <button onclick="dismissRaceAnchor()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-weight:600;font-size:13px;cursor:pointer;">Not now</button>
       </div>`);
+  } else if(d && !future){
+    // The race has been run. Left alone, the goal outlives it forever: ht-goal keeps
+    // saying "HYROX Tampa", so knowledge routing, race anchoring and every new block
+    // keep training for a race that already happened. Ask, rather than persist.
+    const label=d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const goal=(()=>{ try{ return ((coachProfile&&coachProfile.goal)||localStorage.getItem('ht-goal')||'').trim(); }catch(e){ return ''; } })();
+    el.innerHTML=card('rgba(77,158,255,.35)','rgba(77,158,255,.07)',`
+      <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">That race has been</div>
+      <div style="font-size:14px;color:var(--text);line-height:1.55;">${goal?`<b>${_dash(goal).slice(0,48)}</b> was ${label}.`:`Your race was ${label}.`} Until you set what's next, the app keeps programming for it.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button onclick="openProgramDesign()" style="flex:1 1 100%;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">Tell my coach what's next</button>
+        <button onclick="if(confirm('Clear this goal and race date? Your logged sessions and your current block are kept.')){clearGoal();}" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-weight:600;font-size:13px;cursor:pointer;">Clear the goal</button>
+        <button onclick="dismissRaceAnchor()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-weight:600;font-size:13px;cursor:pointer;">Not now</button>
+      </div>`);
   } else {
-    // The date exists but we can't use it — explain rather than disappear.
+    // The date exists but we can't read it — explain rather than disappear.
     el.innerHTML=card('rgba(240,180,41,.4)','rgba(240,180,41,.07)',`
       <div style="font-family:var(--mono);font-size:9px;color:#f0b429;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Race date not readable</div>
-      <div style="font-size:13.5px;color:var(--text);line-height:1.55;">Your race date is set to “${_dash(raw).slice(0,48)}”${d&&!future?' - that date has passed.':", which the planner can't read."} Update it and the block can be built around race day.</div>
+      <div style="font-size:13.5px;color:var(--text);line-height:1.55;">Your race date is set to “${_dash(raw).slice(0,48)}”, which the planner can't read. Update it and the block can be built around race day.</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;margin-top:8px;">Works: 2026-06-20 · Jun 20 2026 · 20 June 2026 · June 20th, 2026 · HYROX Sydney Nov 2026</div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button onclick="openCoachSetup()" style="flex:2;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">Fix my race date</button>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button onclick="openCoachSetup()" style="flex:1 1 100%;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#0C0820;font-weight:700;font-size:13px;cursor:pointer;">Fix my race date</button>
+        <button onclick="if(confirm('Clear this goal and race date? Your logged sessions and your current block are kept.')){clearGoal();}" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-weight:600;font-size:13px;cursor:pointer;">Clear the goal</button>
         <button onclick="dismissRaceAnchor()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);font-weight:600;font-size:13px;cursor:pointer;">Not now</button>
       </div>`);
   }
@@ -11781,7 +11678,19 @@ function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   // Adaptation-first: order objectives by adaptation value (per unit fatigue × decay-urgency,
   // readiness/interference-gated). Falls back to the static default if the engine yields none.
   let objectives = (typeof objectivesByAdaptationValue==='function') ? objectivesByAdaptationValue(type, opts.goal) : [];
-  if (!objectives.length) objectives = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
+  const _defaults = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
+  if (!objectives.length) objectives = _defaults.slice();
+  // objectivesByAdaptationValue dedupes by scheduler objective, so a goal whose
+  // adaptations collapse to two distinct objectives produced a two-session week no
+  // matter how many days the athlete trains — "Mon Strength, Tue Recovery Run" for a
+  // squat goal. Value ordering decides WHAT comes first; it must not decide how much.
+  const _want = Math.max(0, Math.min(7,
+    parseInt(opts.sessionsPerWeek) || (Array.isArray(opts.allowedDays) ? opts.allowedDays.length : 0)));
+  if (_want > objectives.length){
+    for (const o of _defaults){ if (objectives.length >= _want) break; if (!objectives.includes(o)) objectives.push(o); }
+    // Still short: repeat the highest-value objectives rather than pad with filler.
+    for (let i=0; objectives.length < _want && objectives.length; i++) objectives.push(objectives[i % Math.max(1, objectives.length)]);
+  }
   const { assigned, explanations, unplaced } = scheduleWeek(objectives, opts);
   // Build sessions + dayMap (Mon..Sun) from the placed week.
   const DOW = AVAIL_DAYS;
@@ -11791,7 +11700,12 @@ function buildAdaptiveWeek(goalType, weeks=6, opts={}){
     if (runMap[catId]) return { id:`run-${catId}`, type:'endurance', name:runMap[catId][1], focus:slot.adaptationId||'', runType:runMap[catId][0], duration:'45 min', cue:slot.prescription||'' };
     if (catId==='strength' || catId==='hybrid'){ const s=_genericStrengthSession(); s.focus=slot.adaptationId||s.focus; return s; }
     if (catId==='fitstop') return { id:'fitstop', type:'fitstop', name:'Fitstop', focus:slot.adaptationId||'', format:'Class session' };
-    if (catId==='hyrox') return { id:'hyrox', type:'fitstop', name:'HYROX Conditioning', focus:slot.adaptationId||'', format:'Station work' };
+    // "HYROX Conditioning · Station work" was a placeholder with no stations, no
+    // loads and nothing to execute. A HYROX goal now routes to the HYROX engine
+    // (buildBlockForGoal), so this is the fallback when a HYROX day lands inside
+    // another block — resolve it to the real station session rather than a label.
+    if (catId==='hyrox') return { id:'hx-stations', type:'strength', name:'Station Work',
+      hyroxStations:true, focus:slot.adaptationId||'Strength-endurance at race standard' };
     if (['recovery','mobility'].includes(catId)) return { id:catId, type:'endurance', name:catId==='mobility'?'Mobility':'Recovery', focus:'recovery', runType:'recovery', duration:'30 min' };
     return { id:'cross', type:'fitstop', name:'Cross Training', focus:slot.adaptationId||'', format:'Cross-training' };
   };
@@ -11838,6 +11752,9 @@ function buildAdaptiveWeek(goalType, weeks=6, opts={}){
     schedule: explanations, unplaced,
     ...(raceInfo?{ race:raceInfo, overrides }:{}) ,
   };
+  // Preview: hand the block back without committing it, so a proposal can be shown
+  // and confirmed. Nothing is written and nothing re-renders.
+  if (opts.preview) return data;
   saveProgramData(data);
   currentProgramWeek = 1; programViewWeek = 1;
   try { renderSavedProgram(); } catch(e){}
@@ -12237,6 +12154,57 @@ function buildHyroxBlock(opts){
     source:'HYROX programming engine (KB-driven)',
   };
 }
+// ── ONE DOOR: the goal chooses the engine ────────────────────────────────────
+// The builder grew six create buttons across four engines, and the engine you got
+// was whichever button you happened to press — the goal was never consulted. So a
+// HYROX athlete pressing "Build my plan around these days" got Zone-2 runs and a
+// generic 7-exercise strength day, while buildHyroxBlock (which knows the sled is
+// 152 kg) sat behind no button at all. That is the whole "unattached to the goal"
+// complaint, and it is a routing bug, not a knowledge one.
+//
+// _engineForGoal is the single decision. buildBlockForGoal is the single builder.
+// Every path goes through here, so the goal and the programming cannot disagree.
+function _engineForGoal(goalText, opts){
+  opts=opts||{};
+  const t=String(goalText||'').toLowerCase();
+  const k=(typeof _knowledgeTypeForGoal==='function') ? _knowledgeTypeForGoal(goalText||'') : null;
+  if(k==='hyrox') return 'hyrox';
+  // Fitstop is a real block the athlete attends, not a style we infer — only route
+  // there when it is named.
+  if(/fitstop/.test(t) || opts.fitstopDays) return 'fitstop';
+  if(k) return 'adaptive';
+  return null;                                   // unclassifiable — do not guess a block
+}
+// Returns a program object WITHOUT saving it, so a proposal can be shown before
+// anything is committed. `spec` is what the interview established.
+function buildBlockForGoal(spec){
+  spec=spec||{};
+  const goal=String(spec.goal||'').trim();
+  const engine=spec.engine || _engineForGoal(goal, spec);
+  if(!engine) return null;
+  const weeks=parseInt(spec.weeks)||null;
+  const spw=parseInt(spec.sessionsPerWeek)||null;
+  const days=Array.isArray(spec.trainDays)&&spec.trainDays.length?spec.trainDays:null;
+  let p=null;
+  if(engine==='hyrox'){
+    if(typeof buildHyroxBlock!=='function') return null;
+    const div=(typeof _hyroxDivision==='function') ? _hyroxDivision(spec.division||goal, undefined) : spec.division;
+    p=buildHyroxBlock({division:div, weeks, sessionsPerWeek:spw, trainDays:days});
+  } else if(engine==='fitstop'){
+    if(typeof buildFitstopHybrid!=='function') return null;
+    p=buildFitstopHybrid(days||spec.fitstopDays||['Tue','Fri'], goal, {preview:true});
+  } else {
+    // Endurance / strength / hybrid run through the constraint-based scheduler, which
+    // already progresses week to week. It just never received the goal before.
+    if(typeof buildAdaptiveWeek!=='function') return null;
+    const k=(typeof _knowledgeTypeForGoal==='function') ? _knowledgeTypeForGoal(goal) : null;
+    const type=spec.type || (k==='strength'?'strength' : k==='endurance'?'endurance' : 'hybrid');
+    p=buildAdaptiveWeek(type, weeks?weeks+1:undefined,
+      { allowedDays:days, goal, preview:true, sessionsPerWeek:spw });
+  }
+  if(p){ p.builtFor=goal; p.engine=engine; }
+  return p;
+}
 // Compose the week that carries a simulation. Called from _progWeekSessions, so the
 // simulation is what the calendar, the day view and the coach all actually see —
 // weeklyProgressions[n].simulation is the schedule, this is the week it produces.
@@ -12299,7 +12267,8 @@ function _composeHybridDayMap(keptDays, runGoal, keptSessionFn){
   map[6] = (Object.keys(assign).length || kept.size < 6) ? _RUN_DEFS.long.id : null; // Sunday long run if any running
   return { map, flags };
 }
-function buildFitstopHybrid(keptDays, runGoal){
+function buildFitstopHybrid(keptDays, runGoal, opts){
+  opts = opts || {};
   const B = FITSTOP_BLOCK_C;
   const { map, flags } = _composeHybridDayMap(keptDays, runGoal);
   const fitstopSessions = [
@@ -12329,6 +12298,8 @@ function buildFitstopHybrid(keptDays, runGoal){
     sessions, dayMap: map, weeklyProgressions, fitstopBlock:B,
     interferenceFlags: flags, // surfaced by the Validation Engine / coaching notes
   };
+  // Preview: hand the block back uncommitted so it can be proposed before it applies.
+  if (opts.preview) return data;
   saveProgramData(data);
   currentProgramWeek = (typeof _progActualWeek==='function') ? _progActualWeek() : 1;
   programViewWeek = 1;
@@ -12336,6 +12307,7 @@ function buildFitstopHybrid(keptDays, runGoal){
   try { renderMyProgramCard(); } catch(e){}
   try { renderAll(); } catch(e){}
   toast('Fitstop + endurance block built — running scheduled around your Fitstop days');
+  return data;
 }
 
 // Concurrent endurance + (generic) strength — run a strength program alongside an
@@ -14239,18 +14211,26 @@ function _designSystemPrompt(){
   L.push(`dayMap has EXACTLY 7 entries, Mon→Sun; each is a session id from "sessions" or null. Every non-null id must exist in "sessions".`);
   L.push(`Ground the design in the coaching knowledge you were given. If something is not supported by it, say so rather than asserting it.`);
 
-  // HYROX is a fixed-specification race: eight 1 km runs and eight stations at
-  // published loads. Those loads are FACT, and a model writing session content
-  // from memory gets them wrong. So for HYROX the app builds the block from the
-  // race spec and the KB, and the interview supplies the parameters instead.
-  let hxType=''; try{ hxType=_designKnowledgeType(); }catch(e){}
-  if(hxType==='hyrox'){
-    L.push(`\nTHIS IS A HYROX BLOCK — do NOT author the sessions yourself. The app holds the verified race specification (station order, distances, and the exact loads for each division) and builds the block from it, so the prescriptions carry the athlete's real race loads rather than remembered ones.`);
-    L.push(`Establish the division as part of the interview — Open or Pro, men's or women's — because every load in the block depends on it. If they don't know, Open is the default and worth saying so.`);
-    L.push(`Then emit the program block in this form instead of the one above:`);
-    L.push('```program\n{"engine":"hyrox","name":"...","weeks":12,"sessionsPerWeek":5,\n "division":"open_men|open_women|pro_men|pro_women",\n "trainDays":["Mon","Tue","Wed","Fri","Sat"],\n "startDate":"YYYY-MM-DD","goal":"...","raceDate":"YYYY-MM-DD",\n "why":"one sentence on the shape you chose and why"}\n```');
-    L.push(`No "sessions" and no "dayMap" — the app fills those in and will show the athlete the real week before anything is created. Your job is the goal, the division, the timeline, the days they can train, and the reasoning.`);
+  return L.join('\n');
+}
+// The engine half of the design prompt. The app owns session CONTENT — it holds the
+// verified HYROX race spec, the Fitstop block, and a scheduler that progresses week
+// to week — so a model authoring sessions from memory can only do worse. The
+// interview owns INTENT: goal, timeline, division, days. This is appended after the
+// knowledge context so it is the last thing read before the model proposes.
+function _designEnginePrompt(){
+  let k=''; try{ k=_designKnowledgeType(); }catch(e){}
+  const L=[];
+  L.push(`\nHOW TO PROPOSE THE BLOCK — do NOT author the sessions yourself.`);
+  L.push(`This app builds the block from its own knowledge base and progresses it week to week. You establish INTENT; it supplies CONTENT. Emit this instead of a hand-written "sessions"/"dayMap":`);
+  L.push('```program\n{"engine":"auto","name":"...","weeks":12,"sessionsPerWeek":5,\n "trainDays":["Mon","Tue","Wed","Fri","Sat"],\n "startDate":"YYYY-MM-DD","goal":"the goal you established, in their words","raceDate":"YYYY-MM-DD",\n "why":"one sentence on the shape you chose and why"}\n```');
+  L.push(`"engine":"auto" lets the goal choose. The athlete is shown the real week this produces and confirms it before anything is created.`);
+  if(k==='hyrox'){
+    L.push(`\nThis is a HYROX goal. The app holds the verified race specification — station order, distances, and the exact loads for each division — so the block will carry their real race loads. Establish the DIVISION in the interview (Open or Pro, men's or women's): every load depends on it, and Open is the default worth naming if they don't know. Add \`"division":"open_men|open_women|pro_men|pro_women"\` to the block above.`);
+  } else if(k==='hybrid'){
+    L.push(`\nIf they train at Fitstop, say so in the goal — the app has the real Fitstop block and will schedule running around those class days rather than inventing a split.`);
   }
+  L.push(`\nIf the goal is genuinely outside what the knowledge base covers, say that plainly instead of proposing a block you cannot ground.`);
   return L.join('\n');
 }
 // ── Intake: what the interview must establish before it may propose ──────────
@@ -14317,18 +14297,22 @@ function _validateProgramSpec(d, opts){
   // model's memory of it. The block is built HERE, before confirmation, so the
   // athlete reviews the real week — the proposal card and the created program are
   // then the same object rather than two chances to disagree.
-  if(String(d.engine||'').toLowerCase()==='hyrox'){
-    if(typeof buildHyroxBlock!=='function') return null;
+  const _eng=String(d.engine||'').toLowerCase();
+  if(_eng){
+    if(typeof buildBlockForGoal!=='function') return null;
+    const intakeGoal=(()=>{ try{ return (_intakeSoFar()||{}).goal||''; }catch(e){ return ''; } })();
+    const goal=String(d.goal||intakeGoal||'').trim();
+    // 'auto' lets the goal pick; a named engine is honoured so the coach can be
+    // explicit. An unknown name is a malformed proposal, not something to guess at.
+    if(_eng!=='auto' && !['hyrox','fitstop','adaptive'].includes(_eng)) return null;
     let built=null;
     try{
-      built=buildHyroxBlock({
-        division:(typeof _hyroxDivision==='function') ? _hyroxDivision(d.division, undefined) : d.division,
-        weeks, sessionsPerWeek:spw,
-        trainDays:Array.isArray(d.trainDays)?d.trainDays:null,
-      });
+      built=buildBlockForGoal({ goal, engine:_eng==='auto'?null:_eng, weeks, sessionsPerWeek:spw,
+        division:d.division, type:d.type,
+        trainDays:Array.isArray(d.trainDays)?d.trainDays:null });
     }catch(e){ return null; }
     if(!built || !Array.isArray(built.dayMap) || built.dayMap.length!==7) return null;
-    d = { ...d, type:'hybrid', name:d.name||built.name,
+    d = { ...d, type:built.type||d.type||'hybrid', name:d.name||built.name,
           sessions:built.sessions, dayMap:built.dayMap,
           weeks:built.weeks, sessionsPerWeek:built.sessionsPerWeek };
     opts = { ...opts, _built:built };
@@ -14355,8 +14339,12 @@ function _validateProgramSpec(d, opts){
            // An engine-built block carries its own week schedule (phases, deloads and
            // the scheduled race simulations). Losing it would flatten the block into
            // a generic ramp — so it rides along with the spec.
-           ...(B ? { engine:'hyrox', hyrox:B.hyrox, weeklyProgressions:B.weeklyProgressions,
-                     source:B.source } : {}),
+           ...(B ? { engine:B.engine||'auto', weeklyProgressions:B.weeklyProgressions,
+                     source:B.source, builtFor:B.builtFor,
+                     ...(B.hyrox?{hyrox:B.hyrox}:{}), ...(B.race?{race:B.race}:{}),
+                     ...(B.overrides?{overrides:B.overrides}:{}),
+                     ...(B.fitstopBlock?{fitstopBlock:B.fitstopBlock}:{}),
+                     ...(B.interferenceFlags?{interferenceFlags:B.interferenceFlags}:{}) } : {}),
            // The conclusion of the interview, so creating the block can commit it.
            goal:String(d.goal || intake.goal || '').slice(0,120),
            raceDate:String(d.raceDate||'').slice(0,40),
@@ -14381,6 +14369,11 @@ function coachCreateProgram(i){
                  ? sp.weeklyProgressions
                  : Array.from({length:sp.weeks+1},(_,k)=>({week:k+1, deload:k===sp.weeks})),
                ...(sp.hyrox ? { hyrox:sp.hyrox } : {}),
+               ...(sp.race ? { race:sp.race } : {}),
+               ...(sp.overrides ? { overrides:sp.overrides } : {}),
+               ...(sp.fitstopBlock ? { fitstopBlock:sp.fitstopBlock } : {}),
+               ...(sp.interferenceFlags ? { interferenceFlags:sp.interferenceFlags } : {}),
+               ...(sp.builtFor ? { builtFor:sp.builtFor } : {}),
                ...(sp.source ? { source:sp.source } : {}) };
   try{
     // Commit the conclusion of the interview. Without this the coach agreed a new
@@ -14764,7 +14757,13 @@ function coachSetupNext() {
     const _prevRace = (coachProfile && coachProfile.raceDate) || '';
     coachProfile = {...coachSetupAnswers};
     try { localStorage.setItem('ht-coach', JSON.stringify(coachProfile)); } catch(e) {}
-    try { if (coachProfile.raceDate) localStorage.setItem('ht-race-date', coachProfile.raceDate); } catch(e) {}
+    // Clearing the race has to actually clear it. This was guarded by `if (raceDate)`,
+    // so blanking the field updated the profile and left ht-race-date behind — and
+    // _rawRaceDateText() falls back to exactly that key, so the old race came back.
+    try {
+      if (coachProfile.raceDate) localStorage.setItem('ht-race-date', coachProfile.raceDate);
+      else localStorage.removeItem('ht-race-date');
+    } catch(e) {}
     try { _noteGoalChange(_prevGoal, _prevRace); } catch(e) {}
     // Keep the ENGINE's goal in step — without this the prescription keeps
     // following whatever was chosen at onboarding, forever.
@@ -14919,7 +14918,8 @@ async function sendCoachMessage() {
 function buildCoachSystemPrompt() {
   // A design conversation has a different job from day-to-day coaching.
   if (typeof coachMode!=='undefined' && coachMode==='design'){
-    try{ return _designSystemPrompt() + '\n\n' + getKnowledgeContext(_designKnowledgeType(), {}); }catch(e){}
+    try{ return _designSystemPrompt() + '\n\n' + getKnowledgeContext(_designKnowledgeType(), {})
+                + '\n\n' + _designEnginePrompt(); }catch(e){}
   }
   const p = coachProfile;
   const goalMap = {
