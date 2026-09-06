@@ -159,7 +159,7 @@ export const STRENGTH_DOMAINS = [
     adaptations: ['Tendon stiffness, bone density, connective-tissue tolerance.'],
     programming: ['Ramp load conservatively; include tendon-specific loading; full ROM with control.'],
     progression: ['Build tissue tolerance before chasing load, especially returning from layoff.'],
-    recovery: ['Heed niggles; deload connective tissue periodically.'],
+    recovery: ['Heed early aches; deload connective tissue periodically.'],
     contraindications: ['Load spikes; ballistic work on unprepared tendons.'],
     relatedTo: ['movement_quality','recovery_fatigue','power_explosiveness'],
   },

@@ -41,6 +41,27 @@ function runLog({weeks=8, perWeek=4, km=10, pace='5:30', qualityPace=null}){
 const iso = (daysFromNow) => new Date(today + daysFromNow*DAY).toISOString().slice(0,10);
 
 export const SCENARIOS = {
+  // ── THE REAL ATHLETE ──────────────────────────────────────────────────────
+  // Bruce. This exists so his profile does not have to be re-entered in the app
+  // for every test, only to come back wrong. Anything we change gets run against
+  // THIS first: node scripts/program-lab.mjs me
+  //
+  // Known: the goal, the race, the division. The training inputs below are still
+  // BLANK — they are his to state, and guessing them would defeat the point of the
+  // athlete-stated model. Fill LAB_INPUTS.me and re-run.
+  'me': {
+    label: 'Bruce · HYROX Anaheim, Pro Men, sub-70',
+    profile: { goal:'HYROX Anaheim — Men\'s Pro Solo, sub-70', raceDate:'2026-12-04' },
+    intake: {
+      goal:'Race HYROX Anaheim on 4 December 2026 in the Men\'s Pro Solo division and finish under 70 minutes.',
+      timeline:'Race is 4 December 2026 — fixed date.',
+      history:'',        // ← to fill: previous HYROX results, what went wrong, limiter
+      constraints:'',    // ← to fill: injuries, equipment access, days available
+    },
+    // Weeks deliberately omitted: the block should size itself to 4 Dec.
+    sessionsPerWeek:5, trainDays:['Mon','Tue','Wed','Fri','Sat'], division:'pro_men',
+  },
+
   // ── PAIR 1 · same race, very different runners ────────────────────────────
   'marathon-experienced': {
     label: 'Marathon · 3:41 → 3:30',
@@ -115,7 +136,7 @@ export const SCENARIOS = {
       goal:'200kg back squat. Stuck at 180 for eight months.',
       timeline:'No race. Meet in about 20 weeks if I feel ready.',
       history:'Six years lifting, three programmes deep. Linear progression stopped working two years ago.',
-      constraints:'Full powerlifting gym. 5 days. Old lower-back niggle under heavy deadlift.',
+      constraints:'Full powerlifting gym. 5 days. Old lower-back issue under heavy deadlift.',
     },
     weeks:16, sessionsPerWeek:5, trainDays:['Mon','Tue','Thu','Fri','Sat'],
     baselines:{ 'squat-1rm':180 },

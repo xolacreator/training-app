@@ -320,6 +320,31 @@ check('The brick prescription in the program view progresses with the block',
 check('The simulation week shows the simulation in the program view',
   /Race Simulation/.test(view.w9), view.w9.slice(0,120).replace(/\n/g,' / '));
 
+// ── A simulation must never land in a deload week ──────────────────────────
+// An 11-week block put the FULL race simulation at week 8, which is also a deload
+// (8 % 4 === 0) — the hardest session in the block scheduled inside the recovery
+// week. Found by running a real athlete's race date through the lab.
+const sims = await page.evaluate(()=>{
+  const out={};
+  [8,11,12,13,16,20,24].forEach(wk=>{
+    const pr=buildHyroxBlock({division:'pro_men', weeks:wk, sessionsPerWeek:5});
+    const s=pr.weeklyProgressions.filter(w=>w.simulation);
+    out[wk]={ sims:s.map(w=>({week:w.week, kind:w.simulation, deload:!!w.deload})),
+              clash:s.filter(w=>w.deload).map(w=>w.week),
+              distinct:new Set(s.map(w=>w.week)).size===s.length,
+              count:s.length };
+  });
+  return out;
+});
+Object.entries(sims).forEach(([wk,r])=>{
+  check(`${wk}-week block: no simulation in a deload week`, r.clash.length===0,
+    r.clash.length ? `clash at week ${r.clash.join(',')}` : r.sims.map(s=>`${s.week}:${s.kind}`).join(' '));
+});
+Object.entries(sims).forEach(([wk,r])=>{
+  check(`${wk}-week block: full and half are different weeks`, r.distinct && r.count===2,
+    r.sims.map(s=>`${s.week}:${s.kind}`).join(' '));
+});
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();
