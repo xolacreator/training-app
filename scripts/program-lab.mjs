@@ -23,7 +23,11 @@ import { SCENARIOS, LAB_INPUTS } from './lab-scenarios.mjs';
 const APP = pathToFileURL(new URL('../index.html', import.meta.url).pathname).href;
 const argv = process.argv.slice(2);
 const flag = (n, d=null) => { const i=argv.indexOf(n); return i>=0 ? (argv[i+1] ?? true) : d; };
-const WEEKS = String(flag('--weeks','1,4,8,12')).split(',').map(n=>parseInt(n)).filter(Boolean);
+// --all prints every week of the block, which is what you need to actually read a
+// programme rather than sample it.
+const ALL   = argv.includes('--all');
+const WEEKS = ALL ? Array.from({length:60},(_,i)=>i+1)
+                  : String(flag('--weeks','1,4,8,12')).split(',').map(n=>parseInt(n)).filter(Boolean);
 const DIFF   = argv.includes('--diff');
 const MATRIX = argv.includes('--matrix');
 const named  = argv.filter(a=>!a.startsWith('--') && SCENARIOS[a]);

@@ -12350,9 +12350,18 @@ const HYROX_WEEK_SHAPES = {
 function buildHyroxBlock(opts){
   opts=opts||{};
   const div=opts.division||hyroxDivision();
-  // Size to the race if we have one; the KB's cycle is 8–12 weeks.
-  const toRace=(typeof weeksToRace==='function') ? weeksToRace() : null;
-  const weeks=Math.max(4, Math.min(20, parseInt(opts.weeks) || (toRace? Math.max(4,toRace-1) : 12)));
+  // Size to END ON RACE WEEK. This used to take weeksToRace()-1 and start from the
+  // current Monday, which for a 4 December race built a block whose last week began
+  // 16 November — finishing eighteen days before the race, with nothing programmed in
+  // between and the race itself absent from the plan. The block must run INTO the race.
+  const _startISO=(typeof _mondayISO==='function') ? _mondayISO(new Date()) : null;
+  const _race=(typeof athleteRaceDate==='function') ? athleteRaceDate() : null;
+  const _raceWk=(_race && typeof _raceWeekCount==='function') ? _raceWeekCount(_race, _startISO) : null;
+  // weeks = the working weeks; the block is weeks+1 long, and that last week is race
+  // week when we have a date for it.
+  const weeks=Math.max(4, Math.min(24,
+    parseInt(opts.weeks) || (_raceWk && _raceWk>=5 ? _raceWk-1 : 12)));
+  const raceWeek=(_raceWk && _raceWk>=5 && !parseInt(opts.weeks)) ? weeks+1 : null;
   const spw=Math.max(3, Math.min(7, parseInt(opts.sessionsPerWeek)||5));
   const days=(Array.isArray(opts.trainDays)&&opts.trainDays.length>=spw)
     ? opts.trainDays.slice(0,spw)
@@ -12386,20 +12395,27 @@ function buildHyroxBlock(opts){
 
   // Weekly progressions: phases, deloads every 4th week, and the two simulations.
   const total=weeks+1;                       // final week is the deload/taper
-  const isDeload = w => (w===total) || (w%4===0 && w<weeks);
+  // The last two weeks are the taper and race week. A modulo deload landing right
+  // before them stacks three down weeks in a row — deload, taper, race — which is
+  // detraining into the event, not sharpening. The taper is the down week there.
+  const isDeload = w => (w===total) ||
+    (w%4===0 && w<weeks && !(raceWeek && w>=raceWeek-2));
   // A race simulation is the hardest session in the block. Scheduling it INSIDE the
   // recovery week is a contradiction — and it happened for real: an 11-week block put
   // the full simulation at week 8, which is also a deload (8 % 4 === 0), so the athlete
   // was told to recover and to race on the same page. Simulations move to the nearest
   // week that is not a deload; the deload then follows the simulation, which is the
   // right order anyway.
+  // The taper week is not a deload by the modulo rule, so it also has to be excluded
+  // explicitly — otherwise a race simulation could be scheduled during the taper.
+  const _lastTrainable = raceWeek ? raceWeek-2 : total-1;
   const _placeSim = (want) => {
     for (let d=0; d<=total; d++){
       for (const w of [want-d, want+d]){
-        if (w>=2 && w<total && !isDeload(w)) return w;
+        if (w>=2 && w<=_lastTrainable && !isDeload(w)) return w;
       }
     }
-    return want;
+    return Math.max(2, Math.min(want, _lastTrainable));
   };
   const simFull=_placeSim(Math.max(3, Math.round(weeks*0.75)));
   let   simHalf=_placeSim(Math.max(4, Math.round(weeks*0.90)));
@@ -12418,15 +12434,42 @@ function buildHyroxBlock(opts){
     return p;
   });
 
+  // ── Race week ─────────────────────────────────────────────────────────────
+  // The block has to contain the race. Without this it ended on a generic deload
+  // and the athlete's actual race day appeared nowhere in their plan.
+  const overrides={};
+  let raceInfo=null;
+  if(raceWeek){
+    const rDow=DOW[(_race.getDay()+6)%7];               // Mon-based day of the race
+    sessions.push({ id:'race-day', type:'endurance', name:'RACE DAY', race:true,
+                    runType:'race', focus:'race_specificity',
+                    cue:`HYROX ${(hyroxLoads(div).label)||div} — the day itself` });
+    const rp=weeklyProgressions[raceWeek-1];
+    if(rp){ rp.race=true; rp.deload=true; rp.taper=true;
+            rp.note=`RACE WEEK · ${rDow}`; delete rp.simulation; }
+    const tp=weeklyProgressions[raceWeek-2];
+    if(tp){ tp.deload=true; tp.taper=true; tp.note='Taper — volume down, keep the sharpness'; }
+    // Race week: one short opener with race-standard touches, then rest into it.
+    const rw=[null,null,null,null,null,null,null];
+    const ri=DOW.indexOf(rDow);
+    if(ri>=0){ rw[ri]='race-day';
+      const openerIdx=Math.max(0, ri-3);
+      if(openerIdx!==ri) rw[openerIdx]='hx-easy';
+    }
+    overrides[raceWeek]=rw;
+    raceInfo={ week:raceWeek, day:rDow, dateISO:_race.toISOString().slice(0,10) };
+  }
+
   const L=hyroxLoads(div);
   return {
     id:'hyrox-'+Date.now(),
     name:`HYROX Block — ${L.label||div}`,
     type:'hybrid',
     hyrox:{ division:div, simulationWeeks:{full:simFull, half:simHalf} },
-    startDate:(typeof _mondayISO==='function')?_mondayISO(new Date()):undefined,
+    startDate:_startISO,
     weeks, sessionsPerWeek:spw,
     sessions, dayMap, weeklyProgressions,
+    ...(raceInfo ? { race:raceInfo, overrides } : {}),
     source:'HYROX programming engine (KB-driven)',
   };
 }
