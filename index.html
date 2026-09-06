@@ -2790,7 +2790,7 @@ const BACKUP_KEYS = ['ht-v4','ht-v4-rescue','ht-v4-corrupt','ht-race-date',
   'ht-plan-start','ht-plan-type','ht-goal','ht-goal-category','ht-goal-race-type',
   'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
   'ht-coach-memory','ht-custom','ht-tmpl','ht-theme','ht-palette','ht-card-theme',
-  'ht-units-run','ht-units-strength','ht-pending-review'];
+  'ht-units-run','ht-units-strength','ht-pending-review','ht-training-inputs'];
 // ── Dead-origin guard ────────────────────────────────────────────────────────
 // The repo moved from bruces6 → xolacreator, so GitHub Pages moved with it. The
 // old origin keeps serving its last pre-transfer build forever: three deploys in
@@ -4160,6 +4160,149 @@ function _runPaces(){
     hasBaseline: !!r,
   };
 }
+// ── WHERE THE ATHLETE ACTUALLY IS ────────────────────────────────────────────
+// The block used to start from rx.startKm — a constant in the knowledge base — so a
+// 3:41 marathoner and someone who has never run past 14 km were prescribed the same
+// 12 km long run in week 2, and the novice got 5×800 m at 5K effort because the
+// objective list says week 2 has intervals. That is a template, not a plan.
+//
+// This is the athlete's own account of where they are, because THE LOG IS MANUAL and
+// a sparse log means "didn't log", not "didn't train". Under-reading someone's volume
+// is how you under-prescribe for the people training hardest. So:
+//
+//   stated  — what the athlete told us. Authoritative.
+//   logged  — what we can see. Used to RAISE a stated figure it exceeds (they did
+//             more than they claimed), never to lower one (they trained and didn't log).
+//
+// Every value carries where it came from, so the plan can say so rather than imply
+// a precision it does not have.
+const TRAINING_INPUTS = [
+  { key:'weeklyKm',    label:'Weekly running volume',   unit:'km/week', min:0,  max:250,
+    ask:'Roughly how many kilometres are you running in a normal week right now?' },
+  { key:'longestKm',   label:'Longest recent run',      unit:'km',      min:0,  max:100,
+    ask:'What is the longest single run you have done in the last month or so?' },
+  { key:'runDays',     label:'Runs per week',           unit:'per week',min:0,  max:14,
+    ask:'How many times a week are you running at the moment?' },
+  { key:'trainingAge', label:'Years training',          unit:'years',   min:0,  max:40,
+    ask:'How long have you been training seriously for this kind of thing?' },
+];
+function loadTrainingInputs(){
+  try{ const v=JSON.parse(localStorage.getItem('ht-training-inputs')||'null');
+       return (v && typeof v==='object') ? v : {}; }catch(e){ return {}; }
+}
+function saveTrainingInputs(v){
+  try{ localStorage.setItem('ht-training-inputs', JSON.stringify(v||{})); }catch(e){}
+  try{ AthleteState=null; recomputeAthleteState(); }catch(e){}
+  return true;
+}
+function setTrainingInput(key, value){
+  const cur=loadTrainingInputs();
+  const def=TRAINING_INPUTS.find(d=>d.key===key);
+  const n=parseFloat(value);
+  if(value==='' || value==null || !isFinite(n)){ delete cur[key]; }
+  else if(def && (n<def.min || n>def.max)) return false;   // out of range — refuse, don't clamp silently
+  else cur[key]=n;
+  saveTrainingInputs(cur);
+  return true;
+}
+// What the log can see, over the fitness window. Only ever a floor.
+function _loggedVolume(){
+  const cut=Date.now() - FITNESS_WINDOW_DAYS*86400000;
+  let rows=[];
+  try{ rows=(typeof sessions!=='undefined'&&Array.isArray(sessions)?sessions:[])
+        .filter(x=>x && (x.ts||0)>=cut && parseFloat(x.dist)>0); }catch(e){ return null; }
+  if(!rows.length) return null;
+  const byWeek={};
+  rows.forEach(x=>{ const wk=Math.floor((Date.now()-(x.ts||0))/(7*86400000));
+                    byWeek[wk]=(byWeek[wk]||0)+parseFloat(x.dist); });
+  const weeks=Object.values(byWeek);
+  if(!weeks.length) return null;
+  // Median rather than mean: one big week should not become the new normal.
+  const sorted=weeks.slice().sort((a,b)=>a-b);
+  const med=sorted[Math.floor(sorted.length/2)];
+  const longest=Math.max(...rows.map(x=>parseFloat(x.dist)||0));
+  const runsPerWeek=rows.length/Math.max(1,weeks.length);
+  return { weeklyKm:Math.round(med), longestKm:Math.round(longest),
+           runDays:Math.round(runsPerWeek), weeksSeen:weeks.length, n:rows.length };
+}
+// The merged view every engine should read.
+function athleteTrainingState(){
+  const stated=loadTrainingInputs();
+  const logged=_loggedVolume();
+  const out={ stated, logged, fields:{} };
+  TRAINING_INPUTS.forEach(({key})=>{
+    const s=stated[key], l=logged?logged[key]:null;
+    let value=null, source='none';
+    if(s!=null && isFinite(s)){ value=s; source='stated'; }
+    if(l!=null && isFinite(l) && (value==null || l>value)){
+      // The log can only revise a stated figure UPWARD. A lower logged figure is the
+      // expected case for a manual log and says nothing about what they actually did.
+      value=l; source = (s!=null && isFinite(s)) ? 'logged-exceeds-stated' : 'logged';
+    }
+    out.fields[key]={ value, source, stated:(s!=null?s:null), logged:(l!=null?l:null) };
+  });
+  const v=k=>out.fields[k] ? out.fields[k].value : null;
+  out.weeklyKm=v('weeklyKm'); out.longestKm=v('longestKm');
+  out.runDays=v('runDays');   out.trainingAge=v('trainingAge');
+  out.known = TRAINING_INPUTS.filter(d=>v(d.key)!=null).map(d=>d.key);
+  out.missing = TRAINING_INPUTS.filter(d=>v(d.key)==null).map(d=>d.key);
+  // Enough to anchor a block to this athlete rather than to a KB constant.
+  out.canAnchor = out.weeklyKm!=null || out.longestKm!=null;
+  return out;
+}
+// ── What this athlete has the base for ───────────────────────────────────────
+// Hard running is earned. Prescribing VO₂ intervals to someone with no aerobic base
+// is not ambitious, it is how people get hurt — and the app was doing it in week 2
+// because the objective list is chosen per TYPE and never consulted the athlete.
+//
+// These thresholds are a floor for SAFETY, not a coaching opinion about what is
+// optimal. Below them the work is withheld and the reason is stated; the athlete can
+// always tell the app it is wrong by correcting their inputs.
+const INTENSITY_FLOORS = {
+  vo2max:    { weeklyKm:25, longestKm:10, why:'VO₂ intervals need an aerobic base underneath them' },
+  threshold: { weeklyKm:15, longestKm:8,  why:'Threshold work needs a base of easy running first' },
+};
+function _intensityGate(){
+  let st=null; try{ st=athleteTrainingState(); }catch(e){ return null; }
+  // No information at all is not evidence of a small engine — say nothing and let
+  // the generic build stand rather than withholding work from someone unknown.
+  if(!st || !st.canAnchor) return { blocked:[], reasons:[], known:false };
+  const blocked=[], reasons=[];
+  Object.entries(INTENSITY_FLOORS).forEach(([obj, f])=>{
+    const wk=st.weeklyKm, lg=st.longestKm;
+    const shortVolume = wk!=null && wk < f.weeklyKm;
+    const shortLong   = lg!=null && lg < f.longestKm;
+    if(shortVolume || shortLong){
+      blocked.push(obj);
+      const have=[ wk!=null?`${wk} km/week`:null, lg!=null?`longest ${lg} km`:null ].filter(Boolean).join(', ');
+      reasons.push(`${obj==='vo2max'?'Intervals':'Threshold work'} held back — ${f.why}. You're at ${have}; this opens up around ${f.weeklyKm} km/week.`);
+    }
+  });
+  return { blocked, reasons, known:true };
+}
+// Scale a KB long-run prescription to this athlete. The KB says what the SHAPE of a
+// build is; the athlete says where it starts. Someone whose longest run is 14 km does
+// not begin a block at 12 km and finish at 32 — they begin near 14 and grow from there.
+const LONG_RUN_SHARE = 0.35;      // a long run is ~30-35% of a sane week
+const MAX_LONG_STEP  = 1.10;      // and week 1 is not a leap beyond what they've done
+function _volumeAnchor(rx){
+  const def={ startKm:rx.startKm, growth:1, capKm:null, source:'default' };
+  let st=null; try{ st=athleteTrainingState(); }catch(e){ return def; }
+  if(!st || !st.canAnchor) return def;
+  // Prefer the longest run they have actually done; fall back to a share of weekly
+  // volume when that is all we have.
+  const fromLongest = st.longestKm!=null ? st.longestKm*MAX_LONG_STEP : null;
+  const fromWeekly  = st.weeklyKm!=null  ? st.weeklyKm*LONG_RUN_SHARE : null;
+  const start = fromLongest!=null ? fromLongest : fromWeekly;
+  if(start==null || !(start>0)) return def;
+  const startKm=Math.max(3, Math.round(start));
+  // Growth scales with the athlete's base: a bigger engine absorbs a steeper ramp.
+  // Never faster than the KB's own curve — this only ever moderates it.
+  const growth=Math.max(0.4, Math.min(1, startKm/Math.max(1, rx.startKm)));
+  return { startKm, growth, capKm:null,
+           source: st.fields.longestKm && st.fields.longestKm.value!=null
+                   ? st.fields.longestKm.source : (st.fields.weeklyKm||{}).source||'stated' };
+}
 // Returns the progressed prescription for an endurance session in a given week.
 // { distance, duration, pace, zone, intervals, note }
 // The KB prescription (rx) for a given run type — the engine queries RUNNING_KB.
@@ -4357,8 +4500,12 @@ function _strengthSetRows(ex, setsCount){
 // invented at this layer — same contract as _phaseRx for running.
 
 function _hyroxDivision(input, fallback){
-  const t=String(input||'').toLowerCase();
-  if(!t.trim()) return fallback||'open_men';
+  const t=String(input||'').toLowerCase().trim();
+  if(!t) return fallback||'open_men';
+  // A canonical key passed straight through. `\bpro\b` does NOT match "pro_men" —
+  // underscore is a word character, so there is no boundary — which silently
+  // downgraded a Pro athlete to Open loads: a 202 kg sled prescribed as 152 kg.
+  if(/^(open|pro)_(men|women)$/.test(t)) return t;
   const pro=/\bpro\b/.test(t);
   const women=/\b(women|woman|female)\b/.test(t);
   const men=/\b(men|man|male)\b/.test(t);
@@ -4644,8 +4791,14 @@ function _progressEndurance(sess, week, totalWeeks){
   const rampInt = (start,max) => Math.min(max||start, (start||0) + Math.round(ramp*((max||start)-(start||0))));
   let out = { zone: rx.zone || sess.zone || '' };
   if (rx.startKm != null){                              // distance-based long run
-    let km = Math.round((rx.startKm + (rx.growKm||0)*ramp) * vmult);
+    // Anchor to the athlete, not to a KB constant. rx.startKm is what a generic
+    // build starts at; _volumeAnchor scales it to what this person is actually
+    // running, so week 1 is a step from where they are rather than from a default.
+    const _anchor = _volumeAnchor(rx);
+    let km = Math.round((_anchor.startKm + (rx.growKm||0)*_anchor.growth*ramp) * vmult);
     if (rx.capKm) km = Math.min(km, rx.capKm);
+    if (_anchor.capKm) km = Math.min(km, _anchor.capKm);
+    if (_anchor.source!=='default') out.anchoredTo = _anchor.source;
     out.distance = `${km} km`; out.duration = `~${Math.round(km*(rx.minPerKm||5.6))} min`; out.pace = pace;
     out.phase = _phase;
     // The defining session of a race build: in Build and Peak it carries race-pace
@@ -9509,12 +9662,50 @@ function renderProgramBuilder() {
         return `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Week 1 Monday: ${lbl} — ${when}</div>`; })()}
     </div>`;
 
+  // ── Where you are now ───────────────────────────────────────────────────────
+  // The block used to start from a constant in the knowledge base, so a 3:41
+  // marathoner and someone who has never run past 14 km got the same 12 km long run.
+  // These four numbers are what change that. They are ASKED rather than inferred,
+  // because the log is manual — a sparse log means "didn't log", not "didn't train",
+  // and reading it as volume would under-prescribe for whoever trains hardest.
+  const ats = (() => { try { return athleteTrainingState(); } catch(e){ return null; } })();
+  const inputRow = (d) => {
+    const f = ats && ats.fields[d.key] ? ats.fields[d.key] : {value:null,source:'none'};
+    const shown = f.stated!=null ? f.stated : '';
+    const note = f.source==='logged-exceeds-stated'
+      ? `<span style="color:var(--blue);">your log shows ${f.logged} — using that</span>`
+      : f.source==='logged' ? `<span style="color:var(--blue);">from your log: ${f.logged}</span>`
+      : f.value==null ? `<span style="color:var(--text3);">not set</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${d.label}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;line-height:1.5;">${note||d.unit}</div>
+      </div>
+      <input type="number" inputmode="decimal" id="ti-${d.key}" value="${shown}" placeholder="—"
+        min="${d.min}" max="${d.max}"
+        onchange="setTrainingInput('${d.key}', this.value); renderProgramBuilder();"
+        style="width:82px;flex-shrink:0;padding:9px;background:var(--bg2);border:.5px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:14px;text-align:center;">
+    </div>`;
+  };
+  const gate = (() => { try { return _intensityGate(); } catch(e){ return null; } })();
+  const gateNote = (gate && gate.reasons && gate.reasons.length)
+    ? `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.3);">
+        ${gate.reasons.map(r=>`<div style="font-size:12px;color:var(--text);line-height:1.55;">${r}</div>`).join('')}
+      </div>` : '';
+  const stateCard = `<div class="card" style="margin-bottom:16px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">Where you are now</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;margin-bottom:6px;">Your block starts from these, not from a default. Your log only ever raises them — it never lowers what you've told us.</div>
+      ${TRAINING_INPUTS.map(inputRow).join('')}
+      ${gateNote}
+    </div>`;
+
   body.innerHTML = `<div style="padding:4px 0 40px;">
     <div style="margin-bottom:14px;">
       <div style="font-size:20px;font-weight:600;margin-bottom:3px;">Build a block</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;">One way in: say what you're training for, and the goal decides how it's programmed.</div>
     </div>
     ${goalCard}
+    ${stateCard}
     ${startCard}
     ${cta}
   </div>`;
@@ -11697,7 +11888,19 @@ function buildAdaptiveWeek(goalType, weeks=6, opts={}){
   // Adaptation-first: order objectives by adaptation value (per unit fatigue × decay-urgency,
   // readiness/interference-gated). Falls back to the static default if the engine yields none.
   let objectives = (typeof objectivesByAdaptationValue==='function') ? objectivesByAdaptationValue(type, opts.goal) : [];
-  const _defaults = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).slice();
+  // Gate hard objectives on the athlete's actual base. Week 1 handed 5×800 m @ 5K
+  // effort to someone six weeks into jogging, because the objective list is chosen
+  // per TYPE and never looked at the person.
+  //
+  // The gate is applied to EVERY source of objectives — the value-ranked list, the
+  // static defaults, and the top-up — not once at the top. Filtering only the first
+  // one let the defaults put the blocked work straight back, which is exactly the
+  // bug this was meant to fix.
+  const _gate = (typeof _intensityGate==='function') ? _intensityGate() : null;
+  const _blocked = (_gate && _gate.blocked) ? _gate.blocked : [];
+  const _permit = o => !_blocked.includes(o);
+  objectives = objectives.filter(_permit);
+  const _defaults = (DEFAULT_OBJECTIVES[type] || DEFAULT_OBJECTIVES.hybrid).filter(_permit);
   if (!objectives.length) objectives = _defaults.slice();
   // objectivesByAdaptationValue dedupes by scheduler objective, so a goal whose
   // adaptations collapse to two distinct objectives produced a two-session week no
@@ -11710,6 +11913,7 @@ function buildAdaptiveWeek(goalType, weeks=6, opts={}){
     // Still short: repeat the highest-value objectives rather than pad with filler.
     for (let i=0; objectives.length < _want && objectives.length; i++) objectives.push(objectives[i % Math.max(1, objectives.length)]);
   }
+  objectives = objectives.filter(_permit);        // final guard — nothing blocked survives
   const { assigned, explanations, unplaced } = scheduleWeek(objectives, opts);
   // Build sessions + dayMap (Mon..Sun) from the placed week.
   const DOW = AVAIL_DAYS;
@@ -12183,11 +12387,33 @@ function buildHyroxBlock(opts){
 //
 // _engineForGoal is the single decision. buildBlockForGoal is the single builder.
 // Every path goes through here, so the goal and the programming cannot disagree.
+// Everything the athlete has told us about what they are training for. Classification
+// used to read ONE field — the goal string — so "Sub-3:30 at Melbourne. Ran 3:41 there
+// last year" produced no block at all, because the word "marathon" never appears in it.
+// The interview asks four questions; all four are evidence.
+function _goalEvidence(goalText, opts){
+  opts=opts||{};
+  const parts=[String(goalText||'')];
+  const add=v=>{ if(typeof v==='string' && v.trim()) parts.push(v); };
+  if(opts.context) add(opts.context);
+  // The interview's own record, when we are mid-conversation.
+  try{ const ik=(typeof _intakeSoFar==='function') ? _intakeSoFar() : null;
+       if(ik){ add(ik.goal); add(ik.history); add(ik.timeline); add(ik.constraints); } }catch(e){}
+  try{ if(coachProfile && coachProfile.goal) add(coachProfile.goal); }catch(e){}
+  return parts.join(' \n ');
+}
 function _engineForGoal(goalText, opts){
   opts=opts||{};
-  const t=String(goalText||'').toLowerCase();
-  const k=(typeof _knowledgeTypeForGoal==='function') ? _knowledgeTypeForGoal(goalText||'') : null;
+  const ev=_goalEvidence(goalText, opts);
+  const t=ev.toLowerCase();
+  // Classify from the goal first — it is the athlete's own statement of intent — then
+  // widen to the rest of the interview only if that says nothing.
+  let k=(typeof _knowledgeTypeForGoal==='function') ? _knowledgeTypeForGoal(goalText||'') : null;
+  if(!k && typeof _knowledgeTypeForGoal==='function') k=_knowledgeTypeForGoal(ev);
   if(k==='hyrox') return 'hyrox';
+  // Division language is HYROX-specific and appears where the word does not:
+  // "Pro Men, chasing sub-65" is a HYROX goal by any reading.
+  if(/\b(pro|open)\s+(men|women)\b/.test(t) && /\b(sub-?\d{2}\b|station|sled|roxzone|wall ?ball|ski ?erg)/.test(t)) return 'hyrox';
   // Fitstop is a real block the athlete attends, not a style we infer — only route
   // there when it is named.
   if(/fitstop/.test(t) || opts.fitstopDays) return 'fitstop';
@@ -12199,7 +12425,7 @@ function _engineForGoal(goalText, opts){
 function buildBlockForGoal(spec){
   spec=spec||{};
   const goal=String(spec.goal||'').trim();
-  const engine=spec.engine || _engineForGoal(goal, spec);
+  const engine=spec.engine || _engineForGoal(goal, {...spec, context:spec.context});
   if(!engine) return null;
   const weeks=parseInt(spec.weeks)||null;
   const spw=parseInt(spec.sessionsPerWeek)||null;
@@ -14249,8 +14475,41 @@ function _designEnginePrompt(){
   } else if(k==='hybrid'){
     L.push(`\nIf they train at Fitstop, say so in the goal — the app has the real Fitstop block and will schedule running around those class days rather than inventing a split.`);
   }
+  // Where the athlete is now is the difference between a plan and a template — it is
+  // what the block starts FROM. The app cannot read it off the log, because the log
+  // is manual: a thin log means they didn't record, not that they didn't train.
+  const st=(()=>{ try{ return athleteTrainingState(); }catch(e){ return null; } })();
+  if(st){
+    const have=st.known.length ? TRAINING_INPUTS.filter(d=>st.known.includes(d.key))
+      .map(d=>`${d.label.toLowerCase()} ${st.fields[d.key].value}${d.unit.startsWith('km')?' km':''}`).join(', ') : '';
+    const need=TRAINING_INPUTS.filter(d=>st.missing.includes(d.key));
+    if(have) L.push(`\nYou already know where they are: ${have}. Don't re-ask — reflect it back so they can correct it.`);
+    if(need.length){
+      L.push(`\nYou still need these, and the block cannot be sized without them. Ask them conversationally, one at a time, as part of the interview:`);
+      need.forEach(d=>L.push(`  • ${d.ask}`));
+      L.push(`Record what they tell you by appending a fenced block, alongside the intake block:`);
+      L.push('```training\n{'+need.map(d=>`"${d.key}":0`).join(',')+'}\n```');
+      L.push(`Numbers only. Do NOT guess these from their training log — the log is manual and incomplete, and reading a thin log as low volume under-prescribes for someone who trains and doesn't record it.`);
+    }
+  }
   L.push(`\nIf the goal is genuinely outside what the knowledge base covers, say that plainly instead of proposing a block you cannot ground.`);
   return L.join('\n');
+}
+// The coach records what the athlete told it about their current training, the same
+// way it records the intake. Parsed and committed on the way in.
+function _extractTrainingInputs(text){
+  if(!text) return {clean:text, training:null};
+  const m=text.match(/```training\s*([\s\S]*?)```/i);
+  if(!m) return {clean:text, training:null};
+  const clean=text.replace(m[0],'').trim();
+  let parsed=null; try{ parsed=JSON.parse(m[1]); }catch(e){ return {clean, training:null}; }
+  if(!parsed || typeof parsed!=='object') return {clean, training:null};
+  const out={};
+  TRAINING_INPUTS.forEach(d=>{
+    const n=parseFloat(parsed[d.key]);
+    if(isFinite(n) && n>=d.min && n<=d.max) out[d.key]=n;   // out-of-range is dropped, not clamped
+  });
+  return {clean, training:Object.keys(out).length?out:null};
 }
 // ── Intake: what the interview must establish before it may propose ──────────
 // The prompt asked for a goal-first interview and the model skipped to proposing,
@@ -14668,10 +14927,16 @@ async function _callCoachAPI() {
       const pa = (typeof _extractPlanActions==='function') ? _extractPlanActions(raw) : {clean:raw,actions:[]};
       // A design conversation can also propose a whole block.
       const ik = (typeof _extractIntake==='function') ? _extractIntake(pa.clean || raw) : {clean:pa.clean||raw, intake:null};
-      const ps = (typeof _extractProgramSpec==='function') ? _extractProgramSpec(ik.clean) : {clean:ik.clean, spec:null};
+      // Where the athlete says they currently are. Committed immediately: it sizes
+      // the block, and the next turn's prompt should already know it so the coach
+      // does not ask twice.
+      const ti = (typeof _extractTrainingInputs==='function') ? _extractTrainingInputs(ik.clean) : {clean:ik.clean, training:null};
+      if (ti.training){ try{ saveTrainingInputs({...loadTrainingInputs(), ...ti.training}); }catch(e){} }
+      const ps = (typeof _extractProgramSpec==='function') ? _extractProgramSpec(ti.clean) : {clean:ti.clean, spec:null};
       const blocked = ps.spec && ps.spec.blocked ? ps.spec : null;
-      coachMessages.push({role:'assistant', text: ps.clean || ik.clean || pa.clean || raw,
+      coachMessages.push({role:'assistant', text: ps.clean || ti.clean || ik.clean || pa.clean || raw,
         ...(ik.intake ? {intake:ik.intake} : {}),
+        ...(ti.training ? {training:ti.training} : {}),
         ...(blocked ? {intakeBlocked:blocked.missing} : {}),
         ...(ps.spec && !ps.spec.blocked ? {programSpec:ps.spec} : {}),
         ...(pa.actions && pa.actions.length ? {planActions:pa.actions, planWeek:pa.week,

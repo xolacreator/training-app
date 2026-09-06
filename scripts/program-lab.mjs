@@ -18,7 +18,7 @@
 import pw from '/opt/node22/lib/node_modules/playwright/index.js';
 const { chromium } = pw;
 import { pathToFileURL } from 'node:url';
-import { SCENARIOS } from './lab-scenarios.mjs';
+import { SCENARIOS, LAB_INPUTS } from './lab-scenarios.mjs';
 
 const APP = pathToFileURL(new URL('../index.html', import.meta.url).pathname).href;
 const argv = process.argv.slice(2);
@@ -38,11 +38,12 @@ await page.goto(APP, {waitUntil:'load'});
 
 // Build one scenario's block and read back everything worth comparing.
 async function run(key){
-  const sc = SCENARIOS[key];
+  const sc = { ...SCENARIOS[key], inputs: (LAB_INPUTS||{})[key] || null };
   return page.evaluate(({sc, WEEKS}) => {
     // ── Reset every store this scenario could inherit from the last one ──────
     ['ht-v4','ht-program','ht-program-week','ht-goal','ht-goal-category','ht-goal-race-type',
-     'ht-race-date','ht-coach','ht-baselines','ht-avail','ht-anchor-dismissed','ht-hyrox']
+     'ht-race-date','ht-coach','ht-baselines','ht-avail','ht-anchor-dismissed','ht-hyrox',
+     'ht-training-inputs']
       .forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
     localStorage.setItem('ht-onboarded','true');
     savedProgram = null;
@@ -57,6 +58,8 @@ async function run(key){
     if (Array.isArray(sc.sessions) && sc.sessions.length) {
       try { sessions = sc.sessions.slice(); localStorage.setItem('ht-v4', JSON.stringify(sessions)); } catch(e){}
     }
+    // What the athlete TOLD the app — the log is manual, so this is the primary source.
+    if (sc.inputs) { try { saveTrainingInputs(sc.inputs); } catch(e){} }
     try { if (typeof loadBaselines==='function') loadBaselines(); } catch(e){}
     try { if (typeof load==='function') load(); } catch(e){}
     const goal = (sc.intake && sc.intake.goal) || coachProfile.goal || '';
@@ -101,6 +104,10 @@ async function run(key){
              weeks:prog.weeks, totalW, spw:prog.sessionsPerWeek,
              builtFor:prog.builtFor, hyrox:!!prog.hyrox,
              paces:(typeof _runPaces==='function') ? _runPaces() : null,
+             athlete:(typeof athleteTrainingState==='function') ? (()=>{ const s=athleteTrainingState();
+               return { weeklyKm:s.weeklyKm, longestKm:s.longestKm, trainingAge:s.trainingAge,
+                        sources:Object.fromEntries(Object.entries(s.fields).map(([k,v])=>[k,v.source])) }; })() : null,
+             gate:(typeof _intensityGate==='function') ? _intensityGate() : null,
              sessionCount:(prog.sessions||[]).length,
              weeksOut:weeks, fingerprint };
   }, {sc:{...sc, key}, WEEKS});
@@ -116,7 +123,8 @@ function printBlock(r){
   console.log(`${C.b(r.label)}`);
   console.log(C.dim(`goal: ${r.goal}`));
   console.log(C.dim(`→ ${r.name}  ·  engine: ${r.engine}  ·  ${r.totalW} weeks  ·  ${r.spw}/wk  ·  ${r.sessionCount} session types`));
-  if (r.paces) console.log(C.dim(`  paces: ${Object.entries(r.paces).map(([k,v])=>`${k} ${v}`).join('  ')}`));
+  if (r.athlete) console.log(C.dim(`  athlete: ${r.athlete.weeklyKm??'?'} km/wk · longest ${r.athlete.longestKm??'?'} km · ${r.athlete.trainingAge??'?'} yr  ${C.dim('('+Object.entries(r.athlete.sources).filter(([,v])=>v!=='none').map(([k,v])=>`${k}:${v}`).join(' ')+')')}`));
+  if (r.gate && r.gate.reasons && r.gate.reasons.length) r.gate.reasons.forEach(x=>console.log(C.y('  ⚑ '+x)));
   for (const w of r.weeksOut){
     console.log(`\n  ${C.y(`WEEK ${w.n}`)} ${C.dim(`[${w.phase}]`)}${w.deload?C.dim(' · deload'):''}${w.note?C.dim(' · '+w.note):''}`);
     if (!w.days.length) console.log(C.dim('     (no sessions)'));

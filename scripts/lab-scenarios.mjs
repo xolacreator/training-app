@@ -10,24 +10,30 @@ const today = Date.now();
 
 // A realistic run log: n weeks of training at a given weekly volume and pace.
 // `quality` sessions are what the fitness model reads for threshold/VO2 estimates.
-function runLog({weeks=8, perWeek=4, km=10, pace='5:30', qualityPace=null, start=weeks*7}){
-  const out=[]; let d=start;
+// Sessions must be spread across REAL weeks. An earlier version decremented the day
+// offset by 1.6 per session and 0.8 per week, so six "weeks" of training landed
+// inside 24 days and the athlete's weekly volume read ~50% high — which silently
+// lifted a scenario over an intensity floor it was written to sit under. A fixture
+// that misstates the athlete tests nothing.
+function runLog({weeks=8, perWeek=4, km=10, pace='5:30', qualityPace=null}){
+  const out=[];
   for (let w=0; w<weeks; w++){
+    const weeksAgo = weeks - w;                       // oldest week first
     for (let s=0; s<perWeek; s++){
-      const isQuality = qualityPace && s===1;
+      const isQuality = qualityPace && s===1 && perWeek>2;
       const isLong    = s===perWeek-1;
+      const dayOffset = weeksAgo*7 - Math.floor(s*7/perWeek);
+      const ts = today - dayOffset*DAY;
       out.push({
         gid:`g${w}-${s}`, week:String(w+1), day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][s%7],
         session: isQuality ? 'Tempo Run' : isLong ? 'Long Run' : 'Easy Run',
         intensity: isQuality ? 'moderate' : 'easy',
         dist: String(isLong ? Math.round(km*1.6) : km),
         pace: isQuality ? qualityPace : pace,
-        date: new Date(today - d*DAY).toISOString().slice(0,10),
-        ts: today - d*DAY,
+        date: new Date(ts).toISOString().slice(0,10),
+        ts,
       });
-      d -= 1.6;
     }
-    d -= 0.8;
   }
   return out;
 }
@@ -172,4 +178,14 @@ export const SCENARIOS = {
     weeks:12, sessionsPerWeek:3, trainDays:['Tue','Thu','Sat'],
     sessions: runLog({weeks:2, perWeek:2, km:3, pace:'7:10'}),
   },
+};
+
+// The lab runs these through buildBlockForGoal. Training inputs are what the athlete
+// TELLS the app — separate from the log, because the log is manual and sparse.
+export const LAB_INPUTS = {
+  'control-fit':          { weeklyKm:60, longestKm:24, runDays:5, trainingAge:6 },
+  'control-unfit':        { weeklyKm:18, longestKm:14, runDays:3, trainingAge:1 },
+  'marathon-experienced': { weeklyKm:60, longestKm:28, runDays:5, trainingAge:6 },
+  'marathon-first-timer': { weeklyKm:16, longestKm:14, runDays:3, trainingAge:1 },
+  'returning-injury':     { weeklyKm:8,  longestKm:5,  runDays:3, trainingAge:4 },
 };
