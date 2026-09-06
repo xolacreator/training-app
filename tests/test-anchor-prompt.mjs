@@ -49,9 +49,16 @@ check('It quotes what the athlete entered', /sometime in the spring/.test(bad));
 check('It lists accepted formats', /2026-06-20/.test(bad) && /HYROX Sydney Nov 2026/.test(bad));
 check('It offers a way to fix it', /Fix my race date/.test(bad) && /openCoachSetup/.test(bad));
 
-// ── Past date → explains it has passed ─────────────────────────────────────
+// ── Past date → explains it has passed, and offers a way forward ───────────
+// A race that has been run is stale athlete state, not an unreadable date: it gets
+// its own card (see test-goal-lifecycle) rather than being lumped in with parse
+// failures. Asserted by behaviour — that it is surfaced and leaveable — so a copy
+// change doesn't fail the test while the athlete is still being told.
 const past=await seed('Jan 1 2020');
-check('A past race date is explained as passed', /Race date not readable/.test(past) && /has passed/.test(past), past.slice(0,80));
+check('A past race date is surfaced, not left in place', past.trim()!=='' , past.slice(0,80));
+check('...it is not misreported as an unreadable date', !/not readable/i.test(past), past.slice(0,80));
+check('...and it offers a way to move on from it',
+  /clearGoal\(\)/.test(past) || /openProgramDesign\(\)/.test(past), past.slice(0,120));
 
 // ── No race set → stays quiet ──────────────────────────────────────────────
 const none=await seed('');

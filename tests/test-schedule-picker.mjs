@@ -38,9 +38,23 @@ await page.waitForTimeout(150);
 const afterDays = await page.evaluate(()=>[...programBuilderConfig.trainDays]);
 check('Toggling a day updates trainDays', afterDays.includes('Tue') && !beforeDays.includes('Tue'), JSON.stringify({before:beforeDays,after:afterDays}));
 
-// Garmin-style picker renders for endurance (fresh render)
-const pk = await page.evaluate(()=>{ savedProgram=null; localStorage.removeItem('ht-program'); openProgramOverlay(); programBuilderConfig.type='endurance'; renderProgramBuilder(); const b=document.getElementById('program-overlay-body')?.innerText||''; return { yw:/Your week/i.test(b), td:/Training days/i.test(b), lr:/Long-run day/i.test(b) }; });
-check('Garmin-style picker renders for endurance', pk.yw&&pk.td&&pk.lr, JSON.stringify(pk));
+// The day picker is no longer on the builder screen — which days you train is
+// established in the interview and held in Training Preferences. What must survive
+// is that those days actually shape the block.
+const pk = await page.evaluate(()=>{
+  savedProgram=null; localStorage.removeItem('ht-program');
+  localStorage.setItem('ht-goal','sub-3:30 marathon');
+  const days=['Tue','Thu','Sat'];
+  const blk=buildBlockForGoal({goal:'sub-3:30 marathon', weeks:8, sessionsPerWeek:3, trainDays:days});
+  if(!blk) return {err:'no block'};
+  const prev=savedProgram; saveProgramData(blk);
+  const placed=(_progWeekSessions(1)||[]).filter(s=>s.session).map(s=>s.day);
+  saveProgramData(prev);
+  return { placed, offDays:placed.filter(d=>!days.includes(d)) };
+});
+check('Chosen training days still shape the block', pk.placed && pk.placed.length>0, JSON.stringify(pk.placed));
+check('...and nothing is scheduled on a day not chosen', pk.offDays && pk.offDays.length===0,
+  JSON.stringify(pk.offDays));
 
 const real=errs.filter(e=>!/Failed to load resource|ERR_|net::/.test(e));
 check('No real JS errors', real.length===0, real.slice(0,3).join(' | '));

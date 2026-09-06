@@ -9491,12 +9491,31 @@ function renderProgramBuilder() {
         <button class="btn btn-accent" onclick="closeOv('program-overlay');nav('more');" style="width:100%;margin-top:12px;">Add my API key</button>
       </div>`;
 
+  // Start date is a calendar fact, not a coaching question — and it is the one thing
+  // the interview has no good way to ask for ("a past date, because I'm three weeks
+  // into this already"). It stays on the screen and feeds whatever the coach builds.
+  const startCard = `<div style="margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px;">Start date</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Week 1 begins on this Monday — pick a past date to log a block already underway</div>
+      <input type="date" id="bld-start" value="${programBuilderConfig.startDate || _mondayISO(new Date())}"
+        onchange="programBuilderConfig.startDate=_mondayISO(new Date(this.value+'T12:00:00'));renderProgramBuilder();"
+        style="width:100%;box-sizing:border-box;padding:11px;background:var(--bg2);border:.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:13px;">
+      ${(()=>{ const iso=programBuilderConfig.startDate||_mondayISO(new Date());
+        const d=new Date(iso+'T12:00:00');
+        const lbl=d.toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'short',year:'numeric'});
+        const diff=Math.round((d-new Date(_mondayISO(new Date())+'T12:00:00'))/86400000);
+        const when = diff===0 ? 'starts this week' : diff>0 ? `starts in ${Math.round(diff/7)} week${diff>7?'s':''}`
+                    : `started ${Math.round(-diff/7)} week${diff<-7?'s':''} ago`;
+        return `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:6px;">Week 1 Monday: ${lbl} — ${when}</div>`; })()}
+    </div>`;
+
   body.innerHTML = `<div style="padding:4px 0 40px;">
     <div style="margin-bottom:14px;">
       <div style="font-size:20px;font-weight:600;margin-bottom:3px;">Build a block</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;">One way in: say what you're training for, and the goal decides how it's programmed.</div>
     </div>
     ${goalCard}
+    ${startCard}
     ${cta}
   </div>`;
 }

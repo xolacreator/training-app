@@ -81,18 +81,28 @@ check('...and that context is non-empty for a real athlete', await page.evaluate
   const c=_builderAthleteContext();
   return c.length>40 && /THIS ATHLETE/.test(c); }));
 
-// ── The duration UI is no longer four fixed pills ──────────────────────────
-const ui=await page.evaluate(()=>{
+// ── Block length now comes from the race, not from duration pills ──────────
+// The builder used to offer 4/6/8/12/16-week pills plus a typed override, and the
+// athlete picked a number that had nothing to do with their race. The goal-first
+// builder derives it instead — a 14-week race gives a block that ends on race week.
+const dur=await page.evaluate(()=>{
   const race=new Date(); race.setDate(race.getDate()+ 14*7 );
-  coachProfile={name:'EV',goal:'sub-3:30 marathon',raceDate:race.toISOString().slice(0,10)};
-  localStorage.setItem('ht-race-date', race.toISOString().slice(0,10));
+  const iso=race.toISOString().slice(0,10);
+  coachProfile={name:'EV',goal:'sub-3:30 marathon',raceDate:iso};
+  localStorage.setItem('ht-race-date', iso);
+  localStorage.setItem('ht-goal','sub-3:30 marathon');
+  savedProgram=null;
   try{ renderProgramBuilder(); }catch(e){}
-  const el=document.getElementById('program-overlay-body');
-  return el ? el.innerHTML : '';
+  const html=document.getElementById('program-overlay-body').innerHTML;
+  const blk=buildBlockForGoal({goal:'sub-3:30 marathon', trainDays:['Mon','Tue','Wed','Fri','Sat']});
+  return { html, weeksToRace:weeksToRace(), blockWeeks:blk&&blk.weeks, anchored:!!(blk&&blk.race),
+           pills:/programBuilderConfig\.weeks=/.test(html) };
 });
-check('Longer blocks are offered (12 and 16 weeks)', /12 wks/.test(ui) && /16 wks/.test(ui));
-check('A race-derived option is offered', /All the way to my race/.test(ui), (ui.match(/All the way to my race[^<]*/)||[''])[0]);
-check('An arbitrary duration can be typed', /programBuilderConfig\.weeks=Math\.max\(2,Math\.min\(52/.test(ui));
+check('The duration pills that ignored the race are gone', !dur.pills);
+check('The block is sized from the race instead', dur.blockWeeks>=12 && dur.blockWeeks<=15,
+  `race in ${dur.weeksToRace} wks → ${dur.blockWeeks}-week block`);
+check('...and ends anchored on race week', dur.anchored, String(dur.anchored));
+check('The start date is still the athlete\'s to choose', /id="bld-start"/.test(dur.html));
 
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));

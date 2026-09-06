@@ -248,7 +248,13 @@ const eng=await page.evaluate(()=>{
   const spec=_validateProgramSpec({ engine:'hyrox', name:'HYROX Build', weeks:12,
     sessionsPerWeek:5, division:'pro women', trainDays:['Mon','Tue','Wed','Fri','Sat'],
     goal:'HYROX Melbourne sub-80', raceDate:'2026-12-05', why:'12 weeks, two sims' });
-  return { spec, prompt:(()=>{ try{ return _designSystemPrompt(); }catch(e){ return ''; } })() };
+  // Assert on the prompt the model actually receives, not on one function that
+  // happens to hold part of it today — the engine instructions live in
+  // _designEnginePrompt and are appended after the knowledge context.
+  return { spec, prompt:(()=>{ try{
+    return _designSystemPrompt() + '\n' + getKnowledgeContext(_designKnowledgeType(), {})
+         + '\n' + _designEnginePrompt();
+  }catch(e){ return 'ERR '+e.message; } })() };
 });
 check('An engine spec with no sessions is accepted, not rejected as malformed',
   eng.spec && !eng.spec.blocked && Array.isArray(eng.spec.dayMap), JSON.stringify(eng.spec).slice(0,90));
@@ -262,7 +268,8 @@ check('The simulation schedule survives into the spec',
   eng.spec.weeklyProgressions.some(w=>w.simulation==='half'));
 check('The interview conclusion still rides along', eng.spec.goal==='HYROX Melbourne sub-80');
 check('The design prompt tells the model NOT to author HYROX sessions',
-  /do NOT author the sessions/i.test(eng.prompt) && /engine.{0,4}:.{0,4}hyrox/i.test(eng.prompt));
+  /do NOT author the sessions/i.test(eng.prompt) && /engine.{0,4}:.{0,4}auto/i.test(eng.prompt),
+  eng.prompt.slice(0,60));
 check('...and to establish the division, since every load depends on it',
   /division/i.test(eng.prompt));
 

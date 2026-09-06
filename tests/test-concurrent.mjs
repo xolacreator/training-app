@@ -15,8 +15,20 @@ await page.reload({waitUntil:'load'}); await page.waitForTimeout(400);
 const hasPill = await page.evaluate(()=>{ renderStrengthProgrammingCard(); const c=document.getElementById('strength-programming-card')?.innerText||''; return /Fitstop/.test(c); });
 check('Fitstop is a strength-method option in settings', hasPill);
 // strength-type builder offers "Use Fitstop BLOCK C as my strength program"
-const strBuilder = await page.evaluate(()=>{ savedProgram=null; localStorage.removeItem('ht-program'); openProgramOverlay(); programBuilderConfig.type='strength'; renderProgramBuilder(); const b=document.getElementById('program-overlay-body')?.innerText||''; return /Use Fitstop/i.test(b)&&/strength program/i.test(b); });
-check('Strength builder offers Fitstop as the strength program', strBuilder);
+// Fitstop-as-strength is no longer a button on the builder — it is reached by
+// saying so in the goal, which is the only way it can also be true of what the
+// coach and the knowledge base think you are doing.
+const strBuilder = await page.evaluate(()=>{
+  savedProgram=null; localStorage.removeItem('ht-program');
+  const engine=_engineForGoal('Fitstop 3x a week plus running');
+  const blk=buildBlockForGoal({goal:'Fitstop 3x a week plus running', trainDays:['Tue','Fri']});
+  const names=(blk&&blk.sessions||[]).map(s=>s.name);
+  return { engine, isFitstop:!!(blk&&blk.fitstopBlock), names };
+});
+check('Naming Fitstop in the goal routes to the Fitstop block',
+  strBuilder.engine==='fitstop' && strBuilder.isFitstop, strBuilder.engine);
+check('...and the block carries the real Fitstop sessions',
+  strBuilder.names.some(n=>/LIFT/.test(n)), strBuilder.names.join(', '));
 
 // PART 3: concurrent generic strength + endurance
 await page.evaluate(()=>{ savedProgram=null; programBuilderConfig.type='hybrid'; buildConcurrent(['Tue','Fri'],'Sun','sub-45 10K',6); });
