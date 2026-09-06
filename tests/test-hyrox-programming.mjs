@@ -345,6 +345,78 @@ Object.entries(sims).forEach(([wk,r])=>{
     r.sims.map(s=>`${s.week}:${s.kind}`).join(' '));
 });
 
+// ── A deload week must be EASIER than the week before it ───────────────────
+// progressHyroxBrick had no deload handling, and rx.phases['Deload'] does not
+// exist — so the lookup fell through to rx.phases.Build, the HARDEST phase in the
+// table. A real 12-week block to a real race date went from 2 × [ 25 m → 400 m ]
+// in week 3 to 4 × [ 75 wall balls → 800 m ] in week 4, its deload. Three hundred
+// wall balls prescribed as recovery.
+const dl = await page.evaluate(()=>{
+  const pr=buildHyroxBlock({division:'pro_men', weeks:12, sessionsPerWeek:5});
+  saveProgramData(pr);
+  const T=(pr.weeklyProgressions||[]).length;
+  const week=w=>{
+    const wp=pr.weeklyProgressions[w-1]||{};
+    const b=progressHyroxBrick(w,T);
+    const long=_progressEndurance({runType:'long',name:'Long Run'},w,T);
+    const tempo=_progressEndurance({runType:'tempo',name:'Threshold Run'},w,T);
+    return { w, deload:!!wp.deload, rounds:b.rounds, runM:b.runM, note:b.note,
+             dose:parseFloat((b.dose.match(/([\d.]+)/)||[])[1]||0),
+             longKm:parseFloat((String(long.distance||'').match(/([\d.]+)/)||[])[1]||0),
+             tempo:tempo.intervals||'' };
+  };
+  const all=Array.from({length:T},(_,i)=>week(i+1));
+  return { all, deloads:all.filter(x=>x.deload) };
+});
+check('The block has mid-block deloads to test', dl.deloads.length>=2,
+  dl.deloads.map(d=>'wk'+d.w).join(','));
+dl.deloads.filter(d=>d.w>1 && d.w<dl.all.length).forEach(d=>{
+  const prev = dl.all[d.w-2];
+  check(`Deload week ${d.w}: fewer brick rounds than week ${prev.w}`,
+    d.rounds <= prev.rounds, `${prev.rounds} → ${d.rounds}`);
+  // NOT comparable across weeks: week 3 is 25 m of sled pull, week 4 is 30 wall-ball
+  // reps. Different stations, different units, different race doses. The meaningful
+  // comparison holds the week AND the station fixed and asks what the deload flag
+  // itself changed — see the same-station check below.
+  check(`Deload week ${d.w}: long run is shorter`,
+    d.longKm <= prev.longKm, `${prev.longKm} km → ${d.longKm} km`);
+  check(`Deload week ${d.w}: threshold reps do not ramp up`,
+    (parseInt(d.tempo)||0) <= (parseInt(prev.tempo)||0),
+    `${prev.tempo} → ${d.tempo}`);
+});
+// Same week, same station, deload flag on vs off — the only variable is the deload.
+const dlSame = await page.evaluate(()=>{
+  const pr=buildHyroxBlock({division:'pro_men', weeks:12, sessionsPerWeek:5});
+  saveProgramData(pr);
+  const T=(pr.weeklyProgressions||[]).length;
+  const out=[];
+  pr.weeklyProgressions.forEach((wp,i)=>{
+    if(!wp.deload || i+1>=T) return;
+    const w=i+1;
+    const withDeload=progressHyroxBrick(w,T);
+    wp.deload=false;                              // same week, flag off
+    const without=progressHyroxBrick(w,T);
+    wp.deload=true;
+    out.push({ w, station:withDeload.station, sameStation:withDeload.station===without.station,
+               rounds:[without.rounds, withDeload.rounds],
+               dose:[parseFloat((without.dose.match(/([\d.]+)/)||[])[1]||0),
+                     parseFloat((withDeload.dose.match(/([\d.]+)/)||[])[1]||0)] });
+  });
+  return out;
+});
+dlSame.forEach(d=>{
+  check(`Week ${d.w} (${d.station}): the deload flag itself cuts the rounds`,
+    d.rounds[1] < d.rounds[0], `${d.rounds[0]} → ${d.rounds[1]}`);
+  check(`Week ${d.w} (${d.station}): ...and the station dose`,
+    d.dose[1] < d.dose[0], `${d.dose[0]} → ${d.dose[1]}`);
+});
+
+check('A deload brick says it is a deload', dl.deloads.every(d=>/deload/i.test(d.note)),
+  dl.deloads[0] && dl.deloads[0].note);
+check('A deload never falls back to the Build phase dose',
+  dl.deloads.every(d=>d.rounds < Math.max(...dl.all.filter(x=>!x.deload).map(x=>x.rounds))),
+  dl.deloads.map(d=>`wk${d.w}:${d.rounds}`).join(' '));
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();

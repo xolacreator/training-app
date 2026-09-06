@@ -4573,20 +4573,43 @@ function _hyroxStationDef(id){
 // A brick session: station block → run, repeated. The defining HYROX session.
 function progressHyroxBrick(week, totalWeeks){
   const rx=_rxForRunType('hyrox_brick'); if(!rx) return null;
-  const phase=_phaseForWeek(week, totalWeeks, (typeof savedProgram!=='undefined')?savedProgram:null);
-  const pd=(rx.phases&&rx.phases[phase])||rx.phases&&rx.phases.Build||{};
+  const _prog=(typeof savedProgram!=='undefined')?savedProgram:null;
+  const phase=_phaseForWeek(week, totalWeeks, _prog);
+  // A deload week has no entry in the KB's phase table, and the fallback was
+  // rx.phases.Build — the HARDEST phase. Week 3 was 2 × [ 25 m → 400 m run ] and
+  // week 4, a deload, became 4 × [ 75 wall balls → 800 m run ]. Three hundred wall
+  // balls in a recovery week. Deloads now step DOWN from the surrounding phase.
+  const _deload = (()=>{
+    try{ const wp=(_prog&&_prog.weeklyProgressions)||[]; if(wp[week-1]&&wp[week-1].deload) return true; }catch(e){}
+    return /deload|taper/i.test(String(phase||''));
+  })();
+  const _phaseFor = p => (rx.phases && rx.phases[p]) || null;
+  // For a deload, programme the phase the athlete is actually IN — the last real
+  // phase at or before this week — rather than defaulting to Build.
+  const _surrounding = (()=>{
+    if(!_deload) return _phaseFor(phase);
+    for(let w=week-1; w>=1; w--){
+      const p=_phaseForWeek(w, totalWeeks, _prog);
+      if(!/deload|taper/i.test(String(p||''))){ const hit=_phaseFor(p); if(hit) return hit; }
+    }
+    return _phaseFor('Base');
+  })();
+  const pd=_surrounding || (rx.phases&&rx.phases.Base) || (rx.phases&&rx.phases.Build) || {};
   const build=Math.max(1,(totalWeeks||8)-1);
   const wi=Math.min(week,build)-1;
   const ramp=build>1 ? wi/(build-1) : 0;
-  const rounds=Math.round((pd.roundsStart||rx.roundsStart) +
+  const _DELOAD_ROUNDS=0.5, _DELOAD_DOSE=0.6;      // recovery week: half the work
+  let rounds=Math.round((pd.roundsStart||rx.roundsStart) +
                 ramp*((pd.roundsMax||rx.roundsMax)-(pd.roundsStart||rx.roundsStart)));
+  if(_deload) rounds=Math.max(1, Math.round(rounds*_DELOAD_ROUNDS));
   const stationId=_hyroxBrickStation(week);
   const def=_hyroxStationDef(stationId);
   const L=hyroxLoads();
   // Dose is a FRACTION OF THE STATION'S RACE DOSE, never an absolute distance.
   // An absolute metre value is meaningless across stations whose race distances
   // range from 50 m (sled push) to 1000 m (erg) — it produced "250 m sled push".
-  const pct = (pd.stationDosePct!=null ? pd.stationDosePct : (rx.stationDosePct||0.75));
+  const pct = (pd.stationDosePct!=null ? pd.stationDosePct : (rx.stationDosePct||0.75))
+              * (_deload ? _DELOAD_DOSE : 1);
   const raceDose = _hyroxRaceDose(stationId);
   const dose = raceDose.unit==='reps'
     ? `${Math.max(5, Math.round(raceDose.value*pct/5)*5)} reps`
@@ -4600,13 +4623,16 @@ function progressHyroxBrick(week, totalWeeks){
   const load=_hyroxStationLoad(stationId, loadPct);
   const runM=pd.runDistM||rx.runDistM;
   const name=(def&&def.name)||stationId;
+  const _note = _deload
+    ? 'Deload — half the rounds, reduced station dose. Keep it crisp, not hard.'
+    : (pd.note||'Compromised running — the decisive HYROX session');
   return {
     type:'endurance', runType:'hyrox_brick', phase, station:stationId,
     intervals:`${rounds} × [ ${name} ${dose}${load?` @ ${load}`:''} → ${runM} m run ]`,
     recovery:pd.recovery||rx.recovery,
     zone:rx.zone, pace:'goal race pace',
     duration:`~${Math.round(rounds*(runM/1000*5 + 3))} min total`,
-    note:pd.note||'Compromised running — the decisive HYROX session',
+    note:_note,
     cue:(def&&def.cue)||'',
     rounds, runM, dose, load,
     knowledgeDomain:'hyrox_running',
@@ -4776,7 +4802,14 @@ function _progressEndurance(sess, week, totalWeeks){
   const _pd = _phaseRx(rt, _phase) || {};
   const paces = _runPaces();
   const build = Math.max(1, (totalWeeks||6) - 1);      // last week = deload
-  const isDeload = week >= (totalWeeks||6);
+  // A deload is any week the block CALLS a deload — not just the last one. This read
+  // `week >= totalWeeks`, so the mid-block deloads at weeks 4 and 8 reduced volume
+  // (via the cutback multiplier) while interval and threshold REPS kept ramping: a
+  // deload week prescribed 4×9 min of threshold against the previous week's 3×8.
+  const isDeload = week >= (totalWeeks||6) || (()=>{
+    try{ const wp=(_prog&&_prog.weeklyProgressions)||[]; return !!(wp[week-1]&&wp[week-1].deload); }
+    catch(e){ return false; }
+  })();
   // If this session was missed last week, progress from where it actually left
   // off rather than from where the calendar says it should be.
   let _hold=null; try{ _hold=progressionHold(rt, week, totalWeeks); }catch(e){}
