@@ -12201,7 +12201,106 @@ const FITSTOP_BLOCK_C = {
     ['PEAK 3.0',        ['4x9 MIN','LIFT 1RM','2KM TIME TRIAL','5x14 MIN','LIFT 1RM','36 MIN AMRAP']],
   ],
 };
-function _fitstopPhase(week){ return FITSTOP_BLOCK_C.phases.find(p=>p.weeks.includes(week)) || FITSTOP_BLOCK_C.phases[0]; }
+// The athlete's CURRENT block, supplied as a PDF on 2026-09-07. Same category as
+// BLOCK C: one gym's programme for one athlete, held as a scheduling constraint.
+// Not doctrine, not citable — see strength.fitstop_method.
+//
+// Dates are read straight off the sheet. A few Friday/Saturday format cells did not
+// extract cleanly from the PDF and are left EMPTY rather than guessed at; the day
+// type is still known, which is what scheduling needs.
+const FITSTOP_BLOCK_D = {
+  id:'fitstop-block-d-2026', name:'Fitstop BLOCK D 2026', startDate:'2026-09-14', weeks:12,
+  sourceTier:'athlete-program', citable:false,
+  phases:[
+    {name:'BASE',        weeks:[1,2,3],    strength:'Main-lift variations',        fitness:'Capacity intervals'},
+    {name:'BUILD',       weeks:[4,5,6],    strength:'3-rep pause work → 3RM',      fitness:'Rolling clocks, longer efforts'},
+    {name:'PERFORMANCE', weeks:[7,8,9],    strength:'Main lifts, 2s → heavy',      fitness:'Mixed intervals'},
+    {name:'PEAK',        weeks:[10,11,12], strength:'1RM testing — squat, deadlift, STOH/bench, pull-up',
+                                            fitness:'1 km TIME TRIAL each week'},
+  ],
+  // [label, [Mon..Sat formats]] — Sun rest. Day types are fixed:
+  // Mon PERFORM · Tue LIFT · Wed CONDITION · Thu PERFORM · Fri LIFT · Sat SWEAT
+  plan:[
+    ['BASE 1.0',        ['4x8 MIN + FINISHER','8|16|8 MIN + FINISHER','3x12 MIN','6x6 MIN','4x9 MIN','5x7 MIN']],
+    ['BASE 2.0',        ['4x9 MIN','8|16|8 MIN + FINISHER','INDIVIDUAL + FINISHER','ROLLING E90SEC','4x9 MIN','4x8 MIN + FINISHER']],
+    ['BASE 3.0',        ['4x9 MIN','9|18|9 MIN','3x10 MIN + FINISHER','ROLLING EMOM + FINISHER','4x9 MIN','2x18 MIN']],
+    ['BUILD 1.0',       ['3x12 MIN','8|16|8 MIN + FINISHER','ROLLING CLOCK','4x9 MIN','9|18|9 MIN','5x6 MIN + FINISHER']],
+    ['BUILD 2.0',       ['2x18 MIN','8|16|8 MIN + FINISHER','12x3 MIN','3x12 MIN','9|18|9 MIN','8x4 MIN']],
+    ['BUILD 3.0',       ['3x12 MIN','9|18|9 MIN','3x9 MIN + FINISHER','2x18 MIN','9|18|9 MIN','2x15 MIN + FINISHER']],
+    ['PERFORMANCE 1.0', ['3x12 MIN','9|18|9 MIN','3x10 MIN + FINISHER','3x12 MIN','9|18|9 MIN','5x7 MIN']],
+    ['PERFORMANCE 2.0', ['3x12 MIN','9|18|9 MIN','14|8|14 MIN','3x12 MIN','9|18|9 MIN','4x8 MIN + FINISHER']],
+    ['PERFORMANCE 3.0', ['2x18 MIN','9|18|9 MIN','INDIVIDUAL + FINISHER','3x12 MIN','9|18|9 MIN','']],
+    ['PEAK 1.0',        ['6x6 MIN','9|18|9 MIN','FIFTIES','9|18|9 MIN','','']],
+    ['PEAK 2.0',        ['5x7 MIN','9|18|9 MIN','','9|18|9 MIN','5x7 MIN','']],
+    ['PEAK 3.0',        ['4x9 MIN','9|18|9 MIN','6x6 MIN','9|18|9 MIN','','']],
+  ],
+  // What the whole block does NOT contain, checked across all twelve weeks.
+  // These are the demands a HYROX athlete has to cover elsewhere.
+  uncovered:[
+    { key:'sled',    what:'Sled push and sled pull', detail:'The sled does not appear once in twelve weeks. Two race stations, at 202 kg and 153 kg for Pro Men.' },
+    { key:'aerobic', what:'Aerobic running volume',  detail:'The longest run anywhere in the block is 1 km, and every run carries a non-running alternative. The race is 8 km.' },
+    { key:'threshold', what:'Sustained hard running', detail:'Running efforts are 100–600 m inside circuits. The only repeated run test is a 1 km time trial in the last three weeks.' },
+  ],
+};
+const FITSTOP_BLOCKS = [FITSTOP_BLOCK_C, FITSTOP_BLOCK_D];
+// ── Where the gym block and the race block disagree ──────────────────────────
+// A gym programmes for its own calendar, not for one member's race. Block D peaks
+// — 1RM testing on four lifts plus a 1 km time trial every week — across exactly
+// the three weeks that should be this athlete's sharpening, taper and race week,
+// and its final LIFT day falls ON race day. Nobody is at fault; the two calendars
+// simply were not written for each other. The app's job is to SAY SO, in specific
+// dates, rather than render both and let the athlete discover it in November.
+function fitstopRaceConflicts(prog, block){
+  const p=prog||((typeof savedProgram!=='undefined')?savedProgram:null);
+  const B=block||fitstopBlockFor(new Date());
+  if(!p || !B || !p.startDate) return [];
+  const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const bStart=new Date(B.startDate+'T12:00:00');
+  const pStart=new Date(p.startDate+'T12:00:00');
+  const wp=p.weeklyProgressions||[];
+  const out=[];
+  for(let gw=1; gw<=B.weeks; gw++){
+    const mon=new Date(bStart); mon.setDate(mon.getDate()+(gw-1)*7);
+    const hxWeek=Math.floor((mon-pStart)/(7*86400000))+1;
+    const w=wp[hxWeek-1]; if(!w) continue;
+    const phase=_fitstopPhase(gw, B);
+    const testing=/1RM|TIME TRIAL/i.test(`${phase.strength} ${phase.fitness}`);
+    if(!testing) continue;
+    if(w.race){
+      const rd=p.race && p.race.day;
+      out.push({ severity:'critical', gymWeek:gw, gymPhase:`${B.plan[gw-1]?B.plan[gw-1][0]:phase.name}`,
+        blockWeek:hxWeek, weekOf:mon.toISOString().slice(0,10),
+        what:`Your gym's ${phase.name} week lands on RACE WEEK. It prescribes 1RM testing and a 1 km time trial${rd?`, and its ${rd} LIFT day is race day itself`:''}.`,
+        advice:'Race week is the race. Skip the gym testing entirely this week — a 1RM three days out costs you the race and gains nothing.' });
+    } else if(w.taper){
+      out.push({ severity:'critical', gymWeek:gw, gymPhase:`${B.plan[gw-1]?B.plan[gw-1][0]:phase.name}`,
+        blockWeek:hxWeek, weekOf:mon.toISOString().slice(0,10),
+        what:`Your gym's ${phase.name} week lands in your TAPER. It prescribes 1RM testing on four lifts and a 1 km time trial.`,
+        advice:'Attend, but do not test. Take the class at the "3 reps RIR 3" option the sheet already offers, and skip the time trial.' });
+    } else if(w.simulation){
+      out.push({ severity:'watch', gymWeek:gw, gymPhase:`${B.plan[gw-1]?B.plan[gw-1][0]:phase.name}`,
+        blockWeek:hxWeek, weekOf:mon.toISOString().slice(0,10),
+        what:`Gym ${phase.name} testing falls in the same week as your ${w.simulation} race simulation.`,
+        advice:'Pick one to be the hard day. Two maximal efforts in a week this close to the race is one too many.' });
+    }
+  }
+  return out;
+}
+// The block covering a given date, so the app follows the athlete's real calendar
+// rather than whichever block was hardcoded first.
+function fitstopBlockFor(date){
+  const t=(date instanceof Date ? date : new Date(date||Date.now())).getTime();
+  for(const b of FITSTOP_BLOCKS){
+    const s=new Date(b.startDate+'T12:00:00').getTime();
+    const e=s + b.weeks*7*86400000;
+    if(t>=s && t<e) return b;
+  }
+  // Past the end of every known block: return the latest, and let callers see that
+  // its dates have run out rather than silently repeating week 1 forever.
+  return FITSTOP_BLOCKS[FITSTOP_BLOCKS.length-1];
+}
+function _fitstopPhase(week, block){ const B=block||FITSTOP_BLOCK_C;
+  return B.phases.find(p=>p.weeks.includes(week)) || B.phases[0]; }
 // Real session detail for a BLOCK C week/day (verbatim from the PDF).
 // ── Athlete-pasted block programming ─────────────────────────────────────────
 // The app ships the block STRUCTURE (phases + the weekly format grid) as knowledge,
