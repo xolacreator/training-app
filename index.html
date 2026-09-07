@@ -12243,6 +12243,35 @@ const FITSTOP_BLOCK_D = {
   ],
 };
 const FITSTOP_BLOCKS = [FITSTOP_BLOCK_C, FITSTOP_BLOCK_D];
+// Day types are fixed across both blocks. LIFT days are the ones worth keeping for a
+// HYROX athlete: maximal strength is the demand the classes cover best, and it is
+// what makes race station loads feel submaximal.
+const FITSTOP_DAY_TYPE = { Mon:'PERFORM', Tue:'LIFT', Wed:'CONDITION',
+                           Thu:'PERFORM', Fri:'LIFT', Sat:'SWEAT' };
+const FITSTOP_KEEP_PRIORITY = ['LIFT','SWEAT','CONDITION','PERFORM'];
+// ── How many class days the PLAN should use ─────────────────────────────────
+// Attending six classes and calling it a race build is not a plan — it is the gym's
+// week with a run bolted on. Default to one or two class days and give the rest to
+// the work the race actually needs. The athlete can still attend everything: every
+// other class day stays on the calendar as an option, it just is not the default.
+//
+// Unless they SAY otherwise. "Fitstop 3x a week", "keep all my classes" — a stated
+// intent about class frequency wins over the default, because that is the athlete
+// telling us what the block is for.
+const FITSTOP_DEFAULT_DAYS = 2;
+function _fitstopIntent(goalText, extra){
+  const t=[goalText, extra].filter(Boolean).join(' ').toLowerCase();
+  if(!t.trim()) return null;
+  if(!/fitstop|class(es)?|gym session/.test(t)) return null;
+  // "fitstop 4x", "4 fitstop", "fitstop four times"
+  const WORD={one:1,two:2,three:3,four:4,five:5,six:6};
+  let m=t.match(/fitstop[^.\n]{0,20}?(\d)\s*(?:x|times|days|sessions|\/)/)
+      || t.match(/(\d)\s*(?:x|times)?\s*(?:fitstop|classes)/)
+      || t.match(/fitstop[^.\n]{0,20}?(one|two|three|four|five|six)\s*(?:x|times|days|sessions)/);
+  if(m){ const n=parseInt(m[1])||WORD[m[1]]; if(n>=1&&n<=7) return {days:n, why:'you asked for '+n+' class days'}; }
+  if(/all (my|the) (fitstop|classes)|every class|keep all/.test(t)) return {days:6, why:'you asked to keep every class'};
+  return null;
+}
 // ── Where the gym block and the race block disagree ──────────────────────────
 // A gym programmes for its own calendar, not for one member's race. Block D peaks
 // — 1RM testing on four lifts plus a 1 km time trial every week — across exactly
@@ -12479,19 +12508,43 @@ function buildHyroxBlock(opts){
   //   NOT race-specific: no sled at 202 kg, no ski, no wall balls to a 3 m target.
   //   So the station session and the compromised run stay — they are the sessions
   //   Fitstop cannot give him — and hard running is placed away from class days.
-  const fsDays=(Array.isArray(opts.fitstopDays)?opts.fitstopDays:[]).filter(d=>DOW.includes(d));
-  const hasFitstop=fsDays.length>0;
+  const fsAvailable=(Array.isArray(opts.fitstopDays)?opts.fitstopDays:[]).filter(d=>DOW.includes(d));
+  const hasFitstop=fsAvailable.length>0;
+
+  // How many class days the PLAN uses. One or two by default; more only if the goal
+  // says so. The rest stay available as options — they are just not the default.
+  const _intent = hasFitstop ? _fitstopIntent(opts.goal || (typeof trainGoal!=='undefined'?trainGoal:''),
+                                              opts.fitstopIntent) : null;
+  const keepN = hasFitstop
+    ? Math.max(0, Math.min(fsAvailable.length,
+        opts.fitstopDaysUsed!=null ? parseInt(opts.fitstopDaysUsed)
+        : (_intent ? _intent.days : FITSTOP_DEFAULT_DAYS)))
+    : 0;
+  // Keep the classes that cover what the race needs most — LIFT first: maximal
+  // strength is the demand the classes cover best.
+  const fsDays = fsAvailable.slice().sort((a,b)=>{
+    const pa=FITSTOP_KEEP_PRIORITY.indexOf(FITSTOP_DAY_TYPE[a]||'PERFORM');
+    const pb=FITSTOP_KEEP_PRIORITY.indexOf(FITSTOP_DAY_TYPE[b]||'PERFORM');
+    return pa-pb;
+  }).slice(0, keepN);
+  const fsReleased = fsAvailable.filter(d=>!fsDays.includes(d));
 
   let shape=(HYROX_WEEK_SHAPES[spw]||HYROX_WEEK_SHAPES[5]).slice();
   if(hasFitstop){
-    // Drop generic strength — Fitstop LIFT is the strength work.
-    shape=shape.filter(k=>k!=='strength');
+    // Drop generic strength — the kept LIFT days are the strength work.
+    if(fsDays.some(d=>FITSTOP_DAY_TYPE[d]==='LIFT')) shape=shape.filter(k=>k!=='strength');
     // Priority when days are scarce: the brick is the decisive HYROX session, then
     // race-standard stations, then the long run, then quality, then easy volume.
     const PRIORITY=['brick','stations','long','tempo','easy'];
     shape.sort((a,b)=>PRIORITY.indexOf(a)-PRIORITY.indexOf(b));
     const room=Math.max(0, spw-fsDays.length);
-    shape=shape.slice(0, room);
+    // Take one of each session type before allowing any repeat. The 7-day shape
+    // legitimately carries two bricks, but sorting by priority clustered them at the
+    // front, so a 5-slot week kept BOTH and dropped the easy run entirely — a second
+    // compromised run instead of aerobic volume, which is the opposite of the fix.
+    const distinct=[...new Set(shape)].slice(0, room);
+    const repeats=shape.filter(k=>!distinct.includes(k) || shape.indexOf(k)!==shape.lastIndexOf(k));
+    shape=distinct.concat(repeats.filter(k=>distinct.includes(k))).slice(0, room);
   }
 
   // Sessions the block uses.
@@ -12514,6 +12567,7 @@ function buildHyroxBlock(opts){
   fsDays.forEach(d=>{ const i=DOW.indexOf(d); if(i>=0) dayMap[i]='fitstop'; });
 
   // Remaining days, hardest session on the day with the most recovery around it.
+  // Released class days are free for race work — the class is still offered on them.
   const freeDays=days.filter(d=>!fsDays.includes(d));
   const _adjFitstop=(day)=>{ const i=DOW.indexOf(day);
     return [DOW[(i+6)%7], DOW[(i+1)%7]].filter(n=>fsDays.includes(n)).length; };
@@ -12554,26 +12608,39 @@ function buildHyroxBlock(opts){
       if(def) sessions.push({...def});
     }});
     const scheduled=new Set(dayMap.filter(x=>typeof x==='string'));
-    const unmet=GAPS.filter(g=>!scheduled.has(g.id));
-    // Offer each unmet gap on a class day, best day first (fewest hard neighbours).
-    const fsRanked=fsDays.slice().sort((a,b)=>_adjFitstop(a)-_adjFitstop(b));
+    // On every class day the plan did NOT keep, the race session is the default and
+    // the class is the alternative — still one tap away, just not what the plan
+    // assumes. That is the inversion: the block is built for the race, and the
+    // classes are a resource offered alongside it.
     const offered=[];
-    unmet.forEach((g,n)=>{
-      const day=fsRanked[n]; if(!day) return;
+    fsReleased.forEach(day=>{
       const i=DOW.indexOf(day); if(i<0) return;
-      dayMap[i]={ opts:['fitstop', g.id] };      // first entry is the default: the class
-      offered.push({ day, alternative:g.id, key:g.key, why:g.why });
+      const cur=dayMap[i];
+      if(typeof cur==='string' && cur!=='fitstop'){
+        dayMap[i]={ opts:[cur, 'fitstop'] };     // race work default, class offered
+        offered.push({ day, kept:false, dayType:FITSTOP_DAY_TYPE[day]||'', alternative:'fitstop' });
+      } else if(!cur){
+        dayMap[i]={ opts:['fitstop'] };          // nothing else to do — take the class
+        offered.push({ day, kept:false, dayType:FITSTOP_DAY_TYPE[day]||'', alternative:'fitstop' });
+      }
     });
+    const raceSessions=dayMap.filter(x=>typeof x==='string' && x!=='fitstop').length
+      + dayMap.filter(x=>x&&x.opts&&x.opts[0]!=='fitstop').length;
+    const unmet=GAPS.filter(g=>!scheduled.has(g.id) &&
+      !dayMap.some(e=>e&&e.opts&&e.opts.includes(g.id)));
     coverage={
-      classDays:fsDays.slice(),
-      scheduled:[...scheduled].filter(id=>id!=='fitstop'),
+      available:fsAvailable.slice(),
+      used:fsDays.slice(),
+      usedTypes:fsDays.map(d=>`${d} ${FITSTOP_DAY_TYPE[d]||''}`.trim()),
+      released:fsReleased.slice(),
       offered,
-      unmet:unmet.slice(offered.length).map(g=>g.key),
-      note: offered.length
-        ? `Your ${fsDays.length} class days are kept. ${offered.length} of them also offer the session that fills a gap the classes leave — tap to swap on any week. Nothing is traded unless you trade it.`
-        : `Your ${fsDays.length} class days are kept.`,
-      warning: (dayMap.filter(x=>typeof x==='string' && x!=='fitstop').length <= 1)
-        ? 'With every class day kept you get one session a week of your own. That keeps a run honest; it cannot build one. Trading one or two class days is what turns this into a race build.'
+      unmet:unmet.map(g=>g.key),
+      intent:_intent||null,
+      note: _intent
+        ? `Using ${fsDays.length} class days because ${_intent.why}. ${fsReleased.length} other class day${fsReleased.length===1?'':'s'} stay${fsReleased.length===1?'s':''} on the calendar as an option.`
+        : `The plan uses ${fsDays.length} class day${fsDays.length===1?'':'s'} — ${fsDays.map(d=>FITSTOP_DAY_TYPE[d]||d).join(' and ')}, which is what the classes cover best. Your other ${fsReleased.length} class day${fsReleased.length===1?'':'s'} ${fsReleased.length===1?'is':'are'} still there to tap if you want ${fsReleased.length===1?'it':'them'}; the race work is just the default now.`,
+      warning: raceSessions<=1
+        ? 'One session a week of your own keeps a run honest; it cannot build one.'
         : null,
     };
   }

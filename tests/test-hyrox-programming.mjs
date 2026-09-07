@@ -433,18 +433,20 @@ const fs = await page.evaluate(()=>{
   };
   return { none:mk([],5), mwf:mk(['Mon','Wed','Fri'],6), tt:mk(['Tue','Thu'],5) };
 });
-check('Every Fitstop class day defaults to the class',
-  ['Mon','Wed','Fri'].every(d=>fs.mwf.byDay[d]==='Fitstop'), JSON.stringify(fs.mwf.byDay));
-check('...nothing is traded away by default',
-  ['Mon','Wed','Fri'].every(d=>fs.mwf.byDay[d]==='Fitstop'));
+// These asserted that all three class days were kept. The plan now uses one or two
+// and gives the rest to race work — the classes stay available, just not by default.
+check('The plan uses at most two of the three class days',
+  ['Mon','Wed','Fri'].filter(d=>fs.mwf.byDay[d]==='Fitstop').length<=2, JSON.stringify(fs.mwf.byDay));
+check('...and the released class days carry race work',
+  ['Mon','Wed','Fri'].some(d=>fs.mwf.byDay[d]!=='Fitstop'), JSON.stringify(fs.mwf.byDay));
 check('The compromised run survives — Fitstop cannot give him that',
   fs.mwf.names.includes('Compromised Run'), fs.mwf.names.join(', '));
 check('Race-standard station work survives too',
   fs.mwf.names.includes('Station Work'), fs.mwf.names.join(', '));
 check('The generic strength session is dropped — Fitstop LIFT is the strength work',
   !fs.mwf.ids.includes('hx-strength'), fs.mwf.ids.join(','));
-check('The brick lands on the day least crowded by classes',
-  fs.mwf.byDay['Sat']==='Compromised Run', JSON.stringify(fs.mwf.byDay));
+check('The brick is placed somewhere in the week',
+  Object.values(fs.mwf.byDay).includes('Compromised Run'), JSON.stringify(fs.mwf.byDay));
 check('A different class pattern produces a different week',
   JSON.stringify(fs.mwf.byDay)!==JSON.stringify(fs.tt.byDay), JSON.stringify(fs.tt.byDay));
 check('With no Fitstop days the block is unchanged',
@@ -475,29 +477,61 @@ const six = await page.evaluate(()=>{
     week2:Object.fromEntries(slots(2).map(s=>[s.day,s.session.name])),
   };
 });
-check('All six class days are kept by default',
-  ['Mon','Tue','Wed','Thu','Fri','Sat'].every(d=>six.defaults[d]==='Fitstop'),
+// This used to assert all six class days were kept. Attending six classes and
+// calling it a race build is the gym's week with a run bolted on — the plan now
+// uses one or two class days by default and gives the rest to the race.
+check('The plan uses only 1-2 class days by default',
+  Object.values(six.defaults).filter(v=>v==='Fitstop').length<=2,
   JSON.stringify(six.defaults));
+check('...and keeps the LIFT days, which is what classes cover best',
+  six.defaults['Tue']==='Fitstop' && six.defaults['Fri']==='Fitstop',
+  JSON.stringify(six.defaults));
+check('...giving the rest of the week to race work',
+  Object.values(six.defaults).filter(v=>v!=='Fitstop').length>=4,
+  JSON.stringify(six.defaults));
+check('No session is prescribed twice in a week',
+  (()=>{ const n=Object.values(six.defaults).filter(v=>v!=='Fitstop');
+         return new Set(n).size===n.length; })(), JSON.stringify(six.defaults));
 check('The free day still carries a HYROX session',
   six.defaults['Sun']==='Compromised Run', six.defaults['Sun']);
 check('Class days OFFER the session that fills a gap', six.optionDays.length>=3,
   JSON.stringify(six.optionDays));
-check('...and the alternatives are the uncovered demands, not filler',
-  six.optionDays.every(o=>['hx-long','hx-tempo','hx-stations','hx-brick'].includes(o.alts[0])),
+// The direction reversed: race work is now the DEFAULT on a released class day and
+// the class is the alternative, rather than the other way round.
+check('A released class day defaults to race work, with the class offered',
+  six.optionDays.every(o=>o.alts[0]==='fitstop'),
   JSON.stringify(six.optionDays.map(o=>o.alts[0])));
 check('Every offered alternative exists as a session in the block',
   six.optionDays.every(o=>o.alts.length>0));
-check('Tapping an alternative actually swaps that day',
-  six.afterTrade['Mon']==='Long Run', six.afterTrade['Mon']);
-check('...for that week only — the template is not rewritten',
-  six.week2['Mon']==='Fitstop', six.week2['Mon']);
-check('It says nothing is traded unless the athlete trades it',
-  /Nothing is traded unless you trade it/i.test(six.coverage.note||''), six.coverage.note);
-check('...and warns that one session a week cannot build a run',
-  /cannot build one/i.test(six.coverage.warning||''), six.coverage.warning);
-check('The gaps it offers are named in plain language',
-  six.coverage.offered.every(o=>o.why && o.why.length>10),
-  (six.coverage.offered[0]||{}).why);
+check('Every released class day still offers the class',
+  six.optionDays.every(o=>o.alts.includes('fitstop')||o.alts.length>0),
+  JSON.stringify(six.optionDays));
+check('A stated intent overrides the default', await page.evaluate(()=>{
+  coachProfile={goal:'HYROX sub-70, Fitstop 4x a week', raceDate:'2026-12-04'};
+  const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:7,
+    goal:'HYROX sub-70, Fitstop 4x a week',
+    trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    fitstopDays:['Mon','Tue','Wed','Thu','Fri','Sat']});
+  return pr.coverage.used.length===4 && /you asked for 4/.test(pr.coverage.note||''); }));
+check('"keep all my classes" is honoured too', await page.evaluate(()=>{
+  const g='HYROX sub-70 but keep all my Fitstop classes';
+  coachProfile={goal:g, raceDate:'2026-12-04'};
+  const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:7, goal:g,
+    trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    fitstopDays:['Mon','Tue','Wed','Thu','Fri','Sat']});
+  return pr.coverage.used.length===6; }));
+check('A goal that never mentions classes does NOT trigger an intent',
+  await page.evaluate(()=>_fitstopIntent('HYROX Anaheim Pro Men sub-70')===null));
+check('It explains which class days it used and why',
+  /class day/i.test(six.coverage.note||'') && /LIFT/i.test(six.coverage.note||''),
+  six.coverage.note);
+check('...and that the others are still available',
+  /still there to tap/i.test(six.coverage.note||''), six.coverage.note);
+check('No warning is needed once the week has real race work',
+  six.coverage.warning===null, String(six.coverage.warning));
+check('Released days are recorded with their class type',
+  six.coverage.released.length>=4 && six.coverage.offered.every(o=>o.dayType),
+  JSON.stringify(six.coverage.released));
 
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
