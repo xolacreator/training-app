@@ -12404,7 +12404,14 @@ function buildHyroxBlock(opts){
                                  focus:'Class session', format:'Class session' });
 
   const dayMap=[null,null,null,null,null,null,null];
-  // Class days first — they are not ours to move.
+  // Class days are OFFERED, not seized. Locking all six left exactly one free day and
+  // therefore one HYROX session a week, with the app silently choosing which single
+  // gap to fill and saying nothing about the two it dropped.
+  //
+  // Each class day becomes a two-way choice — the class, or the session that fills a
+  // gap the classes leave — defaulting to the CLASS. Trading a gym day is the
+  // athlete's call, not ours; our job is to make the option present, put the right
+  // alternative behind it, and say plainly what one session a week cannot do.
   fsDays.forEach(d=>{ const i=DOW.indexOf(d); if(i>=0) dayMap[i]='fitstop'; });
 
   // Remaining days, hardest session on the day with the most recovery around it.
@@ -12426,6 +12433,51 @@ function buildHyroxBlock(opts){
     const free=DOW.findIndex((d,i)=>!dayMap[i] && days.includes(d) && !fsDays.includes(d));
     if(free>=0) dayMap[free]=id;
   });
+
+  // ── Turn class days into choices, and say what is still uncovered ─────────
+  let coverage=null;
+  if(hasFitstop){
+    // What the classes leave, in the order a HYROX athlete should care about. The
+    // brick is first because it is the only session that trains the sled AND running
+    // off it, and the sled is the demand classes tend to miss entirely.
+    const GAPS=[
+      { id:'hx-brick',    key:'sled',      why:'sled work and running off a station' },
+      { id:'hx-long',     key:'aerobic',   why:'aerobic running volume — the race is 8 km' },
+      { id:'hx-tempo',    key:'threshold', why:'sustained hard running' },
+      { id:'hx-stations', key:'stations',  why:'stations at race load' },
+    ];
+    // Add the definition for every alternative we might offer. This has to happen
+    // BEFORE working out what is unmet — an earlier version filtered GAPS by "already
+    // in sessions" first, so the sessions that were missing (which is precisely the
+    // point) were filtered out and nothing was ever offered.
+    GAPS.forEach(g=>{ if(!sessions.some(s=>s.id===g.id)){
+      const def=Object.values(HYROX_SESSION_DEFS).find(d=>d.id===g.id);
+      if(def) sessions.push({...def});
+    }});
+    const scheduled=new Set(dayMap.filter(x=>typeof x==='string'));
+    const unmet=GAPS.filter(g=>!scheduled.has(g.id));
+    // Offer each unmet gap on a class day, best day first (fewest hard neighbours).
+    const fsRanked=fsDays.slice().sort((a,b)=>_adjFitstop(a)-_adjFitstop(b));
+    const offered=[];
+    unmet.forEach((g,n)=>{
+      const day=fsRanked[n]; if(!day) return;
+      const i=DOW.indexOf(day); if(i<0) return;
+      dayMap[i]={ opts:['fitstop', g.id] };      // first entry is the default: the class
+      offered.push({ day, alternative:g.id, key:g.key, why:g.why });
+    });
+    coverage={
+      classDays:fsDays.slice(),
+      scheduled:[...scheduled].filter(id=>id!=='fitstop'),
+      offered,
+      unmet:unmet.slice(offered.length).map(g=>g.key),
+      note: offered.length
+        ? `Your ${fsDays.length} class days are kept. ${offered.length} of them also offer the session that fills a gap the classes leave — tap to swap on any week. Nothing is traded unless you trade it.`
+        : `Your ${fsDays.length} class days are kept.`,
+      warning: (dayMap.filter(x=>typeof x==='string' && x!=='fitstop').length <= 1)
+        ? 'With every class day kept you get one session a week of your own. That keeps a run honest; it cannot build one. Trading one or two class days is what turns this into a race build.'
+        : null,
+    };
+  }
 
   // Weekly progressions: phases, deloads every 4th week, and the two simulations.
   const total=weeks+1;                       // final week is the deload/taper
@@ -12504,6 +12556,7 @@ function buildHyroxBlock(opts){
     weeks, sessionsPerWeek:spw,
     sessions, dayMap, weeklyProgressions,
     ...(raceInfo ? { race:raceInfo, overrides } : {}),
+    ...(coverage ? { coverage } : {}),
     source:'HYROX programming engine (KB-driven)',
   };
 }

@@ -433,9 +433,9 @@ const fs = await page.evaluate(()=>{
   };
   return { none:mk([],5), mwf:mk(['Mon','Wed','Fri'],6), tt:mk(['Tue','Thu'],5) };
 });
-check('Every Fitstop class day is honoured',
+check('Every Fitstop class day defaults to the class',
   ['Mon','Wed','Fri'].every(d=>fs.mwf.byDay[d]==='Fitstop'), JSON.stringify(fs.mwf.byDay));
-check('...and nothing else is scheduled on a class day',
+check('...nothing is traded away by default',
   ['Mon','Wed','Fri'].every(d=>fs.mwf.byDay[d]==='Fitstop'));
 check('The compromised run survives — Fitstop cannot give him that',
   fs.mwf.names.includes('Compromised Run'), fs.mwf.names.join(', '));
@@ -450,6 +450,54 @@ check('A different class pattern produces a different week',
 check('With no Fitstop days the block is unchanged',
   !fs.none.names.includes('Fitstop') && fs.none.names.includes('Compromised Run'),
   fs.none.names.join(', '));
+
+// ── Six class days: OFFERED, not seized ────────────────────────────────────
+// Locking all six left one free day and therefore one HYROX session a week, with
+// the app silently choosing which single gap to fill and saying nothing about the
+// two it dropped. Class days are now a two-way choice defaulting to the class.
+const six = await page.evaluate(()=>{
+  coachProfile={goal:'HYROX Pro sub-70', raceDate:'2026-12-04'};
+  localStorage.setItem('ht-race-date','2026-12-04');
+  const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:7,
+    trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    fitstopDays:['Mon','Tue','Wed','Thu','Fri','Sat']});
+  saveProgramData(pr);
+  const slots=w=>(_progWeekSessions(w)||[]).filter(s=>s.session);
+  const before=slots(1);
+  pickDayOption('Mon','hx-long',1);
+  const after=slots(1);
+  return {
+    coverage:pr.coverage,
+    defaults:Object.fromEntries(before.map(s=>[s.day,s.session.name])),
+    optionDays:before.filter(s=>s.isOption).map(s=>({day:s.day,
+      alts:s.options.filter(o=>o.id!==s.id).map(o=>o.id)})),
+    afterTrade:Object.fromEntries(after.map(s=>[s.day,s.session.name])),
+    week2:Object.fromEntries(slots(2).map(s=>[s.day,s.session.name])),
+  };
+});
+check('All six class days are kept by default',
+  ['Mon','Tue','Wed','Thu','Fri','Sat'].every(d=>six.defaults[d]==='Fitstop'),
+  JSON.stringify(six.defaults));
+check('The free day still carries a HYROX session',
+  six.defaults['Sun']==='Compromised Run', six.defaults['Sun']);
+check('Class days OFFER the session that fills a gap', six.optionDays.length>=3,
+  JSON.stringify(six.optionDays));
+check('...and the alternatives are the uncovered demands, not filler',
+  six.optionDays.every(o=>['hx-long','hx-tempo','hx-stations','hx-brick'].includes(o.alts[0])),
+  JSON.stringify(six.optionDays.map(o=>o.alts[0])));
+check('Every offered alternative exists as a session in the block',
+  six.optionDays.every(o=>o.alts.length>0));
+check('Tapping an alternative actually swaps that day',
+  six.afterTrade['Mon']==='Long Run', six.afterTrade['Mon']);
+check('...for that week only — the template is not rewritten',
+  six.week2['Mon']==='Fitstop', six.week2['Mon']);
+check('It says nothing is traded unless the athlete trades it',
+  /Nothing is traded unless you trade it/i.test(six.coverage.note||''), six.coverage.note);
+check('...and warns that one session a week cannot build a run',
+  /cannot build one/i.test(six.coverage.warning||''), six.coverage.warning);
+check('The gaps it offers are named in plain language',
+  six.coverage.offered.every(o=>o.why && o.why.length>10),
+  (six.coverage.offered[0]||{}).why);
 
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
