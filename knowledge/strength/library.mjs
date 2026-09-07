@@ -164,15 +164,30 @@ export const STRENGTH_DOMAINS = [
     relatedTo: ['movement_quality','recovery_fatigue','power_explosiveness'],
   },
   {
-    id: 'fitstop_method', title: 'Fitstop (as strength methodology)', sourceTier: 'methodology',
-    summary: 'Fitstop\'s block as a complete strength programming system. (User-provided: BLOCK C 2026.)',
-    coreConcepts: ['12-week block as 4×3-week phases: BASE → BUILD → PERFORMANCE → PEAK.', 'Fixed weekly split: Mon PERFORM, Tue LIFT, Wed CONDITION, Thu PERFORM, Fri LIFT, Sat SWEAT, Sun rest.', 'Main lifts (Back Squat, Deadlift, Bench, Chin-Up) intensify: BASE variations(RIR 1–3) → BUILD 5RM → PERFORMANCE 3RM → PEAK 1RM.'],
-    adaptations: ['Concurrent strength + conditioning; main-lift maximal strength by PEAK; work capacity via PERFORM/CONDITION/SWEAT.'],
-    programming: ['Use the real BLOCK C sessions (LIFT = main lift + 3–4 round A/B/C accessory supersets). When Fitstop is the strength program, its LIFT days ARE the strength stimulus — do not add a separate generic strength block.'],
-    progression: ['Follow the block\'s phase RM progression; skills (KB, T2B, Cleans) and fitness intervals progress to PEAK time trials.'],
-    recovery: ['6 training days/week — high combined load; manage carefully when adding endurance (concurrent interference).'],
-    contraindications: ['Layering an additional heavy strength block on top of Fitstop; stacking hard runs next to LIFT days.'],
-    relatedTo: ['maximal_strength','strength_endurance','concurrent_training','periodization_strength'],
+    // ─────────────────────────────────────────────────────────────────────────
+    // NOT DOCTRINE. This is one gym's programming for one athlete, and it sits here
+    // ONLY so the scheduler can see what that athlete is already doing six days a
+    // week and program the gap instead of duplicating the overlap.
+    //
+    // It used to be sourceTier:'methodology' and titled "Fitstop (as strength
+    // methodology)" — a personal program in the knowledge layer, presented to any
+    // athlete as what strength training should look like. That is a category error,
+    // not an accuracy error, and it is corrected here rather than argued with.
+    //
+    // Rules that follow from the tier: never cite this in support of a claim, never
+    // grade it, never present it to an athlete who does not attend this gym, and
+    // never extrapolate it beyond the weeks actually supplied.
+    // ─────────────────────────────────────────────────────────────────────────
+    id: 'fitstop_method', title: 'Fitstop class schedule (one athlete\'s program)',
+    sourceTier: 'athlete-program', verified: false, citable: false,
+    summary: 'A record of one athlete\'s gym classes, held as a SCHEDULING CONSTRAINT so training can be programmed around it. Not a methodology and not evidence.',
+    coreConcepts: ['Six classes a week, Mon–Sat, Sun rest. Session length and content are set by the class, not the athlete.', 'Day types observed: Mon PERFORM, Tue LIFT, Wed CONDITION, Thu PERFORM, Fri LIFT, Sat SWEAT.', 'Sampled weeks land on a 1RM testing wave (squat, bench, deadlift, chin-up), which is a distinctive phase and not representative of the year.'],
+    adaptations: ['Whatever the classes happen to train. Do not infer intent from a schedule.'],
+    programming: ['Treat the class days as FIXED. Schedule around them; never over them; never restate them as your own prescription.', 'Program only the gap. Everything the classes already cover buys fatigue rather than fitness if repeated.', 'Six hard class days plus a full endurance plan is how an athlete arrives at a start line already broken — if only one day is free, say plainly that one running session a week keeps a run honest and cannot build one, and let the athlete decide whether to trade a class day.'],
+    progression: ['None to assert. Progression belongs to the gym, and only the supplied weeks are known.'],
+    recovery: ['Six training days a week is already a high combined load before anything is added.'],
+    contraindications: ['Citing this as evidence for any coaching claim.', 'Presenting it to an athlete as what training should look like.', 'Extrapolating it past the weeks actually supplied.', 'Inferring running volume from class attendance — every run in the sample carries a non-running alternative, so a full week can be completed having run nothing.', 'Converting the class 2 km time trial into a running pace: it is rowed, skied or biked, not run.'],
+    relatedTo: ['concurrent_training','recovery_fatigue'],
   },
   {
     id: 'hyrox_strength', title: 'HYROX Strength', sourceTier: 'methodology',
