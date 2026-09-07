@@ -747,7 +747,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div id="screen-more" class="screen">
   <div class="px" style="padding-top:var(--screen-pt);">
     <div style="margin-bottom:16px;"><div class="eyebrow">Settings</div><div class="screen-title">More</div>
-      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-09-06 · rev47</div></div>
+      <div id="build-stamp" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px;letter-spacing:.04em;">build 2026-09-07 · rev48</div></div>
     <div class="sec-lbl">Session builder</div>
     <div class="card">
       <div class="btn-row" style="margin-bottom:0;">
@@ -9552,6 +9552,7 @@ function deleteProgram(opts){
   PROGRAM_SCOPED_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   savedProgram = null;
   currentProgramWeek = 1;
+  try{ _buildingNew = false; }catch(e){}
   try{ programViewWeek = 1; }catch(e){}
   try{ _coachPlanProposal = null; }catch(e){}
   try{ pendingReview = []; }catch(e){}
@@ -9591,10 +9592,25 @@ function openProgramOverlay() {
   openOv('program-overlay');
 }
 
+// ── Building a new plan when one already exists ──────────────────────────────
+// A saved block used to HIDE the builder completely: the only route to a new plan
+// was Delete Program, which means destroying the thing you have before you know
+// what replaces it. A block that no longer fits is the commonest reason to build —
+// it should be the easy path, not the destructive one.
+let _buildingNew = false;
+function startNewPlan(){
+  _buildingNew = true;
+  try{ openOv('program-overlay'); }catch(e){}
+  renderProgramBody();
+}
+function cancelNewPlan(){
+  _buildingNew = false;
+  renderProgramBody();
+}
 function renderProgramBody() {
   loadSavedProgram();
   renderMyProgramCard();
-  if (savedProgram) renderSavedProgram(); else renderProgramBuilder();
+  if (savedProgram && !_buildingNew) renderSavedProgram(); else renderProgramBuilder();
 }
 
 function renderMyProgramCard() {
@@ -9732,11 +9748,26 @@ function renderProgramBuilder() {
       ${gateNote}
     </div>`;
 
+  // Replacing an existing block: say what goes, what stays, and offer the way back.
+  // Nothing is destroyed until the new block is actually created.
+  const existing = (typeof savedProgram!=='undefined' && savedProgram) ? savedProgram : null;
+  const replacingCard = (existing && _buildingNew) ? `
+    <div class="card" style="margin-bottom:14px;border-color:rgba(77,158,255,.35);background:rgba(77,158,255,.06);">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Replacing</div>
+      <div style="font-size:15px;font-weight:600;line-height:1.35;">${_dash(existing.name||'Current block')}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px;line-height:1.6;">
+        ${(existing.weeklyProgressions||[]).length||existing.weeks||'?'} weeks · currently week ${(typeof _progActualWeek==='function')?_progActualWeek():1}
+      </div>
+      <div style="font-size:12.5px;color:var(--text2);margin-top:10px;line-height:1.55;">It stays exactly as it is until you create the new one. Your logged sessions are kept either way — a new block never touches your history.</div>
+      <button onclick="cancelNewPlan()" style="margin-top:10px;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--mono);font-size:10px;cursor:pointer;">← Keep my current plan</button>
+    </div>` : '';
+
   body.innerHTML = `<div style="padding:4px 0 40px;">
     <div style="margin-bottom:14px;">
-      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">Build a block</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:3px;">${existing&&_buildingNew?'Build a new block':'Build a block'}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6;">One way in: say what you're training for, and the goal decides how it's programmed.</div>
     </div>
+    ${replacingCard}
     ${goalCard}
     ${stateCard}
     ${startCard}
@@ -13181,6 +13212,8 @@ function renderSavedProgram() {
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
       <button class="btn" onclick="restartProgramToday()" style="color:var(--accent);border-color:rgba(212,175,55,.25);">↻ Restart from this week</button>
       <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
+      <button class="btn btn-accent" onclick="startNewPlan()" style="width:100%;margin-bottom:8px;">Build a new plan</button>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.6;margin-bottom:12px;">If this block no longer fits — the race moved, the goal changed, the week doesn't work.<br>Your current block stays until the new one is created.</div>
       <button class="btn" onclick="if(confirm('Delete this program? Your logged sessions and your goal are kept.')){deleteProgram();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
     </div>
   </div>`;
@@ -15097,6 +15130,7 @@ function coachCreateProgram(i){
     try{ programViewWeek=1; }catch(e){}
     try{ if(savedProgram && savedProgram.goalDrift) delete savedProgram.goalDrift; }catch(e){}
     msg.programApplied=true;
+    try{ _buildingNew=false; }catch(e){}      // the new block IS the plan now
     try{ renderCoachMessages(); }catch(e){}
     try{ renderAll(); }catch(e){}
     try{ closeOv('coach-overlay'); }catch(e){}

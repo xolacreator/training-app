@@ -150,6 +150,67 @@ check('Deleting a block does not touch logged sessions', await page.evaluate(()=
   deleteProgram({silent:true});
   return sessions.length===1 && sessions[0].gid==='keep'; }));
 
+// ── Building a new plan when one already exists ────────────────────────────
+// A saved block used to HIDE the builder: the only route to a new plan was Delete
+// Program — destroying what you have before knowing what replaces it. A block that
+// no longer fits is the commonest reason to build, so it must be the easy path.
+const rebuild = await page.evaluate(()=>{
+  localStorage.setItem('ht-goal','HYROX Pro sub-70');
+  coachProfile={goal:'HYROX Pro sub-70', raceDate:'2026-12-04'};
+  localStorage.setItem('ht-race-date','2026-12-04');
+  sessions=[{gid:'keep',week:'1',day:'Mon',session:'Easy Run',dist:'8',ts:Date.now()}]; saveData();
+  saveProgramData(buildHyroxBlock({division:'pro_men',sessionsPerWeek:5}));
+  const oldId=savedProgram.id, oldName=savedProgram.name;
+  openProgramOverlay();
+  const txt=()=>document.getElementById('program-overlay-body').innerText;
+  const savedView=txt();
+  startNewPlan();
+  const builderView=txt();
+  const during={ blockStillSaved:!!savedProgram, sameBlock:savedProgram && savedProgram.id===oldId,
+                 sessions:(sessions||[]).length };
+  cancelNewPlan();
+  const backView=txt();
+  return { oldName, savedView, builderView, backView, during,
+           afterCancel:{ blockStillSaved:!!savedProgram, sameBlock:savedProgram&&savedProgram.id===oldId } };
+});
+check('A saved block offers "Build a new plan"',
+  /Build a new plan/i.test(rebuild.savedView), rebuild.savedView.slice(0,60).replace(/\n/g,' / '));
+check('...without having to delete anything first',
+  /Build a new plan/i.test(rebuild.savedView) && /Delete Program/i.test(rebuild.savedView));
+check('Tapping it opens the builder', /Build a new block/i.test(rebuild.builderView),
+  rebuild.builderView.slice(0,50).replace(/\n/g,' / '));
+check('The builder names the block being replaced',
+  /replacing/i.test(rebuild.builderView) && rebuild.builderView.includes(rebuild.oldName.replace(/—/g,'-')),
+  rebuild.builderView.slice(0,140).replace(/\n/g,' / '));
+check('...and says the current block stays until the new one is made',
+  /stays exactly as it is until you create/i.test(rebuild.builderView));
+check('...and that logged sessions are kept either way',
+  /never touches your history/i.test(rebuild.builderView));
+check('The existing block is NOT destroyed while building',
+  rebuild.during.blockStillSaved && rebuild.during.sameBlock, JSON.stringify(rebuild.during));
+check('...and neither are logged sessions', rebuild.during.sessions===1, String(rebuild.during.sessions));
+check('There is a way back to the current plan',
+  /Keep my current plan/i.test(rebuild.builderView));
+check('...and taking it restores the saved view untouched',
+  /HYROX Block/i.test(rebuild.backView) && rebuild.afterCancel.sameBlock,
+  JSON.stringify(rebuild.afterCancel));
+check('Creating a new block ends build mode', await page.evaluate(()=>{
+  startNewPlan();
+  const wasBuilding=/Build a new block/i.test(document.getElementById('program-overlay-body').innerText);
+  coachMessages=[{role:'assistant', text:'x', intake:{goal:'HYROX Pro sub-70',
+    timeline:'12 weeks', history:'Raced before'}}];
+  const sp=_validateProgramSpec({engine:'auto', name:'Replacement', weeks:10, sessionsPerWeek:5,
+    goal:'HYROX Pro sub-70', trainDays:['Mon','Tue','Wed','Fri','Sat']});
+  coachMessages[0].programSpec=sp;
+  coachCreateProgram(0);
+  renderProgramBody();
+  const after=document.getElementById('program-overlay-body').innerText;
+  return wasBuilding && !/Build a new block/i.test(after) && !!savedProgram; }));
+check('Deleting a program also leaves build mode clean', await page.evaluate(()=>{
+  startNewPlan(); deleteProgram({silent:true}); renderProgramBody();
+  const t=document.getElementById('program-overlay-body').innerText;
+  return !/Replacing/i.test(t) && !savedProgram; }));
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();
