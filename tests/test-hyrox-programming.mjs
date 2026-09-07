@@ -533,6 +533,86 @@ check('Released days are recorded with their class type',
   six.coverage.released.length>=4 && six.coverage.offered.every(o=>o.dayType),
   JSON.stringify(six.coverage.released));
 
+// ── A second race on the calendar ──────────────────────────────────────────
+// ATHX Los Angeles, 7 November, landed in the same week as the full HYROX
+// simulation — a 2.5-hour competition on the Saturday and a full race rehearsal
+// on the Sunday. Two race efforts back to back is not a training week.
+const bRace = await page.evaluate(()=>{
+  coachProfile={goal:'HYROX Pro sub-70', raceDate:'2026-12-04'};
+  localStorage.setItem('ht-race-date','2026-12-04');
+  setSecondaryRace('2026-11-07','ATHX Long Beach');
+  const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:7, goal:'HYROX Pro sub-70',
+    trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    fitstopDays:['Mon','Tue','Wed','Thu','Fri','Sat']});
+  saveProgramData(pr);
+  const w=pr.secondaryRace.week;
+  const names=n=>(_progWeekSessions(n)||[]).filter(s=>s.session).map(s=>s.session.name);
+  setSecondaryRace(null);
+  return { info:pr.secondaryRace, sims:pr.hyrox.simulationWeeks,
+           week:names(w), weekFlags:pr.weeklyProgressions[w-1],
+           after:names(w+1), sessionIds:(pr.sessions||[]).map(s=>s.id) };
+});
+check('The B-race is placed in the right week', bRace.info.week===9 && bRace.info.day==='Sat',
+  `week ${bRace.info.week} ${bRace.info.day}`);
+check('It appears as a session, named', bRace.week.some(n=>/ATHX/i.test(n)), bRace.week.join(', '));
+check('No race simulation shares its week', bRace.sims.full!==bRace.info.week && bRace.sims.half!==bRace.info.week,
+  JSON.stringify(bRace.sims));
+check('...and the simulation moved rather than vanished',
+  bRace.sims.full>0 && bRace.sims.half>0 && bRace.sims.full!==bRace.sims.half, JSON.stringify(bRace.sims));
+check('No compromised run is stacked on B-race week',
+  !bRace.week.some(n=>/Compromised/i.test(n)), bRace.week.join(', '));
+check('One short sharpener is kept', bRace.week.some(n=>/Easy Run/i.test(n)), bRace.week.join(', '));
+check('Kept class days survive B-race week',
+  bRace.week.filter(n=>n==='Fitstop').length>=1, bRace.week.join(', '));
+check('The week is flagged as a race week, not a normal one',
+  bRace.weekFlags.secondaryRace===true && bRace.weekFlags.deload===true,
+  JSON.stringify(bRace.weekFlags));
+check('Normal programming resumes the week after',
+  bRace.after.some(n=>/Simulation|Compromised|Station/i.test(n)), bRace.after.join(', '));
+
+// ── ATHX movement gaps, read from the spec rather than asserted ────────────
+const athx = await page.evaluate(()=>({
+  zones:(ATHX_KB.zones||[]).map(z=>z.id),
+  scored:(ATHX_KB.zones||[]).filter(z=>z.scored).length,
+  verified:ATHX_KB.verified, sources:(ATHX_KB.SOURCES||[]).length,
+  unknown:(ATHX_KB.unknown||[]).length,
+  gaps:(ATHX_KB.vsHyrox.gaps||[]).map(g=>g.key),
+  covered:(ATHX_KB.vsHyrox.covered||[]).length,
+  date:ATHX_KB.event.date, venue:ATHX_KB.event.venue,
+}));
+check('The ATHX event spec is loaded', athx.zones.length===6 && athx.scored===3, JSON.stringify(athx.zones));
+check('...with the right date and venue',
+  athx.date==='2026-11-07' && /Long Beach/.test(athx.venue), `${athx.date} ${athx.venue}`);
+check('...provenance marked secondary, not official', athx.verified==='secondary', athx.verified);
+check('...sources attributed', athx.sources>=5, String(athx.sources));
+check('...and what is NOT known is recorded rather than filled in', athx.unknown>=3, String(athx.unknown));
+check('It names the movements HYROX training does not cover',
+  ['boxJumpOver','saGroundToOverhead','heavySandbagCarry'].every(k=>athx.gaps.includes(k)),
+  athx.gaps.join(','));
+check('...and what HYROX already covers, so nothing is added twice', athx.covered>=3, String(athx.covered));
+check('Maximal strength is credited to the LIFT classes, not listed as a gap',
+  await page.evaluate(()=>{
+    coachProfile={goal:'HYROX Pro sub-70', raceDate:'2026-12-04'};
+    localStorage.setItem('ht-race-date','2026-12-04');
+    setSecondaryRace('2026-11-07','ATHX Long Beach');
+    const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:7, goal:'HYROX Pro sub-70',
+      trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+      fitstopDays:['Mon','Tue','Wed','Thu','Fri','Sat']});
+    setSecondaryRace(null);
+    const ms=pr.secondaryRace.gaps.find(g=>g.key==='maxStrength');
+    return !!(ms && ms.coveredBy && /LIFT/.test(ms.coveredBy)) && pr.secondaryRace.uncovered.length===3; }));
+check('A B-race too close to the A-race is not honoured', await page.evaluate(()=>{
+  localStorage.setItem('ht-race-date','2026-12-04');
+  setSecondaryRace('2026-11-30','Too close');
+  const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:5});
+  setSecondaryRace(null);
+  return !pr.secondaryRace; }));
+check('No B-race set leaves the block unchanged', await page.evaluate(()=>{
+  setSecondaryRace(null);
+  const pr=buildHyroxBlock({division:'pro_men', sessionsPerWeek:5});
+  return !pr.secondaryRace; }));
+check('The B-race survives a backup', await page.evaluate(()=>BACKUP_KEYS.includes('ht-race-b')));
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();

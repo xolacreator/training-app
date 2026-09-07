@@ -2790,7 +2790,7 @@ const BACKUP_KEYS = ['ht-v4','ht-v4-rescue','ht-v4-corrupt','ht-race-date',
   'ht-plan-start','ht-plan-type','ht-goal','ht-goal-category','ht-goal-race-type',
   'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
   'ht-coach-memory','ht-custom','ht-tmpl','ht-theme','ht-palette','ht-card-theme',
-  'ht-units-run','ht-units-strength','ht-pending-review','ht-training-inputs'];
+  'ht-units-run','ht-units-strength','ht-pending-review','ht-training-inputs','ht-race-b'];
 // ── Dead-origin guard ────────────────────────────────────────────────────────
 // The repo moved from bruces6 → xolacreator, so GitHub Pages moved with it. The
 // old origin keeps serving its last pre-transfer build forever: three deploys in
@@ -11640,6 +11640,21 @@ function _parseRaceDate(raw){
   if(m && MON[m[1].slice(0,3).toLowerCase()]!=null) return new Date(+m[2], MON[m[1].slice(0,3).toLowerCase()], 1, 12);
   const d=new Date(s); return isNaN(d.getTime())?null:d;
 }
+// A second event on the calendar. Stored separately from the A-race because it is a
+// different decision: what you are BUILDING for, versus what else you have entered.
+function athleteSecondaryRace(){
+  try{ const v=JSON.parse(localStorage.getItem('ht-race-b')||'null');
+       return (v && v.date) ? v : null; }catch(e){ return null; }
+}
+function setSecondaryRace(date, name, opts){
+  opts=opts||{};
+  try{
+    if(!date){ localStorage.removeItem('ht-race-b'); }
+    else localStorage.setItem('ht-race-b', JSON.stringify({ date, name:name||'B-race', ...opts }));
+  }catch(e){ return false; }
+  try{ AthleteState=null; recomputeAthleteState(); }catch(e){}
+  return true;
+}
 function athleteRaceDate(){
   let raw=null;
   try{ raw=(typeof coachProfile==='object'&&coachProfile&&coachProfile.raceDate)||localStorage.getItem('ht-race-date'); }catch(e){}
@@ -12658,13 +12673,34 @@ function buildHyroxBlock(opts){
   // was told to recover and to race on the same page. Simulations move to the nearest
   // week that is not a deload; the deload then follows the simulation, which is the
   // right order anyway.
+  // ── A second race on the calendar ─────────────────────────────────────────
+  // A B-race is still a race. ATHX Los Angeles falls on 7 November, which landed in
+  // the same week as the full HYROX simulation — a 2.5-hour competition on the
+  // Saturday and a full race rehearsal on the Sunday. That is not a training week,
+  // it is two race efforts back to back.
+  //
+  // The B-race takes the week: no simulation, no brick, a short sharpener midweek
+  // and the event itself on its own day. It is a hard effort in its own right, so
+  // it substitutes for the sharpening rather than being added to it.
+  const _secondary=(()=>{
+    const raw=opts.secondaryRace || (typeof athleteSecondaryRace==='function' ? athleteSecondaryRace() : null);
+    if(!raw || !raw.date) return null;
+    const d=new Date(raw.date+'T12:00:00'); if(isNaN(d)) return null;
+    const wk=_startISO ? Math.floor((d-new Date(_startISO+'T12:00:00'))/(7*86400000))+1 : null;
+    if(!wk || wk<1 || wk>total) return null;
+    if(raceWeek && wk>=raceWeek-1) return null;         // too close to the A-race to honour
+    return { ...raw, week:wk, day:DOW[(d.getDay()+6)%7], dateISO:raw.date };
+  })();
+
   // The taper week is not a deload by the modulo rule, so it also has to be excluded
   // explicitly — otherwise a race simulation could be scheduled during the taper.
+  // A B-race week is excluded for the same reason.
   const _lastTrainable = raceWeek ? raceWeek-2 : total-1;
   const _placeSim = (want) => {
     for (let d=0; d<=total; d++){
       for (const w of [want-d, want+d]){
-        if (w>=2 && w<=_lastTrainable && !isDeload(w)) return w;
+        if (w>=2 && w<=_lastTrainable && !isDeload(w) &&
+            !(_secondary && w===_secondary.week)) return w;
       }
     }
     return Math.max(2, Math.min(want, _lastTrainable));
@@ -12712,6 +12748,40 @@ function buildHyroxBlock(opts){
     raceInfo={ week:raceWeek, day:rDow, dateISO:_race.toISOString().slice(0,10) };
   }
 
+  // ── The B-race week ───────────────────────────────────────────────────────
+  let secondaryInfo=null;
+  if(_secondary){
+    const sid='race-b';
+    if(!sessions.some(s=>s.id===sid))
+      sessions.push({ id:sid, type:'endurance', name:(_secondary.name||'B-RACE').toUpperCase(),
+                      race:true, secondary:true, runType:'race', focus:'race_specificity',
+                      cue:_secondary.cue || 'A hard effort in its own right — race it, then recover.' });
+    const wp=weeklyProgressions[_secondary.week-1];
+    if(wp){ wp.secondaryRace=true; wp.deload=true; delete wp.simulation;
+            wp.note=`${_secondary.name||'B-race'} this week — ${_secondary.day}`; }
+    const rw=[null,null,null,null,null,null,null];
+    const ri=DOW.indexOf(_secondary.day);
+    if(ri>=0){ rw[ri]=sid;
+      // One short sharpener earlier in the week, and the kept class days stay.
+      const openerIdx=Math.max(0, ri-3);
+      if(openerIdx!==ri) rw[openerIdx]='hx-easy';
+      fsDays.forEach(d=>{ const i=DOW.indexOf(d); if(i>=0 && i!==ri && !rw[i]) rw[i]='fitstop'; });
+    }
+    overrides[_secondary.week]=rw;
+    // What this event asks for that a HYROX build does not train. Read from the
+    // event spec, not asserted here — and each gap says whether the athlete's class
+    // days already cover it, so the answer is "do nothing" wherever that is true.
+    const gaps=(()=>{ try{
+      const g=(ATHX_KB && ATHX_KB.vsHyrox && ATHX_KB.vsHyrox.gaps) || [];
+      const liftDays=fsDays.filter(d=>FITSTOP_DAY_TYPE[d]==='LIFT');
+      return g.map(x=>({ ...x,
+        coveredBy: (x.key==='maxStrength' && liftDays.length)
+          ? `your ${liftDays.join(' and ')} LIFT class${liftDays.length>1?'es':''}` : null }));
+    }catch(e){ return []; } })();
+    secondaryInfo={ ...(_secondary), sessionId:sid, gaps,
+      uncovered: gaps.filter(g=>!g.coveredBy).map(g=>g.what) };
+  }
+
   const L=hyroxLoads(div);
   return {
     id:'hyrox-'+Date.now(),
@@ -12723,6 +12793,7 @@ function buildHyroxBlock(opts){
     sessions, dayMap, weeklyProgressions,
     ...(raceInfo ? { race:raceInfo, overrides } : {}),
     ...(coverage ? { coverage } : {}),
+    ...(secondaryInfo ? { secondaryRace:secondaryInfo } : {}),
     source:'HYROX programming engine (KB-driven)',
   };
 }
@@ -13151,6 +13222,9 @@ const FITSTOP_KB={"version":1,"sessions":[{"session":"PERFORM","structure":"Inte
 /* HYROX_KB:START (generated by scripts/build-knowledge.mjs — do not edit) */
 const HYROX_KB={"version":2,"season":"2025/26","verified":"secondary","format":{"runs":8,"runDistanceM":1000,"totalRunKm":8,"stationCount":8,"order":["run","ski","run","sledPush","run","sledPull","run","burpeeBroadJump","run","row","run","farmersCarry","run","sandbagLunges","run","wallBalls"],"roxzone":{"transitions":8,"note":"The transit corridor between the run lane and each station. Timed as part of the race — it is not rest.","typicalLossSec":[30,90],"lossReason":"Most athletes lose 30–90 s per race by walking the roxzone or treating it as a rest stop."}},"fixedStations":{"ski":{"name":"SkiErg","distanceM":1000,"unit":"m"},"row":{"name":"Rowing","distanceM":1000,"unit":"m"},"burpeeBroadJump":{"name":"Burpee Broad Jumps","distanceM":80,"unit":"m"}},"divisions":{"open_men":{"label":"Open — Men","sledPush":{"totalKg":152,"distanceM":50},"sledPull":{"totalKg":103,"distanceM":50},"farmersCarry":{"perHandKg":24,"distanceM":200},"sandbagLunges":{"kg":20,"distanceM":100},"wallBalls":{"kg":6,"targetM":3,"reps":100}},"open_women":{"label":"Open — Women","sledPush":{"totalKg":102,"distanceM":50},"sledPull":{"totalKg":78,"distanceM":50},"farmersCarry":{"perHandKg":16,"distanceM":200},"sandbagLunges":{"kg":10,"distanceM":100},"wallBalls":{"kg":4,"targetM":2.7,"reps":100,"repsDisputed":75}},"pro_men":{"label":"Pro — Men","sledPush":{"totalKg":202,"distanceM":50},"sledPull":{"totalKg":153,"distanceM":50},"farmersCarry":{"perHandKg":32,"distanceM":200},"sandbagLunges":{"kg":30,"distanceM":100},"wallBalls":{"kg":9,"targetM":3,"reps":100},"entry":"Requires a verified qualifying finish — approximately sub-70 min (men)."},"pro_women":{"label":"Pro — Women","sledPush":{"totalKg":152,"distanceM":50},"sledPull":{"totalKg":103,"distanceM":50},"farmersCarry":{"perHandKg":24,"distanceM":200},"sandbagLunges":{"kg":20,"distanceM":100},"wallBalls":{"kg":6,"targetM":2.7,"reps":100},"entry":"Requires a verified qualifying finish — approximately sub-85 min (women)."}},"disputed":[{"field":"divisions.open_women.wallBalls.reps","values":[100,75],"note":"Sources conflict for the 2025/26 season. Several state all Singles divisions race 100 reps and that the 75-rep women's standard was retired; others state Open Women dropped to 75, with at least one attributing the 75-rep change to Doubles only. Treat 100 as the working default and confirm against the current official rulebook for the athlete's specific event.","resolution":"Ask the athlete to confirm from their event rulebook before prescribing wall-ball volume at race standard."}],"SOURCES":[{"what":"Race format, station order, divisions","where":"HYROX official FAQ (hyroxus.com/faq)"},{"what":"Division loads and rep counts","where":"Corroborated across HyCrew, PUMA, Red Bull, Pace Club, RitFit division tables (2025/26)"},{"what":"Pro entry qualifying standards","where":"RoxGrit / HyroxFitness division guides"},{"what":"Roxzone time loss","where":"RoxZone Training race-day strategy; HyroxDataLab pacing analysis"},{"what":"Primary authority (NOT reachable from this environment)","where":"maintain.hyrox.com/rulebooks/HYROX_RulebookSingles_EN.pdf"}]};
 /* HYROX_KB:END */
+/* ATHX_KB:START (generated by scripts/build-knowledge.mjs — do not edit) */
+const ATHX_KB={"version":1,"season":"2026","verified":"secondary","event":{"name":"ATHX Los Angeles 2026","date":"2026-11-07","venue":"Long Beach Convention & Entertainment Center","format":"One continuous 2.5-hour session through six zones, in a fixed sequence.","divisions":["Lite","ATHX","Pro"],"entry":["Individual","Pairs (Male / Female / Mixed)"],"note":"The test format repeats across every event of the season, so the movements are known in advance."},"zones":[{"id":"warmup","name":"Warm-Up Zone","minutes":30,"scored":false,"what":"Mobilise and activate before the floor."},{"id":"strength","name":"Strength Zone","minutes":20,"scored":true,"what":"Three maximal lifts, back to back, against the clock.","tests":[{"order":1,"cap":"6 min","lift":"Stick press","scheme":"1RM"},{"order":2,"cap":"6 min","lift":"Back squat","scheme":"3RM"},{"order":3,"cap":"8 min","lift":"Deadlift","scheme":"5RM"}]},{"id":"refuel","name":"Refuel Zone","minutes":10,"scored":false,"what":"Hydrate and recover before the next test."},{"id":"endurance","name":"Endurance Zone","minutes":30,"scored":true,"what":"22 minutes of continuous running and rowing for maximum distance.","working":"22 min","pairsRunLeg":{"Lite":"500 m","ATHX":"750 m","Pro":"1 km","note":"Pairs swap each time the run leg is completed."}},{"id":"recovery","name":"Recovery Zone","minutes":30,"scored":false,"what":"Dedicated reset before the final test."},{"id":"metcon","name":"Metabolic Zone (MetCon X)","minutes":30,"scored":true,"what":"Five movements as one continuous effort.","cap":"25 min","movements":[{"name":"SkiErg","dose":"60 cal"},{"name":"Single-arm alternating ground to overhead","dose":"60 reps","loadM":"20 kg","loadF":"12.5 kg"},{"name":"Sandbag carry","dose":"60 m","loadM":"50 kg","loadF":"30 kg"},{"name":"Box jump overs","dose":"60 reps","loadM":"24 in","loadF":"20 in"},{"name":"DB walking lunges","dose":"60 m","loadM":"20 kg","loadF":"12.5 kg"}]}],"vsHyrox":{"covered":[{"what":"SkiErg","why":"A HYROX race station; trained at race dose."},{"what":"Rowing","why":"A HYROX race station; trained at race dose."},{"what":"Running under fatigue","why":"The compromised run is exactly this."},{"what":"Lunge patterning","why":"HYROX sandbag lunges cover the pattern, at a lighter load."}],"gaps":[{"key":"maxStrength","what":"Maximal strength — 1RM press, 3RM squat, 5RM deadlift","why":"HYROX trains strength-ENDURANCE at submaximal race loads. It never asks for a true 1RM.","note":"Fitstop LIFT days cover this directly, and Block D peaks on exactly these lifts."},{"key":"boxJumpOver","what":"Box jump overs (60 reps, 24 in)","why":"Does not appear anywhere in a HYROX race or in HYROX-specific training."},{"key":"saGroundToOverhead","what":"Single-arm alternating ground to overhead (60 reps, 20 kg)","why":"No HYROX station uses a single-arm overhead pattern under load."},{"key":"heavySandbagCarry","what":"Sandbag CARRY at 50 kg over 60 m","why":"HYROX carries a 20-30 kg sandbag in a lunge, and 2x24-32 kg farmers. A 50 kg carry is a heavier, different task."}]},"unknown":["Individual (non-pairs) run and row leg distances in the Endurance Zone — sources give the PAIRS legs only.","Whether Lite / ATHX / Pro change the MetCon X loads, or only the Endurance Zone run leg.","Scoring weights across the three tested zones."],"SOURCES":[{"what":"Date, venue, six-zone format","where":"ATHX Games event listing (athxgames.com/events) via search; corroborated by Red Bull 2026 competitions round-up"},{"what":"Zone durations and sequence","where":"Velites Sport and Speediance ATHX explainers (2026)"},{"what":"Strength Zone lifts and caps","where":"BLK BOX \"ATHX 2026 Workouts\"; corroborated by EFECTIV Nutrition"},{"what":"MetCon X movements and loads","where":"BLK BOX \"ATHX 2026 Workouts\"; corroborated by BOXROX"},{"what":"Divisions and entry types","where":"ATHX Games site summary; Sidea Fitness ATHX 2026 guide"},{"what":"Primary source (NOT reachable from this environment)","where":"athxgames.com — egress blocked"}]};
+/* ATHX_KB:END */
 // Query helpers for the Programming Engine to consult the KBs by domain.
 const _RKB = () => (typeof RUNNING_KB==='object' && RUNNING_KB.domains) ? RUNNING_KB : {domains:[],philosophy:null};
 const _SKB = () => (typeof STRENGTH_KB==='object' && STRENGTH_KB.domains) ? STRENGTH_KB : {domains:[],philosophy:null};
