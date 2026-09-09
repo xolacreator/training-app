@@ -613,6 +613,66 @@ check('No B-race set leaves the block unchanged', await page.evaluate(()=>{
   return !pr.secondaryRace; }));
 check('The B-race survives a backup', await page.evaluate(()=>BACKUP_KEYS.includes('ht-race-b')));
 
+// ── Does the block add up to the goal? ─────────────────────────────────────
+// Every session can be dosed correctly and the WEEK still total a quarter of what
+// the goal needs. This one did: ~21 km/week against a sourced 50-65 km/week for a
+// sub-70 athlete. Nothing was checking the sum.
+const vol = await page.evaluate(()=>{
+  const mk=(goal,fs)=>{
+    coachProfile={goal, raceDate:'2026-12-04'};
+    localStorage.setItem('ht-race-date','2026-12-04'); localStorage.setItem('ht-goal',goal);
+    saveProgramData(buildHyroxBlock({division:'pro_men', sessionsPerWeek:7, goal,
+      trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], fitstopDays:fs}));
+    return hyroxVolumeCheck();
+  };
+  return { sub70:mk('HYROX Pro sub-70',['Mon','Tue','Wed','Thu','Fri','Sat']),
+           sub70free:mk('HYROX Pro sub-70',[]),
+           sub60:mk('HYROX sub-60 elite',[]),
+           finish:mk('HYROX finish strong',[]),
+           target:(()=>{ const t=runningDomain('hyrox_long').weeklyKmTarget; return t; })() };
+});
+check('The block reports its own weekly running volume',
+  vol.sub70 && vol.sub70.peakKm>0, JSON.stringify(vol.sub70&&vol.sub70.peakKm));
+check('The target comes from the KB, by goal time',
+  vol.sub70.band==='sub-70 to sub-75' && vol.sub70.target[0]===50 && vol.sub70.target[1]===65,
+  `${vol.sub70.band} ${JSON.stringify(vol.sub70.target)}`);
+check('An elite goal gets the elite band',
+  vol.sub60.target[0]===65, `${vol.sub60.band} ${JSON.stringify(vol.sub60.target)}`);
+check('A finishing goal gets the floor band',
+  vol.finish.target[0]===30, `${vol.finish.band} ${JSON.stringify(vol.finish.target)}`);
+check('It DETECTS that the block falls short of a sub-70 goal',
+  vol.sub70.short===true, `peak ${vol.sub70.peakKm} vs ${vol.sub70.target.join('-')}`);
+check('...and says so in plain numbers rather than implying it',
+  /peaks at \d+ km/.test(vol.sub70.message) && /50-65 km/.test(vol.sub70.message),
+  vol.sub70.message);
+check('Freeing every class day still does not reach the target',
+  vol.sub70free.short===true, `${vol.sub70free.peakKm} km with no classes`);
+check('...so the advice does NOT claim more days will fix it',
+  /will not close this/i.test(vol.sub70free.fix||''), vol.sub70free.fix);
+check('The intensity split is carried through from the KB',
+  /70% easy/.test(vol.sub70.split||''), vol.sub70.split);
+check('Build weeks only — deloads and taper are excluded by design',
+  vol.sub70.buildWeeks>0 && vol.sub70.buildWeeks<13, String(vol.sub70.buildWeeks));
+
+// ── The long-run dosing is sourced, and says what is NOT ───────────────────
+const src = await page.evaluate(()=>{
+  const d=runningDomain('hyrox_long');
+  return { cap:d.rx.capKm, sources:d.rx.SOURCES, inferred:d.rx.inferred,
+           target:d.weeklyKmTarget };
+});
+check('HYROX long runs are capped at 16 km, not the marathon 32', src.cap===16, String(src.cap));
+check('Each source states the claim it supports',
+  Array.isArray(src.sources) && src.sources.every(x=>x.claim && x.where),
+  JSON.stringify((src.sources||[])[0]||''));
+check('The 14-16 km peak long run is attributed', 
+  src.sources.some(x=>/14-16 km/.test(x.claim)), '');
+check('The weekly volume figures are attributed',
+  src.sources.some(x=>/50-65 km/.test(x.claim)), '');
+check('What is INFERRED rather than sourced is labelled as such',
+  Array.isArray(src.inferred) && src.inferred.length>=2, JSON.stringify(src.inferred));
+check('The volume target carries a floor and goal bands',
+  src.target.floor && src.target.byGoal.length===3, JSON.stringify(src.target.byGoal.map(g=>g.goal)));
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();

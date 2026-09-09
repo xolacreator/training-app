@@ -251,6 +251,20 @@ export const RUNNING_DOMAINS = [
     recovery: ['A long run that compromises the week\'s brick or station session is too long for this event.'],
     contraindications: ['Marathon-length long runs in a HYROX build.', 'Adding distance in Peak instead of adding specificity.'],
     relatedTo: ['hyrox_running','aerobic_development','lactate_threshold'],
+    // What a HYROX athlete should actually be running in a week, by goal time.
+    // Held here because a block that doses individual sessions correctly can still
+    // add up to a quarter of the volume the goal requires — which is exactly what
+    // this engine was doing.
+    weeklyKmTarget: {
+      floor: { km:[30,40], why:'At least 4-6x the 8 km race distance to drive adaptation.' },
+      byGoal: [
+        { goal:'sub-60 (elite)', km:[65,85], split:'80% easy / 15% threshold / 5% VO2' },
+        { goal:'sub-70 to sub-75', km:[50,65], split:'70% easy / 20% moderate / 10% hard' },
+        { goal:'finish strong', km:[30,40], split:'mostly easy, one quality run' },
+      ],
+      runsPerWeek: [2,3],
+      note: 'Build-week figures. Deload and taper weeks sit below these by design.',
+    },
     rx: {
       runType: 'hyrox_long', paceKey: 'easy', zone: 'Z2', minPerKm: 5.6,
       startKm: 10, growKm: 6, capKm: 16,     // ~2x race distance, not 4x
@@ -262,8 +276,28 @@ export const RUNNING_DOMAINS = [
                  note: 'Race-length segments at race pace, on tired legs.' },
         Taper: { note: 'Cut the distance, keep one short race-pace touch.' },
       },
-      SOURCES: ['compromisedrunning.com — run volume in a HYROX build',
-                'coachway.io "How to Coach HYROX Athletes" — specificity over distance'],
+      // HONEST SOURCING. An earlier version of this block cited compromisedrunning.com
+      // and coachway.io for these numbers. Those citations were attached to figures
+      // I had derived by reasoning and had NOT checked against either source —
+      // attribution is not verification, and that is exactly the failure this
+      // knowledge base exists to prevent. Replaced with what was actually looked up.
+      SOURCES: [
+        { claim:'Long runs build to 14-16 km in the peak phase',
+          where:'HyroxDataLab, "How to Structure Your HYROX Running Training"; corroborated by Centr HYROX running guide',
+          supports:'capKm 16' },
+        { claim:'Weekly volume at least 4-6x race distance; 30-40 km/week minimum in peak',
+          where:'HyroxDataLab; findyouredge "How Much Running Per Week for HYROX"',
+          supports:'weeklyKmTarget' },
+        { claim:'Sub-70 to sub-75 athletes run 50-65 km/week in build weeks, ~70/20/10 easy/moderate/hard',
+          where:'Hyrox Vault sub-75 plan (12 weeks); elite sub-60 plans cite 65-85 km/week',
+          supports:'weeklyKmTarget by goal time' },
+        { claim:'2-3 runs per week alongside strength is the common structure',
+          where:'Centr; RoxZone Training "Running for HYROX Athletes"' },
+      ],
+      // NOT sourced — these are my inference from the race format (8 x 1 km) and are
+      // marked as such rather than dressed up as findings.
+      inferred: ['startKm 10 and growKm 6 (they land inside the sourced 14-16 km peak range)',
+                 'the specific race-pace segment structures in Build and Peak'],
     },
   },
   {
