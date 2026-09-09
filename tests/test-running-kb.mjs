@@ -26,7 +26,18 @@ const kb = await page.evaluate(()=>{
   };
 });
 const REQUIRED = ['exercise_physiology','energy_systems','aerobic_development','lactate_threshold','vo2max','running_economy','speed_development','long_runs','race_specific','concurrent_training','recovery_science','biomechanics','injury_prevention','treadmill_training','track_training','trail_running','hyrox_running','deka_running'];
-check('18 domains present', kb.count===18, `got ${kb.count}`);
+// hyrox_long was added because a HYROX block was falling through to the generic
+// long-run rx — startKm 12, growKm 9, capKm 32 — which is marathon dosing for an
+// 8 km race.
+check('HYROX has its own long-run dosing, not the marathon one', await page.evaluate(()=>{
+  const d=runningDomain('hyrox_long');
+  return !!d && d.rx.capKm<=16 && d.rx.runType==='hyrox_long'; }));
+check('...capped near twice race distance, not four times', await page.evaluate(()=>
+  runningDomain('hyrox_long').rx.capKm <= runningDomain('long_runs').rx.capKm/2));
+check('...and it becomes race-specific rather than longer', await page.evaluate(()=>{
+  const ph=runningDomain('hyrox_long').rx.phases;
+  return /race pace/i.test(ph.Build.segment||'') && /1 km/i.test(ph.Peak.segment||''); }));
+check('19 domains present', kb.count===19, `got ${kb.count}`);
 check('All 18 required domains present', REQUIRED.every(id=>kb.domainIds.includes(id)), JSON.stringify(REQUIRED.filter(id=>!kb.domainIds.includes(id))));
 check('Every domain has the full schema (7 array fields + meta)', kb.allHaveSchema);
 check('All source tiers valid', kb.allTiersValid);

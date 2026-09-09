@@ -230,6 +230,43 @@ export const RUNNING_DOMAINS = [
     relatedTo: ['biomechanics','injury_prevention','long_runs'],
   },
   {
+    // ── HYROX aerobic dosing ────────────────────────────────────────────────
+    // A HYROX block was falling through to the generic endurance long-run
+    // prescription — startKm 12, growKm 9, capKm 32. That is MARATHON dosing. The
+    // race is 8 km, broken into eight 1 km segments with a station between each.
+    // A 20 km continuous long run buys marathon adaptation the athlete does not
+    // need, and spends the recovery that station work requires.
+    //
+    // What the long run is FOR in a HYROX build: aerobic base early, then race
+    // specificity — the same distance carved into race-length segments at goal
+    // pace, so the athlete rehearses the pace they will actually run.
+    id: 'hyrox_long', title: 'HYROX Long Run', sourceTier: 'methodology',
+    summary: 'Aerobic volume dosed for an 8 km race with stations, not for a marathon.',
+    coreConcepts: ['The race is 8 km total, in 1 km segments. Long runs past ~16 km train an adaptation the event does not ask for.',
+                   'Aerobic volume still matters — it is what lets the back-half runs hold pace — but it is a means, not the goal.',
+                   'In Build and Peak the long run becomes specific: race-pace segments inside the run.'],
+    adaptations: ['Aerobic base, fatigue resistance across repeated 1 km efforts, goal-pace familiarity.'],
+    programming: ['Cap the long run near twice race distance. Add race-pace segments from Build onward rather than adding distance.'],
+    progression: ['Grow distance through Base; from Build, hold distance and convert part of it to goal race pace.'],
+    recovery: ['A long run that compromises the week\'s brick or station session is too long for this event.'],
+    contraindications: ['Marathon-length long runs in a HYROX build.', 'Adding distance in Peak instead of adding specificity.'],
+    relatedTo: ['hyrox_running','aerobic_development','lactate_threshold'],
+    rx: {
+      runType: 'hyrox_long', paceKey: 'easy', zone: 'Z2', minPerKm: 5.6,
+      startKm: 10, growKm: 6, capKm: 16,     // ~2x race distance, not 4x
+      phases: {
+        Base:  { note: 'Aerobic base — build distance, all easy.' },
+        Build: { segment: 'final 3 km at goal race pace',
+                 note: 'Hold the distance; make the end of it specific.' },
+        Peak:  { segment: '4 × 1 km at goal race pace, 400 m easy between',
+                 note: 'Race-length segments at race pace, on tired legs.' },
+        Taper: { note: 'Cut the distance, keep one short race-pace touch.' },
+      },
+      SOURCES: ['compromisedrunning.com — run volume in a HYROX build',
+                'coachway.io "How to Coach HYROX Athletes" — specificity over distance'],
+    },
+  },
+  {
     id: 'hyrox_running', title: 'HYROX Running', sourceTier: 'methodology',
     summary: 'Compromised running — running well off functional stations in the HYROX format (8×1 km + 8 stations).',
     coreConcepts: ['The decisive skill is running with pre-fatigued legs and elevated HR straight off a station.', 'Most race time is in the runs; pacing the first runs/stations protects the back half.'],
