@@ -640,15 +640,21 @@ check('An elite goal gets the elite band',
   vol.sub60.target[0]===65, `${vol.sub60.band} ${JSON.stringify(vol.sub60.target)}`);
 check('A finishing goal gets the floor band',
   vol.finish.target[0]===30, `${vol.finish.band} ${JSON.stringify(vol.finish.target)}`);
-check('It DETECTS that the block falls short of a sub-70 goal',
+check('It still detects a shortfall when six class days crowd the week',
   vol.sub70.short===true, `peak ${vol.sub70.peakKm} vs ${vol.sub70.target.join('-')}`);
+check('...and now the advice correctly points at trading a class day',
+  /Trading \d+ class day/i.test(vol.sub70.fix||''), vol.sub70.fix);
 check('...and says so in plain numbers rather than implying it',
   /peaks at \d+ km/.test(vol.sub70.message) && /50-65 km/.test(vol.sub70.message),
   vol.sub70.message);
-check('Freeing every class day still does not reach the target',
-  vol.sub70free.short===true, `${vol.sub70free.peakKm} km with no classes`);
-check('...so the advice does NOT claim more days will fix it',
-  /will not close this/i.test(vol.sub70free.fix||''), vol.sub70free.fix);
+// These asserted the OLD behaviour — that freeing every class day STILL fell short,
+// because every session was dosed in isolation and nothing aimed at a weekly total.
+// The engine is now volume-first: the week gets a target from the goal band and the
+// sessions are scaled to hit it, so a full week of running reaches the band.
+check('With the whole week free, the block reaches the goal band',
+  vol.sub70free.short===false, `${vol.sub70free.peakKm} km vs ${vol.sub70free.target.join('-')}`);
+check('...and no shortfall advice is given when there is no shortfall',
+  vol.sub70free.fix===null, String(vol.sub70free.fix));
 check('The intensity split is carried through from the KB',
   /70% easy/.test(vol.sub70.split||''), vol.sub70.split);
 check('Build weeks only — deloads and taper are excluded by design',

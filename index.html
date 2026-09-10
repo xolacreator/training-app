@@ -4160,6 +4160,115 @@ function _runPaces(){
     hasBaseline: !!r,
   };
 }
+// ── VOLUME-FIRST: the week has a budget, and sessions are dosed to it ────────
+// The engine dosed every session independently — km = rx.startKm + rx.growKm*ramp —
+// so nothing computed a weekly total and nothing could aim at one. A block for a
+// sub-70 athlete came out at 21 km/week against a sourced 50-65. Every session was
+// individually defensible and the WEEK did not add up.
+//
+// This inverts it. The week gets a target from the goal band in the knowledge base;
+// the session doses are then scaled to hit it. Scaling rather than rewriting each
+// branch keeps the KB's session SHAPES — the relative size of long vs easy vs
+// tempo — and only moves the total, which is the part that was wrong.
+const VOL_MAX_WEEKLY_RAMP = 1.10;   // sourced: never add more than ~10% a week
+const VOL_DELOAD = 0.60, VOL_TAPER = 0.45;
+
+// The weekly km target for a given week of a block: start where the athlete is,
+// ramp no faster than 10%, reach the goal band by peak, then cut for the taper.
+function weeklyVolumeTarget(week, prog){
+  const p=prog||((typeof savedProgram!=='undefined')?savedProgram:null);
+  if(!p) return null;
+  let band=null;
+  try{
+    const t=runningDomain('hyrox_long').weeklyKmTarget;
+    const goal=((coachProfile&&coachProfile.goal)||localStorage.getItem('ht-goal')||'');
+    const m=String(goal).match(/sub[\s-]?(\d{2,3})/i);
+    const mins=m?parseInt(m[1]):null;
+    band = mins==null ? t.floor.km
+         : mins<=60 ? t.byGoal.find(g=>/sub-60/.test(g.goal)).km
+         : mins<=75 ? t.byGoal.find(g=>/sub-70/.test(g.goal)).km
+         : t.floor.km;
+  }catch(e){ return null; }
+  if(!band) return null;
+  // Where the athlete is now. Stated first, log only ever raising it.
+  let start=null;
+  try{ const st=athleteTrainingState(); start=st.weeklyKm; }catch(e){}
+  // No anchor: begin at half the band's floor rather than pretending to know.
+  const anchored = start!=null && start>0;
+  if(!anchored) start=Math.round(band[0]*0.5);
+  const total=(p.weeklyProgressions||[]).length||p.weeks||8;
+  // The last trainable week before taper/race is where the band should be reached.
+  const raceWk=(p.race&&p.race.week)||null;
+  const peakWk=raceWk?Math.max(2,raceWk-2):Math.max(2,total-1);
+  // Geometric ramp from start to the band's midpoint, capped at 10%/week.
+  const goalKm=(band[0]+band[1])/2;
+  const stepsNeeded=Math.max(1,peakWk-1);
+  const ideal=Math.pow(goalKm/Math.max(1,start), 1/stepsNeeded);
+  const step=Math.min(VOL_MAX_WEEKLY_RAMP, ideal);
+  let km = week<=peakWk ? start*Math.pow(step, week-1) : start*Math.pow(step, peakWk-1);
+  const wp=(p.weeklyProgressions||[])[week-1]||{};
+  if(wp.race) km*=0.25;
+  else if(wp.taper) km*=VOL_TAPER;
+  else if(wp.deload) km*=VOL_DELOAD;
+  else if(wp.secondaryRace) km*=VOL_TAPER;
+  return { km:Math.round(km), band, anchored, peakWeek:peakWk,
+           reachesBand: Math.round(start*Math.pow(step,peakWk-1)) >= band[0],
+           rampCapped: ideal > VOL_MAX_WEEKLY_RAMP };
+}
+
+// The km this week's run sessions would total WITHOUT any scaling. Used as the
+// denominator so the scale factor lands the week on its target.
+let _volNoScale = false;                     // reentrancy guard: this calls the prescriber
+function _weekNaturalKm(week, prog, totalWeeks){
+  const p=prog||((typeof savedProgram!=='undefined')?savedProgram:null);
+  if(!p || _volNoScale) return 0;
+  _volNoScale = true;
+  let km=0;
+  try{
+    (_progWeekSessions(week)||[]).forEach(s=>{
+      // ONLY running sessions. _progressEndurance has no runType for a Fitstop class
+      // or a station session, so it falls through to the easy-run branch and hands
+      // back a Zone-2 prescription — which counted phantom kilometres for a barbell
+      // class and made the whole scale factor wrong.
+      if(!s.session) return;
+      const t=(typeof _sessType==='function')?_sessType(s.session):'';
+      if(t!=='endurance' && t!=='run') return;
+      let rx=null; try{ rx=_progressEndurance(s.session, week, totalWeeks); }catch(e){}
+      if(!rx) return;
+      km += _rxKm(rx);
+    });
+  } finally { _volNoScale = false; }
+  return km;
+}
+// The kilometres a prescription represents, however it is expressed. Easy runs are
+// prescribed in MINUTES, so counting only `distance` missed most of a week's volume
+// and left the scale factor computed against a fraction of the real total.
+function _rxKm(rx){
+  if(!rx) return 0;
+  let km=parseFloat(String(rx.distance||'').match(/([\d.]+)/)?.[1]||0) || 0;
+  if(rx.rounds && rx.runM) km += (rx.rounds*rx.runM)/1000;
+  if(!km && rx.duration){
+    const mins=parseFloat(String(rx.duration).match(/([\d.]+)/)?.[1]||0);
+    // Convert at the session's own pace where the KB gives one, else an easy default.
+    const perKm=(rx.minPerKm||5.6);
+    if(mins) km += mins/perKm;
+  }
+  return km;
+}
+// The factor applied to this week's distance prescriptions. 1 when we have no
+// target, no natural total, or are already inside the reentrancy guard.
+function _volumeScale(week, prog, totalWeeks){
+  if(_volNoScale) return 1;
+  const p=prog||((typeof savedProgram!=='undefined')?savedProgram:null);
+  if(!p || !p.hyrox) return 1;                 // only HYROX blocks carry a goal band
+  const t=weeklyVolumeTarget(week, p);
+  if(!t || !t.km) return 1;
+  const nat=_weekNaturalKm(week, p, totalWeeks);
+  if(!nat) return 1;
+  const f = t.km / nat;
+  // Never let scaling produce something absurd from a bad anchor.
+  return Math.max(0.4, Math.min(3.5, f));
+}
 // ── WHERE THE ATHLETE ACTUALLY IS ────────────────────────────────────────────
 // The block used to start from rx.startKm — a constant in the knowledge base — so a
 // 3:41 marathoner and someone who has never run past 14 km were prescribed the same
@@ -4828,7 +4937,12 @@ function _progressEndurance(sess, week, totalWeeks){
     // build starts at; _volumeAnchor scales it to what this person is actually
     // running, so week 1 is a step from where they are rather than from a default.
     const _anchor = _volumeAnchor(rx);
-    let km = Math.round((_anchor.startKm + (rx.growKm||0)*_anchor.growth*ramp) * vmult);
+    // The week's budget scales the session. Without this every session was dosed in
+    // isolation and the week's total was whatever fell out — 21 km against a needed
+    // 50-65 for this athlete's goal.
+    const _vs = (typeof _volumeScale==='function') ? _volumeScale(week, _prog, totalWeeks) : 1;
+    let km = Math.round((_anchor.startKm + (rx.growKm||0)*_anchor.growth*ramp) * vmult * _vs);
+    if(_vs!==1) out.volumeScaled = Math.round(_vs*100)/100;
     if (rx.capKm) km = Math.min(km, rx.capKm);
     if (_anchor.capKm) km = Math.min(km, _anchor.capKm);
     if (_anchor.source!=='default') out.anchoredTo = _anchor.source;
@@ -4863,8 +4977,12 @@ function _progressEndurance(sess, week, totalWeeks){
     out.phase = _phase;
     out.reps = reps; out.repSize = `${mins} min`; out.repPace = pace; out.recovery = rec;
   } else {                                              // duration-based easy / recovery
-    const dur = grow(rx.startMin!=null?rx.startMin:35)(rx.growMin!=null?rx.growMin:25);
+    // Easy volume carries most of a week's kilometres, so it must move with the
+    // week's budget too — scaling only the long run would just make one session big.
+    const _vsE = (typeof _volumeScale==='function') ? _volumeScale(week, _prog, totalWeeks) : 1;
+    const dur = Math.round(grow(rx.startMin!=null?rx.startMin:35)(rx.growMin!=null?rx.growMin:25) * _vsE);
     out.duration = `${dur} min`; out.pace = pace;
+    if(_vsE!==1) out.volumeScaled = Math.round(_vsE*100)/100;
     out.note = isDeload ? 'Easy — recovery week' : (rt==='recovery' ? 'Easy recovery — very controlled' : 'Aerobic base — progress easy volume');
   }
   // Phase 2: declare which library adaptation + prescription this run realises
@@ -13068,11 +13186,10 @@ function hyroxVolumeCheck(prog){
     let km=0;
     (_progWeekSessions(w)||[]).forEach(s=>{
       if(!s.session) return;
+      const t=(typeof _sessType==='function')?_sessType(s.session):'';
+      if(t!=='endurance' && t!=='run') return;      // a Fitstop class is not running
       let rx=null; try{ rx=_progressEndurance(s.session,w,T); }catch(e){}
-      if(!rx) return;
-      const d=parseFloat(String(rx.distance||'').match(/([\d.]+)/)?.[1]||0);
-      if(d) km+=d;
-      if(rx.rounds && rx.runM) km+=(rx.rounds*rx.runM)/1000;   // brick run volume
+      if(rx) km += _rxKm(rx);
     });
     build.push({week:w, km:Math.round(km)});
   }
