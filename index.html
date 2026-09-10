@@ -8871,6 +8871,147 @@ function _parseGPX(text, fname) {
     strava_splits:splits,
   };
 }
+// ── .FIT decoder ─────────────────────────────────────────────────────────────
+// Garmin's native binary format. GPX and TCX already import, but .FIT is what the
+// watch actually writes and what you get pulling files straight off the device.
+//
+// This is a TARGETED decoder, not the SDK. @garmin/fitsdk's profile alone is 906 KB
+// and the deploy pipeline caps around 1 MB — but we only need one message type.
+//
+// Every constant below was read out of the official SDK (@garmin/fitsdk), not
+// recalled: field numbers from Profile.messages[18], sizes from
+// Fit.BaseTypeDefinitions, and the epoch from utils.js (FIT_EPOCH_MS).
+// Guessing a field number here means silently importing wrong distances.
+const _FIT_EPOCH_MS = 631065600000;                  // 1989-12-31T00:00:00Z
+const _FIT_BASE_SIZE = [1,1,1,2,2,4,4,1,4,8,1,2,4,1,8,8,8];   // by base-type number
+// session message (global 18) — the summary of one activity.
+const _FIT_SESSION = {
+  2:'startTime', 5:'sport', 6:'subSport', 7:'totalElapsedTime',
+  8:'totalTimerTime', 9:'totalDistance', 14:'avgSpeed', 16:'avgHeartRate', 253:'timestamp',
+};
+const _FIT_SCALE = { totalElapsedTime:1000, totalTimerTime:1000, totalDistance:100, avgSpeed:1000 };
+// sport enum values we care about; anything else imports as "other".
+const _FIT_SPORT = { 0:'generic', 1:'running', 2:'cycling', 5:'swimming', 10:'training',
+                     11:'walking', 17:'hiking', 4:'fitness_equipment' };
+
+function _parseFIT(buf, fname){
+  try{
+    const dv = new DataView(buf);
+    if (dv.byteLength < 14) return { error:'file too small to be a .FIT' };
+    const headerSize = dv.getUint8(0);
+    if (headerSize !== 12 && headerSize !== 14) return { error:'not a .FIT file (bad header)' };
+    // Bytes 8-11 must spell ".FIT".
+    const magic = String.fromCharCode(dv.getUint8(8),dv.getUint8(9),dv.getUint8(10),dv.getUint8(11));
+    if (magic !== '.FIT') return { error:'not a .FIT file (missing .FIT signature)' };
+    const dataSize = dv.getUint32(4, true);
+    const end = Math.min(dv.byteLength, headerSize + dataSize);
+
+    const defs = {};                  // localMsgType -> definition
+    const sessions = [];
+    let pos = headerSize;
+
+    while (pos < end){
+      const rh = dv.getUint8(pos); pos += 1;
+      if (rh & 0x80){
+        // Compressed timestamp header: data message, local type in bits 5-6.
+        const local = (rh >> 5) & 0x3;
+        const def = defs[local];
+        if (!def) return { error:'corrupt .FIT (data before its definition)' };
+        pos = _fitReadData(dv, pos, def, sessions);
+        continue;
+      }
+      const isDef = !!(rh & 0x40);
+      const hasDev = !!(rh & 0x20);
+      const local = rh & 0x0F;
+      if (isDef){
+        pos += 1;                                       // reserved
+        const little = dv.getUint8(pos) === 0; pos += 1; // architecture
+        const global = little ? dv.getUint16(pos, true) : dv.getUint16(pos, false); pos += 2;
+        const n = dv.getUint8(pos); pos += 1;
+        const fields = [];
+        for (let i=0;i<n;i++){
+          fields.push({ num:dv.getUint8(pos), size:dv.getUint8(pos+1), base:dv.getUint8(pos+2) & 0x1F });
+          pos += 3;
+        }
+        let devSize = 0;
+        if (hasDev){
+          const dn = dv.getUint8(pos); pos += 1;
+          for (let i=0;i<dn;i++){ devSize += dv.getUint8(pos+1); pos += 3; }
+        }
+        defs[local] = { global, little, fields, devSize };
+      } else {
+        const def = defs[local];
+        if (!def) return { error:'corrupt .FIT (data before its definition)' };
+        pos = _fitReadData(dv, pos, def, sessions);
+      }
+    }
+    if (!sessions.length) return { error:'no session summary in this .FIT file' };
+
+    // One file can hold several sessions (multisport). Take the longest.
+    const s = sessions.sort((a,b)=>(b.totalDistance||0)-(a.totalDistance||0))[0];
+    const secs = s.totalTimerTime || s.totalElapsedTime || 0;
+    const startMs = s.startTime!=null ? _FIT_EPOCH_MS + s.startTime*1000
+                  : s.timestamp!=null ? _FIT_EPOCH_MS + s.timestamp*1000 - secs*1000
+                  : null;
+    const sport = _FIT_SPORT[s.sport] || 'other';
+    if (!startMs) return { error:'no start time in this .FIT' };
+    const dist = s.totalDistance || 0;
+    const iso = new Date(startMs).toISOString();
+    // Return the SAME shape _parseGPX/_parseTCX return. An earlier version invented
+    // its own field names (start_time, avg_hr, sport) and _activityToSession threw it
+    // out with {skip:'nodate'} — parsed perfectly, imported nothing.
+    return {
+      gid: _fileActId(startMs, dist),
+      name: (fname||'Imported activity').replace(/\.fit$/i,''),
+      sport_type: _normalizeSportType(sport), source: 'FIT',
+      start_date: iso, start_date_local: iso,
+      distance: dist,                                   // metres
+      elapsed_time: Math.max(1, Math.round(secs)),      // seconds
+      average_speed: s.avgSpeed || (dist>0 && secs>0 ? dist/secs : 0),
+      average_heartrate: s.avgHeartRate || 0,
+      average_cadence: 0,
+      fitSport: sport,
+    };
+  } catch(e){ return { error:'could not read .FIT: '+(e.message||'unknown') }; }
+}
+
+// Read one data message; collect it only if it is a session (global 18).
+function _fitReadData(dv, pos, def, out){
+  const want = def.global === 18;
+  const rec = {};
+  for (const f of def.fields){
+    if (want){
+      const name = _FIT_SESSION[f.num];
+      if (name){
+        const v = _fitValue(dv, pos, f, def.little);
+        if (v != null) rec[name] = v / (_FIT_SCALE[name] || 1);
+      }
+    }
+    pos += f.size;
+  }
+  pos += def.devSize;
+  if (want && Object.keys(rec).length) out.push(rec);
+  return pos;
+}
+
+// One field value, honouring base type, endianness and the type's invalid marker.
+function _fitValue(dv, pos, f, little){
+  const size = _FIT_BASE_SIZE[f.base] || 1;
+  if (f.size > size) return null;              // arrays: not needed for session fields
+  let v;
+  switch (f.base){
+    case 0: case 2: case 10: case 13: v = dv.getUint8(pos); if (v===255) return null; break;
+    case 1:  v = dv.getInt8(pos);  if (v===127) return null; break;
+    case 3:  v = dv.getInt16(pos, little);  if (v===32767) return null; break;
+    case 4: case 11: v = dv.getUint16(pos, little); if (v===65535) return null; break;
+    case 5:  v = dv.getInt32(pos, little);  if (v===2147483647) return null; break;
+    case 6: case 12: v = dv.getUint32(pos, little); if (v===4294967295) return null; break;
+    case 8:  v = dv.getFloat32(pos, little); if (!isFinite(v)) return null; break;
+    case 9:  v = dv.getFloat64(pos, little); if (!isFinite(v)) return null; break;
+    default: return null;                       // strings/64-bit: not needed here
+  }
+  return v;
+}
 function _parseTCX(text, fname) {
   if (_looksBinary(text)) return { error:'looks like a .FIT or .zip file — in Garmin, choose "Export to TCX" (not "Export Original")' };
   const doc=new DOMParser().parseFromString(text,'application/xml');
@@ -8926,12 +9067,15 @@ async function importActivityFiles(fileList) {
   let imported=0, dup=0, failed=0; const newGids=[]; const rows=[];
   for (const f of files) {
     try {
-      const text=await f.text();
       const ext=(f.name.split('.').pop()||'').toLowerCase();
       let act=null;
-      if (ext==='gpx') act=_parseGPX(text, f.name);
-      else if (ext==='tcx') act=_parseTCX(text, f.name);
-      else { failed++; rows.push({ok:false,name:f.name,why:'unsupported type — export GPX or TCX'}); continue; }
+      if (ext==='fit'){
+        // .FIT is BINARY — reading it as text corrupts it before parsing starts.
+        act=_parseFIT(await f.arrayBuffer(), f.name);
+      } else if (ext==='gpx' || ext==='tcx'){
+        const text=await f.text();
+        act = ext==='gpx' ? _parseGPX(text, f.name) : _parseTCX(text, f.name);
+      } else { failed++; rows.push({ok:false,name:f.name,why:'unsupported type — use FIT, GPX or TCX'}); continue; }
       if (!act || act.error) { failed++; rows.push({ok:false,name:f.name,why:act?.error||'could not read file'}); continue; }
       const r=_activityToSession(act, { allowOutOfRange:true });
       if (r.skip==='dup') { dup++; rows.push({ok:false,name:f.name,why:'already imported'}); continue; }
@@ -9418,11 +9562,12 @@ function _stravaImportFooter() {
         No API needed — export an activity from <b>Garmin Connect</b>, Strava, or COROS as
         <b>GPX</b> or <b>TCX</b> and import it here (pace, distance, HR &amp; splits).
       </div>
-      <!-- No 'accept' filter: iOS greys out .tcx/.gpx (unknown UTIs) if restricted.
-           We validate by content in importActivityFiles() and report clear errors. -->
+      <!-- No 'accept' filter: iOS greys out .fit/.tcx/.gpx (unknown UTIs) if
+           restricted. We validate by content in importActivityFiles() — a .FIT is
+           checked for its ".FIT" signature at bytes 8-11 — and report clear errors. -->
       <input id="activity-file-input" type="file" multiple
         style="display:none;" onchange="importActivityFiles(this.files)">
-      <button class="btn" style="width:100%;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="triggerActivityImport()">↓ Import activity file (GPX/TCX)</button>
+      <button class="btn" style="width:100%;color:var(--green);border-color:rgba(62,207,142,.3);" onclick="triggerActivityImport()">↓ Import activity file (FIT/GPX/TCX)</button>
       <div id="import-result" style="display:none;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.5;margin-top:8px;background:var(--bg3);border-radius:6px;padding:8px 10px;"></div>
       ${_healthAutoImportBlock()}
     </div>`;
