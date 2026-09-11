@@ -846,6 +846,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
         <button class="btn" onclick="document.getElementById('import-data-input').click()">Import backup</button>
       </div>
       <input type="file" id="import-data-input" accept=".json" style="display:none" onchange="importDataFile(this.files[0]);this.value=''">
+      <input type="file" id="delivered-plan-input" style="display:none" onchange="importDeliveredPlanFile(this.files[0]);this.value=''">
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.8;">
         Export saves all sessions, custom plan sessions, and templates.<br>
         Import merges without removing existing data.
@@ -2790,7 +2791,8 @@ const BACKUP_KEYS = ['ht-v4','ht-v4-rescue','ht-v4-corrupt','ht-race-date',
   'ht-plan-start','ht-plan-type','ht-goal','ht-goal-category','ht-goal-race-type',
   'ht-goal-strength-lift','ht-goal-strength-target','ht-goal-strength-type','ht-hyrox',
   'ht-coach-memory','ht-custom','ht-tmpl','ht-theme','ht-palette','ht-card-theme',
-  'ht-units-run','ht-units-strength','ht-pending-review','ht-training-inputs','ht-race-b'];
+  'ht-units-run','ht-units-strength','ht-pending-review','ht-training-inputs','ht-race-b',
+  'ht-delivered-plan'];
 // ── Dead-origin guard ────────────────────────────────────────────────────────
 // The repo moved from bruces6 → xolacreator, so GitHub Pages moved with it. The
 // old origin keeps serving its last pre-transfer build forever: three deploys in
@@ -4159,6 +4161,126 @@ function _runPaces(){
     vo2:       r?.run_vo2max_pace ? `${r.run_vo2max_pace}/km` : '~5K effort',
     hasBaseline: !!r,
   };
+}
+// ── A DELIVERED PLAN: stored, served back verbatim, never regenerated ────────
+// Some plans arrive already computed. This one did: 89 dated sessions from a
+// deterministic engine, checked against its own property tests, with the explicit
+// instruction not to turn it back into a prompt.
+//
+// So NOTHING in this file touches it. It does not go through _progressEndurance,
+// _progWeekSessions, the volume scaler, the phase table or any KB lookup. Those
+// exist to BUILD a block; this one is already built, and running it through them
+// would re-derive numbers that were computed from race distance and phase.
+//
+// Five rules, taken from the plan itself:
+//   1. Store and serve verbatim. Never regenerate.
+//   2. Never round, rescale or tidy a number. An odd wall-ball count is not a typo.
+//   3. Dates are authoritative. This is NOT a repeating weekly pattern — week 6
+//      differs from week 7 on purpose and sessions move between weekdays by design.
+//   4. Never invent a pace. What the plan states is what is prescribed.
+//   5. Always show the caution and assumption text. That is where the plan says
+//      what it could not do; dropping it turns an honest plan into a confident one.
+const DELIVERED_PLAN_KEY = 'ht-delivered-plan';
+
+// Parse the handoff format. Deterministic string work only — no model, no
+// inference, no defaults. A line that does not match is KEPT as an unparsed note
+// rather than dropped, because silently losing a session is the worst failure here.
+function parseDeliveredPlan(md, name){
+  const text = String(md||'');
+  if (!text.trim()) return { error:'empty file' };
+  const lines = text.split('\n');
+  const sessions = [];
+  const unparsed = [];
+  let inFence = false;
+  for (const raw of lines){
+    if (/^```/.test(raw)) { inFence = !inFence; continue; }
+    if (!inFence) continue;
+    if (!raw.trim()) continue;
+    // date  weekday  cost  title  ::  prescription
+    const m = raw.match(/^(\d{4}-\d{2}-\d{2})\s+(\S+)\s+(\S)\s+(.+?)\s+::\s+(.+)$/);
+    if (!m){ unparsed.push(raw); continue; }
+    sessions.push({
+      date: m[1], weekday: m[2], cost: m[3],
+      title: m[4],
+      // VERBATIM. Not trimmed beyond the line ends, not normalised, not re-spaced.
+      prescription: m[5],
+      raw,
+    });
+  }
+  if (!sessions.length) return { error:'no dated sessions found — expected lines like "2026-09-07  Mon  m  Title  ::  Prescription" inside a fenced block' };
+
+  // Everything outside the fence is context the athlete must still be shown.
+  const fenceStart = lines.findIndex(l=>/^```/.test(l));
+  const fenceEnd = lines.length - 1 - [...lines].reverse().findIndex(l=>/^```/.test(l));
+  const before = lines.slice(0, fenceStart>=0?fenceStart:lines.length).join('\n');
+  const after  = fenceEnd>=0 && fenceEnd<lines.length-1 ? lines.slice(fenceEnd+1).join('\n') : '';
+
+  const dates = sessions.map(s=>s.date).sort();
+  return {
+    name: name || 'Delivered plan',
+    raw: text,                       // the whole document, byte for byte
+    header: before, footer: after,   // the caution and assumption text
+    sessions, unparsed,
+    start: dates[0], end: dates[dates.length-1],
+    count: sessions.length,
+    importedAt: new Date().toISOString(),
+  };
+}
+function loadDeliveredPlan(){
+  try{ const v=JSON.parse(localStorage.getItem(DELIVERED_PLAN_KEY)||'null');
+       return (v && Array.isArray(v.sessions) && v.sessions.length) ? v : null; }catch(e){ return null; }
+}
+function saveDeliveredPlan(plan){
+  if(!plan || plan.error) return false;
+  try{ localStorage.setItem(DELIVERED_PLAN_KEY, JSON.stringify(plan)); }catch(e){ return false; }
+  try{ renderAll(); }catch(e){}
+  return true;
+}
+function clearDeliveredPlan(){
+  try{ localStorage.removeItem(DELIVERED_PLAN_KEY); }catch(e){}
+  try{ renderAll(); }catch(e){}
+  return true;
+}
+function importDeliveredPlanFile(file){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const plan=parseDeliveredPlan(e.target.result, (file.name||'').replace(/\.(md|txt)$/i,''));
+    if(plan.error){ toast('Could not read that plan: '+plan.error); return; }
+    saveDeliveredPlan(plan);
+    toast(`Stored ${plan.count} sessions, ${plan.start} to ${plan.end}`);
+    try{ renderProgramBody(); }catch(e){}
+  };
+  reader.readAsText(file);
+}
+// The session for a date, exactly as delivered. Returns null rather than guessing.
+function deliveredSessionOn(dateISO){
+  const p=loadDeliveredPlan(); if(!p) return null;
+  const d=String(dateISO||'').slice(0,10);
+  return p.sessions.find(s=>s.date===d) || null;
+}
+// The delivered sessions falling in the week containing a date. Whatever is there —
+// this plan does not promise a fixed number of sessions per week.
+function deliveredWeekOf(dateISO){
+  const p=loadDeliveredPlan(); if(!p) return null;
+  const d=new Date(String(dateISO||'').slice(0,10)+'T12:00:00');
+  if(isNaN(d)) return null;
+  const mon=new Date(d); mon.setDate(mon.getDate() - ((d.getDay()+6)%7));
+  const out=[];
+  for(let i=0;i<7;i++){
+    const day=new Date(mon); day.setDate(day.getDate()+i);
+    const iso=day.toISOString().slice(0,10);
+    const s=p.sessions.find(x=>x.date===iso);
+    out.push({ date:iso, weekday:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i], session:s||null });
+  }
+  return { weekStart:mon.toISOString().slice(0,10), days:out,
+           count:out.filter(x=>x.session).length };
+}
+// A delivered plan OUTRANKS anything the engine would build for the dates it covers.
+function hasDeliveredPlanFor(dateISO){
+  const p=loadDeliveredPlan(); if(!p) return false;
+  const d=String(dateISO||'').slice(0,10);
+  return d>=p.start && d<=p.end;
 }
 // ── VOLUME-FIRST: the week has a budget, and sessions are dosed to it ────────
 // The engine dosed every session independently — km = rx.startKm + rx.growKm*ramp —
@@ -9873,7 +9995,79 @@ function cancelNewPlan(){
 function renderProgramBody() {
   loadSavedProgram();
   renderMyProgramCard();
+  // A delivered plan outranks anything the engine would build. It is already
+  // computed; there is nothing for the builder to decide.
+  if (loadDeliveredPlan() && !_buildingNew) { renderDeliveredPlan(); return; }
   if (savedProgram && !_buildingNew) renderSavedProgram(); else renderProgramBuilder();
+}
+// Serve it back exactly as delivered. The only thing this function is allowed to do
+// is decide WHICH lines to show; it must never alter one.
+function renderDeliveredPlan(){
+  const body=document.getElementById('program-overlay-body');
+  const p=loadDeliveredPlan();
+  if(!body||!p) return;
+  const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const today=new Date().toISOString().slice(0,10);
+  const COST={ 'H':['var(--red)','hard'], 'm':['var(--accent)','moderate'], '.':['var(--text3)','easy'] };
+
+  // Group by week, in date order. Weeks are NOT assumed to hold a fixed number of
+  // sessions and days are not assumed to repeat — both are true of this plan.
+  const weeks=[]; let cur=null;
+  p.sessions.forEach(s=>{
+    const d=new Date(s.date+'T12:00:00');
+    const mon=new Date(d); mon.setDate(mon.getDate()-((d.getDay()+6)%7));
+    const key=mon.toISOString().slice(0,10);
+    if(!cur||cur.key!==key){ cur={key,items:[]}; weeks.push(cur); }
+    cur.items.push(s);
+  });
+  const curIdx=Math.max(0, weeks.findIndex(w=>w.items.some(s=>s.date>=today)));
+
+  const row=s=>{
+    const [col,label]=COST[s.cost]||['var(--text3)',''];
+    const isToday=s.date===today, past=s.date<today;
+    return `<div style="padding:11px 0;border-bottom:.5px solid var(--border);opacity:${past?0.45:1};
+      ${isToday?'background:rgba(212,175,55,.08);margin:0 -12px;padding-left:12px;padding-right:12px;border-radius:8px;':''}">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);min-width:74px;">${esc(s.date)}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);min-width:26px;">${esc(s.weekday)}</span>
+        <span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0;" title="${label}"></span>
+        <span style="font-size:13.5px;font-weight:600;color:var(--text);line-height:1.35;">${esc(s.title)}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-top:5px;padding-left:82px;white-space:pre-wrap;">${esc(s.prescription)}</div>
+    </div>`;
+  };
+  const weekBlock=(w,i)=>`<div style="margin-bottom:18px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">
+        Week ${i+1} · from ${esc(w.key)} · ${w.items.length} session${w.items.length===1?'':'s'}</div>
+      ${w.items.map(row).join('')}
+    </div>`;
+
+  body.innerHTML=`<div style="padding:4px 0 40px;">
+    <div style="margin-bottom:6px;">
+      <div style="font-size:20px;font-weight:600;">${esc(p.name)}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:3px;line-height:1.6;">
+        ${p.count} sessions · ${esc(p.start)} to ${esc(p.end)} · delivered, not generated
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px;border-color:rgba(77,158,255,.3);background:rgba(77,158,255,.06);">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Served verbatim</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">This plan arrived already computed. Nothing here is regenerated, rounded or rescaled, and the dates are authoritative — sessions move between weekdays by design rather than repeating weekly.</div>
+    </div>
+    ${p.header?`<details style="margin-bottom:14px;" open>
+      <summary style="font-family:var(--mono);font-size:10px;color:var(--accent);cursor:pointer;padding:4px 0;">▸ What the plan says about itself — read this</summary>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.7;white-space:pre-wrap;margin-top:8px;">${esc(p.header)}</div>
+    </details>`:''}
+    ${weeks.map((w,i)=>({w,i})).filter(x=>x.i>=curIdx-1).map(x=>weekBlock(x.w,x.i)).join('')}
+    ${curIdx>1?`<details style="margin-top:6px;"><summary style="font-family:var(--mono);font-size:10px;color:var(--text3);cursor:pointer;padding:6px 0;">▸ Earlier weeks (${curIdx-1})</summary>
+      ${weeks.slice(0,curIdx-1).map((w,i)=>weekBlock(w,i)).join('')}</details>`:''}
+    ${p.footer?`<div style="font-size:12px;color:var(--text3);line-height:1.7;white-space:pre-wrap;margin-top:14px;padding-top:12px;border-top:.5px solid var(--border);">${esc(p.footer)}</div>`:''}
+    ${p.unparsed&&p.unparsed.length?`<div class="card" style="margin-top:14px;border-color:rgba(240,180,41,.4);">
+      <div style="font-family:var(--mono);font-size:9px;color:#f0b429;text-transform:uppercase;margin-bottom:5px;">${p.unparsed.length} line(s) not recognised — shown rather than dropped</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.6;white-space:pre-wrap;">${esc(p.unparsed.join('\n'))}</div></div>`:''}
+    <div style="margin-top:20px;padding-top:14px;border-top:.5px solid var(--border);">
+      <button class="btn" onclick="if(confirm('Remove this delivered plan? Your logged sessions are kept.')){clearDeliveredPlan();renderProgramBody();}" style="width:100%;color:var(--red);border-color:rgba(240,101,101,.2);">Remove this plan</button>
+    </div>
+  </div>`;
 }
 
 function renderMyProgramCard() {
@@ -10035,6 +10229,10 @@ function renderProgramBuilder() {
     ${stateCard}
     ${startCard}
     ${cta}
+    <div style="margin-top:18px;padding-top:14px;border-top:.5px solid var(--border);">
+      <button class="btn" onclick="document.getElementById('delivered-plan-input').click()" style="width:100%;color:var(--blue);border-color:rgba(77,158,255,.25);">↓ Load a delivered plan instead</button>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.6;margin-top:6px;">Already have a computed plan? It is stored and shown exactly as written, not rebuilt.</div>
+    </div>
   </div>`;
 }
 
@@ -13546,6 +13744,8 @@ function renderSavedProgram() {
       <button class="btn" onclick="restartProgramToday()" style="color:var(--accent);border-color:rgba(212,175,55,.25);">↻ Restart from this week</button>
       <button class="btn" onclick="savedProgram=null;renderProgramBuilder();" style="color:var(--blue);border-color:rgba(77,158,255,.2);">Build New Program</button>
       <button class="btn btn-accent" onclick="startNewPlan()" style="width:100%;margin-bottom:8px;">Build a new plan</button>
+      <button class="btn" onclick="document.getElementById('delivered-plan-input').click()" style="width:100%;margin-bottom:8px;color:var(--blue);border-color:rgba(77,158,255,.25);">↓ Load a delivered plan</button>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.6;margin-bottom:12px;">A plan that arrived already computed. Stored and shown exactly as written — never regenerated.</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--text3);text-align:center;line-height:1.6;margin-bottom:12px;">If this block no longer fits — the race moved, the goal changed, the week doesn't work.<br>Your current block stays until the new one is created.</div>
       <button class="btn" onclick="if(confirm('Delete this program? Your logged sessions and your goal are kept.')){deleteProgram();}" style="color:var(--red);border-color:rgba(240,101,101,.2);">Delete Program</button>
     </div>
