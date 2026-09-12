@@ -679,6 +679,72 @@ check('What is INFERRED rather than sourced is labelled as such',
 check('The volume target carries a floor and goal bands',
   src.target.floor && src.target.byGoal.length===3, JSON.stringify(src.target.byGoal.map(g=>g.goal)));
 
+// ── Hard days do not sit back to back ─────────────────────────────────────────
+// The block had no spacing rule at all: sessions were dealt onto days in shape
+// order, so a 16 km long run and a threshold run landed on consecutive days in 8 of
+// 13 weeks — and still 8 with zero class days, which rules out "the available days
+// made us". These assert the OUTCOME (measured on the composed week, the one the
+// athlete actually sees) rather than the mechanism, so minification cannot pass them.
+const spacing=await page.evaluate(()=>{
+  const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const HARD=new Set(['hx-brick','hx-sim','hx-sim-half','hx-long','hx-tempo']);
+  const MOD=new Set(['hx-stations','hx-strength']);
+  const load=id=>(HARD.has(id)||id==='fitstop')?3:MOD.has(id)?2:1;
+  const run=(opts)=>{
+    const prog=buildHyroxBlock(opts); saveProgramData(prog);
+    const total=(prog.weeklyProgressions||[]).length||prog.weeks;
+    let planPairs=0, classPairs=0, weeksWith=0;
+    for(let w=1;w<=total;w++){
+      const byDay={};
+      (_progWeekSessions(w)||[]).filter(s=>s.session).forEach(s=>{ byDay[s.day]=s.session.id; });
+      let n=0;
+      for(let i=0;i<7;i++){
+        const a=byDay[DOW[i]], b=byDay[DOW[(i+1)%7]];
+        if(!a||!b||load(a)<3||load(b)<3) continue;
+        if(a==='fitstop'||b==='fitstop') classPairs++; else { planPairs++; n++; }
+      }
+      if(n) weeksWith++;
+    }
+    return { total, planPairs, classPairs, weeksWith, spacing:prog.spacing,
+             map:(prog.dayMap||[]).map((e,i)=>DOW[i]+':'+(typeof e==='string'?e:(e&&e.opts?e.opts[0]:'-'))).join(' ') };
+  };
+  return {
+    // The spec that produced the eight stacked pairs.
+    six:   run({division:'pro_men',sessionsPerWeek:6,trainDays:['Mon','Tue','Wed','Thu','Fri','Sat']}),
+    five:  run({sessionsPerWeek:5,trainDays:['Mon','Tue','Wed','Thu','Sat']}),
+    four:  run({sessionsPerWeek:4,trainDays:['Mon','Wed','Fri','Sat']}),
+    // Seven sessions carries two compromised runs — four hard days, which cannot all
+    // be separated inside a seven-day cycle. The point is that it SAYS so.
+    seven: run({sessionsPerWeek:7}),
+    fitstop: run({sessionsPerWeek:6,trainDays:['Mon','Tue','Wed','Thu','Fri','Sat'],
+                  fitstopDays:['Mon','Tue','Thu','Fri']}),
+  };
+});
+check('Six training days: no two hard sessions land back to back',
+  spacing.six.planPairs===0, `${spacing.six.planPairs} pairs across ${spacing.six.total} weeks · ${spacing.six.map}`);
+check('Five training days: no two hard sessions land back to back',
+  spacing.five.planPairs===0, `${spacing.five.planPairs} pairs · ${spacing.five.map}`);
+check('Four training days: no two hard sessions land back to back',
+  spacing.four.planPairs===0, `${spacing.four.planPairs} pairs · ${spacing.four.map}`);
+check('Class days beside hard running do not count against the plan — the class does not move',
+  spacing.fitstop.planPairs===0, `plan ${spacing.fitstop.planPairs} / class ${spacing.fitstop.classPairs} · ${spacing.fitstop.map}`);
+check('The block reports its own spacing rather than leaving it implicit',
+  spacing.six.spacing && typeof spacing.six.spacing.note==='string' && Array.isArray(spacing.six.spacing.stacked),
+  JSON.stringify(spacing.six.spacing||null).slice(0,120));
+check('A clean week says so', spacing.six.spacing.ok===true, spacing.six.spacing.note);
+check('...and a hard session still gets the day with time on it — the long run is on a weekend',
+  /Sat:hx-long|Sun:hx-long/.test(spacing.six.map), spacing.six.map);
+check('Four hard days in seven cannot be separated — and the block says so instead of hiding it',
+  spacing.seven.spacing.ok===false && spacing.seven.spacing.unavoidable===true &&
+  spacing.seven.spacing.stacked.length===1,
+  spacing.seven.spacing.note);
+check('...naming the two sessions and the days they fall on',
+  /\(\w{3}\) → .+\(\w{3}\)/.test(spacing.seven.spacing.stacked[0].what||''),
+  spacing.seven.spacing.stacked[0].what);
+check('The class-adjacency trade is reported separately, as the schedule and not a mistake',
+  spacing.fitstop.spacing.nextToClass.length>0 && /your schedule rather than the plan/.test(spacing.fitstop.spacing.note),
+  spacing.fitstop.spacing.note);
+
 check('No real JS errors', errs.filter(e=>!/Failed to load resource|ERR_|net::|Chart/.test(e)).length===0,
   errs.slice(0,3).join(' | '));
 await browser.close();

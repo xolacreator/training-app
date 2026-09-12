@@ -13073,26 +13073,113 @@ function buildHyroxBlock(opts){
   // alternative behind it, and say plainly what one session a week cannot do.
   fsDays.forEach(d=>{ const i=DOW.indexOf(d); if(i>=0) dayMap[i]='fitstop'; });
 
-  // Remaining days, hardest session on the day with the most recovery around it.
-  // Released class days are free for race work — the class is still offered on them.
+  // ── Hard days go on separate days ─────────────────────────────────────────
+  // This block used to have no spacing rule at all. Sessions were dealt onto days
+  // ranked only by their distance from a class, in shape order — so a 16 km long run
+  // and a threshold run landed on consecutive days in 8 of 13 weeks, and still 8 with
+  // zero class days, which rules out "the athlete's days made us".
+  //
+  // Placement is a cost now: a hard session next to another hard session is expensive,
+  // next to a moderate one mildly so, and the hardest session is placed FIRST so it
+  // gets the pick of the week. Where the available days genuinely cannot separate
+  // them, the stacking is recorded and said out loud rather than shipped quietly.
+  const HX_LOAD={ sim:3, simHalf:3, brick:3, long:3, tempo:3, stations:2, strength:2, easy:1 };
+  const _loadOf=(k)=>HX_LOAD[k]||1;
+  // A class is mixed high-intensity conditioning. It is not race-specific, but it is
+  // not a rest day either — it counts as a hard neighbour.
+  const _dayLoad=(i)=>{
+    const e=dayMap[i];
+    if(!e || typeof e!=='string') return 0;
+    if(e==='fitstop') return 3;
+    const k=Object.keys(HYROX_SESSION_DEFS).find(x=>HYROX_SESSION_DEFS[x].id===e);
+    return k?_loadOf(k):1;
+  };
+  const _placeCost=(i,k)=>{
+    if(_loadOf(k)<3) return 0;                 // only hard sessions need separation
+    return [(i+6)%7,(i+1)%7].reduce((s,n)=>{
+      const l=_dayLoad(n); return s + (l>=3 ? 10 : l===2 ? 3 : 0);
+    },0);
+  };
+  // Among equally-spaced days, the long run and the simulation want the day that has
+  // TIME on it. Spacing decides first and this only breaks ties — but without it the
+  // long run lands wherever the arithmetic happens to leave a gap, which is how a
+  // 16 km run ended up on a Friday with an easy jog on the Saturday.
+  const _dayPref=(k,d)=> (k==='long'||k==='sim'||k==='simHalf')
+    ? (d==='Sat'?0 : d==='Sun'?1 : 2) : 0;
   const freeDays=days.filter(d=>!fsDays.includes(d));
-  const _adjFitstop=(day)=>{ const i=DOW.indexOf(day);
-    return [DOW[(i+6)%7], DOW[(i+1)%7]].filter(n=>fsDays.includes(n)).length; };
-  const ranked=hasFitstop ? freeDays.slice().sort((a,b)=>_adjFitstop(a)-_adjFitstop(b)) : freeDays;
-
+  // Hardest first; ties keep the shape's own priority order.
+  const order=shape.map((k,i)=>({k,i})).sort((a,b)=>_loadOf(b.k)-_loadOf(a.k) || a.i-b.i);
   const placed=[];
-  shape.forEach((k,i)=>{
-    const day=ranked[i%Math.max(1,ranked.length)];
-    const di=DOW.indexOf(day);
-    if(di>=0 && !dayMap[di]){ dayMap[di]=HYROX_SESSION_DEFS[k].id; placed.push({day,k}); }
+  order.forEach(({k})=>{
+    let best=null;
+    freeDays.forEach(d=>{
+      const i=DOW.indexOf(d);
+      if(i<0 || dayMap[i]) return;
+      const c=_placeCost(i,k), s=c*100+_dayPref(k,d);
+      if(!best || s<best.s) best={ i, day:d, c, s };
+    });
+    if(best){ dayMap[best.i]=HYROX_SESSION_DEFS[k].id; placed.push({day:best.day, k, cost:best.c}); }
   });
-  // Any session that collided gets the next free day.
+  // Anything that found no room among the chosen days takes the next empty day.
   shape.forEach(k=>{
     const id=HYROX_SESSION_DEFS[k].id;
     if(dayMap.includes(id)) return;
     const free=DOW.findIndex((d,i)=>!dayMap[i] && days.includes(d) && !fsDays.includes(d));
     if(free>=0) dayMap[free]=id;
   });
+
+  // What the week actually came out as — reported whether or not it is clean, so the
+  // trade is visible in the plan and not only in the code.
+  //
+  // Two different things get counted separately, because the athlete can act on one
+  // and not the other. `stacked` is two of the PLAN'S OWN hard sessions back to back —
+  // that is ours to answer for. `nextToClass` is a hard session beside a fixed class —
+  // the class does not move, so this is the schedule talking, not a scheduling mistake.
+  const spacing=(()=>{
+    const nameOf=(id)=> id==='fitstop' ? 'Fitstop class'
+      : ((Object.values(HYROX_SESSION_DEFS).find(d=>d.id===id)||{}).name || id);
+    const pairAt=(i)=>{ const j=(i+1)%7;
+      return { days:[DOW[i],DOW[j]], ids:[dayMap[i],dayMap[j]],
+               what:`${nameOf(dayMap[i])} (${DOW[i]}) → ${nameOf(dayMap[j])} (${DOW[j]})` }; };
+    const stacked=[], nextToClass=[];
+    for(let i=0;i<7;i++){
+      const j=(i+1)%7;
+      if(_dayLoad(i)<3 || _dayLoad(j)<3) continue;
+      const cls=(dayMap[i]==='fitstop'?1:0)+(dayMap[j]==='fitstop'?1:0);
+      (cls ? nextToClass : stacked).push(pairAt(i));
+    }
+    const hardDays=DOW.filter((d,i)=>_dayLoad(i)>=3).length;
+    const occupied=DOW.map((d,i)=>dayMap[i]!=null?i:-1).filter(i=>i>=0);
+    // Was a clean week even available? With seven days this is cheap to ANSWER rather
+    // than estimate, so the plan can say "your days did not allow it" and be right.
+    const canSeparate=(n)=>{
+      if(n<=1) return true;
+      let found=false;
+      (function rec(pos, chosen){
+        if(found) return;
+        if(chosen.length===n){ found=true; return; }
+        if(pos>=occupied.length) return;
+        const i=occupied[pos];
+        if(!chosen.some(c=>c===(i+1)%7 || c===(i+6)%7)) rec(pos+1, chosen.concat(i));
+        rec(pos+1, chosen);
+      })(0, []);
+      return found;
+    };
+    const separable = stacked.length ? canSeparate(hardDays) : true;
+    const clsNote = nextToClass.length
+      ? ` Your class${nextToClass.length>1?'es sit':' sits'} beside hard running (${nextToClass.map(p=>p.what).join('; ')}) — the class day is fixed, so that one is your schedule rather than the plan's choice.`
+      : '';
+    return {
+      hardDays, trainingDays:occupied.length,
+      stacked, nextToClass,
+      ok: stacked.length===0, unavoidable: stacked.length>0 && !separable,
+      note: (stacked.length===0
+        ? 'Hard days are kept apart — nothing the plan controls sits back to back.'
+        : (!separable
+            ? `${hardDays} hard days across ${occupied.length} training days cannot all be separated, so ${stacked.length===1?'one pair lands':`${stacked.length} pairs land`} back to back: ${stacked.map(p=>p.what).join('; ')}. That is your available days, not a choice the plan made.`
+            : `${stacked.length===1?'One pair sits':`${stacked.length} pairs sit`} back to back: ${stacked.map(p=>p.what).join('; ')}.`)) + clsNote,
+    };
+  })();
 
   // ── Turn class days into choices, and say what is still uncovered ─────────
   let coverage=null;
@@ -13285,6 +13372,7 @@ function buildHyroxBlock(opts){
     sessions, dayMap, weeklyProgressions,
     ...(raceInfo ? { race:raceInfo, overrides } : {}),
     ...(coverage ? { coverage } : {}),
+    ...(spacing ? { spacing } : {}),
     ...(secondaryInfo ? { secondaryRace:secondaryInfo } : {}),
     source:'HYROX programming engine (KB-driven)',
   };
@@ -13578,7 +13666,11 @@ function buildConcurrent(strengthDays, longRunDay, runGoal, weeks){
 // surface a coaching report and to gate/flag generated programs. Mirrors the
 // Knowledge Repository principles (intensity distribution, concurrent interference,
 // recovery, progression, goal alignment).
-const _V_EASY_RT = new Set(['easy','recovery','long']);
+// Easy by INTENSITY. A long run is a big day but it is run at easy pace, so it
+// belongs on the easy side of an 80/20 split — that is what the split measures.
+// `hyrox_long` was missing here, which is why a correctly-polarised HYROX week
+// reported "only 25% of runs are easy".
+const _V_EASY_RT = new Set(['easy','recovery','long','hyrox_long']);
 function _vTypeOf(s){ return s?.type || 'strength'; }
 function validateProgram(prog, ctx = {}) {
   const V = [];
@@ -13587,7 +13679,12 @@ function validateProgram(prog, ctx = {}) {
   const ALL = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const byId = Object.fromEntries(prog.sessions.map(s => [s.id, s]));
   const dm = (Array.isArray(prog.dayMap) && prog.dayMap.length === 7) ? prog.dayMap : null;
-  const slots = dm ? dm.map(id => id ? byId[id] : null) : [];
+  // A day can be a CHOICE — {opts:[default, alternative]} — which is how the block
+  // offers a class day back to the athlete. Reading the object as a session id made
+  // every such day resolve to nothing, so a legitimate plan was reported as
+  // "references unknown sessions" and scored as a structural error.
+  const _dmId = e => (e && e.opts) ? e.opts[0] : e;
+  const slots = dm ? dm.map(e => { const id=_dmId(e); return id ? byId[id] : null; }) : [];
   const training = slots.filter(Boolean);
   const isEasyRun = s => _vTypeOf(s)==='endurance' && _V_EASY_RT.has(s.runType);
   const hardRun = s => _vTypeOf(s)==='endurance' && !_V_EASY_RT.has(s.runType);
@@ -13597,15 +13694,47 @@ function validateProgram(prog, ctx = {}) {
   // 1 — Structure
   if (!dm) add('structure','error','Missing a valid 7-day weekly plan (dayMap).','Define Mon–Sun, each a session id or rest.');
   else {
-    if (!dm.every(id => id===null || byId[id])) add('structure','error','Weekly plan references unknown sessions.','');
+    if (!dm.every(e => { const id=_dmId(e); return id===null || id===undefined || id==='fitstop' || byId[id]; }))
+      add('structure','error','Weekly plan references unknown sessions.','');
     const nn = dm.filter(Boolean).length;
     if (prog.sessionsPerWeek && nn !== prog.sessionsPerWeek) add('structure','info',`Plan has ${nn} sessions but sessionsPerWeek=${prog.sessionsPerWeek}.`,'');
   }
   // 2 — Recovery: rest day + consecutive hard days
   if (dm) {
     if (dm.filter(x => !x).length < 1) add('recovery','warn','No rest day in the week.','Include at least one rest day.');
+    // "Taxing" used to mean anything that was not an easy run, so a hybrid week of
+    // run / stations / run / strength read as FOUR hard days in a row and warned —
+    // on a week whose hard running was correctly spaced. A strength or station day
+    // is a training day, not a hard day; consecutive TRAINING days are the point of
+    // a six-day week. Count the days that actually demand recovery.
     let run=0, maxRun=0; for (let k=0;k<14;k++){ if (taxing(slots[k%7])){ run++; maxRun=Math.max(maxRun,run);} else run=0; }
-    if (maxRun >= 4) add('recovery','warn',`${maxRun} hard/taxing days in a row.`,'Break up consecutive hard days with an easy day or rest.');
+    if (maxRun >= 6) add('recovery','warn',`${maxRun} training days in a row without an easy day.`,'Work an easy day or a rest day into the run of days.');
+    // Two HARD sessions back to back. The validator checked hard-run-beside-strength
+    // and hard-days-in-a-row, but never this — so a long run followed by a threshold
+    // run passed every check, which is exactly how it shipped in eight weeks of a
+    // thirteen-week block. A day offered as a choice still counts: read its default.
+    const _slotAt = i => { const e = dm[i]; const id = (e && e.opts) ? e.opts[0] : e;
+                           return id==='fitstop' ? {id:'fitstop', _cls:true} : (id ? byId[id] : null); };
+    const _hard = s => s && (hardRun(s) || s._cls || (s.race && !s.secondary));
+    // The HYROX engine already worked out whether the athlete's days ALLOWED a clean
+    // week. Where they did not, say so rather than reporting it as a mistake.
+    const _sp = prog.spacing || null;
+    for (let i=0;i<7;i++){
+      const a=_slotAt(i), b=_slotAt((i+1)%7);
+      if (!_hard(a) || !_hard(b)) continue;
+      if (a._cls && b._cls) continue;                       // two classes: not ours to move
+      const pair = `${ALL[i]}→${ALL[(i+1)%7]}`;
+      if (a._cls || b._cls){
+        add('recovery','info',`Hard running next to a class day (${pair}).`,
+            'The class day is fixed — treat the run beside it as the easier of the two.');
+      } else if (_sp && _sp.unavoidable){
+        add('recovery','info',`${a.name} and ${b.name} fall back to back (${pair}).`,
+            'Your available days cannot separate every hard session — this is the fewest the week allows.');
+      } else {
+        add('recovery','warn',`Two hard sessions back to back — ${a.name} then ${b.name} (${pair}).`,
+            'Put an easy day or rest between them.');
+      }
+    }
   }
   // 3 — Intensity distribution (running)
   const runs = training.filter(s => _vTypeOf(s)==='endurance');
@@ -13614,8 +13743,16 @@ function validateProgram(prog, ctx = {}) {
     if (ratio < 0.6) add('intensity','warn',`Only ${Math.round(ratio*100)}% of runs are easy.`,'Polarise toward ~80% easy / ~20% hard.');
   }
   // 4 — Concurrent-training interference
+  // In a hybrid block, running beside lifting IS the design — the athlete chose an
+  // event that demands both, and six days cannot hold them apart. Saying it three
+  // times as a warning reads as "this plan is wrong" about the thing it is for. Note
+  // it, but as an observation rather than a fault.
+  const _hybrid = prog.type==='hybrid' || !!prog.hyrox;
   if (dm) for (let i=0;i<7;i++){ const a=slots[i], b=slots[(i+1)%7];
-    if (a&&b && ((hardRun(a)&&heavy(b))||(heavy(a)&&hardRun(b)))) add('interference','warn',`Hard run next to a strength/Fitstop day (${ALL[i]}→${ALL[(i+1)%7]}).`,'Separate hard runs from heavy strength by a day where possible.'); }
+    if (a&&b && ((hardRun(a)&&heavy(b))||(heavy(a)&&hardRun(b))))
+      add('interference', _hybrid?'info':'warn', `Hard run next to a strength/Fitstop day (${ALL[i]}→${ALL[(i+1)%7]}).`,
+          _hybrid ? 'Expected in a hybrid week — run first if you do both in a day.'
+                  : 'Separate hard runs from heavy strength by a day where possible.'); }
   if (Array.isArray(prog.interferenceFlags)) prog.interferenceFlags.forEach(f => add('interference','info', f));
   // 5 — Progression / deload
   const wp = prog.weeklyProgressions || [];
