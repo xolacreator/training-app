@@ -217,6 +217,39 @@ body{
 }
 .back-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;}
 
+/* ── SAFE-AREA PADDING — the only place that knows about the notch and home bar ──
+   .oh/.oi/.of cover overlays whose header is just a drag handle. Four overlays need a
+   header or footer with their own content (timer, HYROX calculator, coach chat,
+   program builder), and each hand-wrote its own `padding:` shorthand repeating these
+   values inline. Every one of those shorthands was void.
+
+   Why: inside calc(), a `+` must have whitespace on BOTH sides — it is part of the
+   grammar, not style. These were written without it, which makes the value invalid,
+   and one invalid component discards the ENTIRE shorthand: all four sides fall to
+   0px. So there was no notch spacer at the top and no clearance at the bottom, which
+   put the Back button flush against the screen edge underneath the home-gesture
+   strip. That is the "exit button out of reach" bug.
+
+   It hid well. The CSSOM keeps the text verbatim, so nothing fails at parse time and
+   no warning is logged; the value only dies at computed-value time. And a desktop
+   browser has every safe-area inset at 0 already, so the page looks the same there.
+   Measure it, do not read it: tests/test-sizing-reach.mjs opens every overlay at
+   three screen sizes with real iOS insets substituted in and asserts that every exit
+   control is on screen with clearance to spare.
+
+   These classes exist so the values are written once and never re-typed. */
+.ovh{ flex-shrink:0; background:var(--bg);
+      padding: max(calc(env(safe-area-inset-top, 0px) + 10px), 58px)
+               calc(16px + env(safe-area-inset-right, 0px)) 10px
+               calc(16px + env(safe-area-inset-left, 0px)); }
+.ovf{ flex-shrink:0; background:var(--bg); border-top:.5px solid var(--border);
+      padding: 10px calc(16px + env(safe-area-inset-right, 0px))
+               max(calc(env(safe-area-inset-bottom, 0px) + 14px), 44px)
+               calc(16px + env(safe-area-inset-left, 0px)); }
+/* Horizontal safe-area gutters only — for rows between a header and a footer. */
+.ovx{ padding-left:calc(16px + env(safe-area-inset-left, 0px));
+      padding-right:calc(16px + env(safe-area-inset-right, 0px)); }
+
 /* ── TYPOGRAPHY ── */
 .eyebrow{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;}
 .screen-title{font-family:var(--display);font-size:34px;font-weight:900;color:var(--text);letter-spacing:-.01em;line-height:.9;text-transform:uppercase;}
@@ -1025,7 +1058,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- INTERVAL TIMER OVERLAY -->
 <div class="overlay" id="timer-overlay">
   <!-- Timer keeps back button at top: active-timer view uses Pause/Stop at bottom, no room for .of -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px) + 16px),80px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+  <div class="ovh" style="padding-top:max(calc(env(safe-area-inset-top, 0px) + 16px), 80px);">
     <button class="back-btn" onclick="closeTimer()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
   <div id="timer-config" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 18px calc(var(--sab) + 24px);">
@@ -1230,7 +1263,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <div class="overlay" id="hyrox-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
 
   <!-- Fixed header — drag handle + safe-area spacer; back button lives in footer -->
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px) + 10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+  <div class="ovh">
     <div style="display:flex;justify-content:center;margin-bottom:10px;"><div class="drag-handle"></div></div>
     <div style="margin-bottom:10px;">
       <div class="eyebrow" style="margin-bottom:1px;">Race Simulation</div>
@@ -1269,17 +1302,17 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   </div>
 
   <!-- Column headers -->
-  <div style="flex-shrink:0;display:flex;align-items:center;padding:7px calc(16px+var(--sar)) 7px calc(16px+var(--sal));background:var(--bg2);border-top:.5px solid var(--border);border-bottom:.5px solid var(--border);">
+  <div class="ovx" style="flex-shrink:0;display:flex;align-items:center;padding-top:7px;padding-bottom:7px;background:var(--bg2);border-top:.5px solid var(--border);border-bottom:.5px solid var(--border);">
     <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Segment</div>
     <div style="width:64px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Split</div>
     <div style="width:58px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Cumul.</div>
   </div>
 
   <!-- Scrollable segment table -->
-  <div id="hx-table" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px calc(16px+var(--sar)) 6px calc(16px+var(--sal));"></div>
+  <div id="hx-table" class="ovx" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-top:6px;padding-bottom:6px;"></div>
 
   <!-- Fixed footer: summary + actions + back button -->
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 14px),44px) calc(16px+env(safe-area-inset-left,0px));">
+  <div class="ovf">
     <div id="hx-summary"></div>
     <button class="btn" style="width:100%;margin-top:8px;color:var(--blue);border-color:rgba(167,139,250,.25);touch-action:manipulation;" onclick="hyroxPullTraining()">
       ↑ Pull run splits from training log
@@ -1330,7 +1363,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 <!-- COACH CHAT -->
 <div class="overlay" id="coach-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
   <!-- Header — drag handle + safe-area spacer; back button is in the input row footer -->
-  <div style="flex-shrink:0;padding:max(calc(env(safe-area-inset-top,0px) + 10px),58px) calc(16px+env(safe-area-inset-right,0px)) 8px calc(16px+env(safe-area-inset-left,0px));">
+  <div class="ovh" style="padding-bottom:8px;">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;justify-content:center;flex:1;"><div class="drag-handle"></div></div>
       <button onclick="openMemoryView()" title="What your coach remembers" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;">
@@ -1342,7 +1375,7 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
   <!-- Messages — this is the only scrolling region -->
   <div id="coach-messages" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 calc(16px + var(--sar)) 12px calc(16px + var(--sal));"></div>
   <!-- Input bar — always pinned to bottom, full width -->
-  <div id="coach-input-row" style="flex-shrink:0;border-top:.5px solid var(--border);background:var(--bg);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 12px),46px) calc(16px+env(safe-area-inset-left,0px));">
+  <div id="coach-input-row" class="ovf">
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <textarea id="coach-input" rows="1" placeholder="Or type something specific…"
         style="flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:10px;color:var(--text);font-size:13px;resize:none;box-sizing:border-box;-webkit-appearance:none;font-family:inherit;max-height:80px;overflow-y:auto;line-height:1.45;"
@@ -1362,13 +1395,13 @@ body{font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:ant
 
 <!-- PROGRAM OVERLAY -->
 <div class="overlay" id="program-overlay" style="display:flex;flex-direction:column;overflow:hidden;">
-  <div style="flex-shrink:0;background:var(--bg);padding:max(calc(env(safe-area-inset-top,0px) + 10px),58px) calc(16px+env(safe-area-inset-right,0px)) 10px calc(16px+env(safe-area-inset-left,0px));">
+  <div class="ovh">
     <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="drag-handle"></div></div>
     <div class="eyebrow">Strength</div>
     <div style="font-size:22px;font-weight:600;letter-spacing:-.02em;">Program Builder</div>
   </div>
   <div id="program-overlay-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:20px;"></div>
-  <div style="flex-shrink:0;background:var(--bg);border-top:.5px solid var(--border);padding:10px calc(16px+env(safe-area-inset-right,0px)) max(calc(env(safe-area-inset-bottom,0px) + 14px),44px) calc(16px+env(safe-area-inset-left,0px));">
+  <div class="ovf">
     <button class="back-btn" onclick="closeOv('program-overlay')"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>Back</button>
   </div>
 </div>
@@ -13690,6 +13723,15 @@ function validateProgram(prog, ctx = {}) {
   const hardRun = s => _vTypeOf(s)==='endurance' && !_V_EASY_RT.has(s.runType);
   const heavy   = s => _vTypeOf(s)==='strength' || _vTypeOf(s)==='fitstop';
   const taxing  = s => s && !isEasyRun(s);
+  // Two axes, because they answer different questions and conflating them misreads
+  // every hybrid week. INTENSITY (isEasyRun) decides the 80/20 split, and a long run
+  // is easy by that measure. LOAD decides recovery: a long run is one of the hardest
+  // days in the week regardless of pace, while strength and station work are training
+  // days rather than hard days. `hardDay` is the load axis.
+  const _V_LOW_RT = new Set(['easy','recovery']);
+  const hardDay = s => s && (
+    (_vTypeOf(s)==='endurance' && !_V_LOW_RT.has(s.runType)) ||
+    s.race === true || _vTypeOf(s)==='fitstop');
 
   // 1 — Structure
   if (!dm) add('structure','error','Missing a valid 7-day weekly plan (dayMap).','Define Mon–Sun, each a session id or rest.');
@@ -13702,20 +13744,27 @@ function validateProgram(prog, ctx = {}) {
   // 2 — Recovery: rest day + consecutive hard days
   if (dm) {
     if (dm.filter(x => !x).length < 1) add('recovery','warn','No rest day in the week.','Include at least one rest day.');
-    // "Taxing" used to mean anything that was not an easy run, so a hybrid week of
-    // run / stations / run / strength read as FOUR hard days in a row and warned —
-    // on a week whose hard running was correctly spaced. A strength or station day
-    // is a training day, not a hard day; consecutive TRAINING days are the point of
-    // a six-day week. Count the days that actually demand recovery.
-    let run=0, maxRun=0; for (let k=0;k<14;k++){ if (taxing(slots[k%7])){ run++; maxRun=Math.max(maxRun,run);} else run=0; }
-    if (maxRun >= 6) add('recovery','warn',`${maxRun} training days in a row without an easy day.`,'Work an easy day or a rest day into the run of days.');
+    // "Taxing" meant anything that was not an easy run, so a hybrid week of
+    // run / stations / run / strength read as FOUR hard days in a row and warned — on
+    // a week whose hard running was correctly spaced. Raising the threshold to hide
+    // that was the wrong fix: it silenced a genuinely bad week too. Count the days
+    // that actually demand recovery instead, which is what the rule always meant.
+    let run=0, maxRun=0; for (let k=0;k<14;k++){ if (hardDay(slots[k%7])){ run++; maxRun=Math.max(maxRun,run);} else run=0; }
+    if (maxRun >= 3) add('recovery','warn',`${Math.min(maxRun,7)} hard days in a row.`,'Break them up with an easy day or rest.');
+    // Separately: a long stretch of training with nothing easy in it. Six consecutive
+    // training days is normal for a committed athlete; seven with no easy day is not.
+    let tr=0, maxTr=0; for (let k=0;k<14;k++){ if (taxing(slots[k%7])){ tr++; maxTr=Math.max(maxTr,tr);} else tr=0; }
+    if (maxTr >= 7) add('recovery','warn',`${Math.min(maxTr,7)} training days in a row without an easy day.`,'Work an easy day or a rest day into the run of days.');
     // Two HARD sessions back to back. The validator checked hard-run-beside-strength
     // and hard-days-in-a-row, but never this — so a long run followed by a threshold
     // run passed every check, which is exactly how it shipped in eight weeks of a
     // thirteen-week block. A day offered as a choice still counts: read its default.
+    // Uses the LOAD axis: a long run is easy by pace and still one of the two hardest
+    // days in the week, which is the whole point of the pair being flagged.
     const _slotAt = i => { const e = dm[i]; const id = (e && e.opts) ? e.opts[0] : e;
-                           return id==='fitstop' ? {id:'fitstop', _cls:true} : (id ? byId[id] : null); };
-    const _hard = s => s && (hardRun(s) || s._cls || (s.race && !s.secondary));
+                           return id==='fitstop' ? {id:'fitstop', name:'Class', type:'fitstop', _cls:true}
+                                                 : (id ? byId[id] : null); };
+    const _hard = s => s && (hardDay(s) || s._cls);
     // The HYROX engine already worked out whether the athlete's days ALLOWED a clean
     // week. Where they did not, say so rather than reporting it as a mistake.
     const _sp = prog.spacing || null;
@@ -13743,16 +13792,18 @@ function validateProgram(prog, ctx = {}) {
     if (ratio < 0.6) add('intensity','warn',`Only ${Math.round(ratio*100)}% of runs are easy.`,'Polarise toward ~80% easy / ~20% hard.');
   }
   // 4 — Concurrent-training interference
-  // In a hybrid block, running beside lifting IS the design — the athlete chose an
-  // event that demands both, and six days cannot hold them apart. Saying it three
-  // times as a warning reads as "this plan is wrong" about the thing it is for. Note
-  // it, but as an observation rather than a fault.
-  const _hybrid = prog.type==='hybrid' || !!prog.hyrox;
+  // In a FULL hybrid week, running beside lifting is the design — the athlete chose an
+  // event that demands both, and six committed days leave nowhere to move it to.
+  // Saying it three times as a warning reads as "this plan is wrong" about the thing
+  // the plan is for. But "it's a hybrid block" is not on its own a reason to excuse it:
+  // with four sessions and three rest days the adjacency is entirely avoidable and the
+  // warning is exactly right. Density decides, not the label.
+  const _dense = !!dm && dm.filter(Boolean).length >= 6;
   if (dm) for (let i=0;i<7;i++){ const a=slots[i], b=slots[(i+1)%7];
     if (a&&b && ((hardRun(a)&&heavy(b))||(heavy(a)&&hardRun(b))))
-      add('interference', _hybrid?'info':'warn', `Hard run next to a strength/Fitstop day (${ALL[i]}→${ALL[(i+1)%7]}).`,
-          _hybrid ? 'Expected in a hybrid week — run first if you do both in a day.'
-                  : 'Separate hard runs from heavy strength by a day where possible.'); }
+      add('interference', _dense?'info':'warn', `Hard run next to a strength/Fitstop day (${ALL[i]}→${ALL[(i+1)%7]}).`,
+          _dense ? 'Unavoidable in a week this full — run first if you do both in a day.'
+                 : 'Separate hard runs from heavy strength by a day where possible.'); }
   if (Array.isArray(prog.interferenceFlags)) prog.interferenceFlags.forEach(f => add('interference','info', f));
   // 5 — Progression / deload
   const wp = prog.weeklyProgressions || [];

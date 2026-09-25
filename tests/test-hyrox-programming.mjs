@@ -548,12 +548,19 @@ const bRace = await page.evaluate(()=>{
   const w=pr.secondaryRace.week;
   const names=n=>(_progWeekSessions(n)||[]).filter(s=>s.session).map(s=>s.session.name);
   setSecondaryRace(null);
-  return { info:pr.secondaryRace, sims:pr.hyrox.simulationWeeks,
+  return { info:pr.secondaryRace, sims:pr.hyrox.simulationWeeks, startDate:pr.startDate,
            week:names(w), weekFlags:pr.weeklyProgressions[w-1],
            after:names(w+1), sessionIds:(pr.sessions||[]).map(s=>s.id) };
 });
-check('The B-race is placed in the right week', bRace.info.week===9 && bRace.info.day==='Sat',
-  `week ${bRace.info.week} ${bRace.info.day}`);
+// The week a fixed date lands in is a function of the calendar, not a constant. This
+// asserted "week 9", which was true on the day it was written and false two weeks
+// later — a test that fails when nothing changed but the clock is a false alarm, and
+// false alarms are how a real regression gets waved through. Derive the expectation
+// from the same two dates the engine uses.
+const _bWeek = Math.floor(
+  (new Date('2026-11-07T12:00:00') - new Date(bRace.startDate+'T12:00:00')) / (7*86400000)) + 1;
+check('The B-race is placed in the right week', bRace.info.week===_bWeek && bRace.info.day==='Sat',
+  `week ${bRace.info.week} ${bRace.info.day} (7 Nov is week ${_bWeek} from ${bRace.startDate})`);
 check('It appears as a session, named', bRace.week.some(n=>/ATHX/i.test(n)), bRace.week.join(', '));
 check('No race simulation shares its week', bRace.sims.full!==bRace.info.week && bRace.sims.half!==bRace.info.week,
   JSON.stringify(bRace.sims));
@@ -618,10 +625,14 @@ check('The B-race survives a backup', await page.evaluate(()=>BACKUP_KEYS.includ
 // the goal needs. This one did: ~21 km/week against a sourced 50-65 km/week for a
 // sub-70 athlete. Nothing was checking the sum.
 const vol = await page.evaluate(()=>{
+  // Pin the block length. Without `weeks`, the block sizes itself to however far away
+  // the race is TODAY, so the number of build weeks — and therefore the peak the ramp
+  // reaches — changed with the wall clock and these assertions failed on a quiet day.
+  // Dosing is what is under test here, not the calendar.
   const mk=(goal,fs)=>{
     coachProfile={goal, raceDate:'2026-12-04'};
     localStorage.setItem('ht-race-date','2026-12-04'); localStorage.setItem('ht-goal',goal);
-    saveProgramData(buildHyroxBlock({division:'pro_men', sessionsPerWeek:7, goal,
+    saveProgramData(buildHyroxBlock({division:'pro_men', sessionsPerWeek:7, goal, weeks:12,
       trainDays:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], fitstopDays:fs}));
     return hyroxVolumeCheck();
   };
