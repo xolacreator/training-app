@@ -69,7 +69,7 @@ for (const s of SCREENS){
     .oh,.ovh{padding-top:max(${s.sat+10}px,58px)!important;}
     .of,.ovf{padding-bottom:max(${s.sab+14}px,44px)!important;}`});
 
-  const out=await page.evaluate((MIN)=>{
+  const out=await page.evaluate(([MIN,SAT])=>{
     const LONG='<div style="height:60px;border-bottom:1px solid #333">row</div>'.repeat(40);
     const res=[];
     document.querySelectorAll('.overlay,.wnsheet,#morning-overlay').forEach(ov=>{
@@ -83,20 +83,23 @@ for (const s of SCREENS){
       void ov.offsetHeight;
       const vh=window.innerHeight;
       [...ov.querySelectorAll('button')]
-        .filter(el=>/back|done|close|exit|skip|✕/i.test((el.textContent||'')+(el.getAttribute('onclick')||'')))
+        .filter(el=>/back|done|close|cancel|exit|skip|✕|×/i.test((el.textContent||'')+(el.getAttribute('onclick')||'')))
         .forEach(el=>{
           const r=el.getBoundingClientRect();
+          if(!r.width || !r.height) return;          // not rendered in this state — nothing to reach
           res.push({ id:ov.id, txt:(el.textContent||'').trim().slice(0,16),
             top:Math.round(r.top), bottom:Math.round(r.bottom),
             clearance:Math.round(vh-r.bottom),
-            ok: r.top>=0 && r.bottom<=vh && (vh-r.bottom)>=MIN });
+            // A top-right close under the status bar or Dynamic Island is on screen
+            // and still untappable — the top edge must clear the inset too.
+            ok: r.top>=SAT && r.bottom<=vh && (vh-r.bottom)>=MIN });
         });
       ov.classList.remove('open');
       ov.style.display=restoreDisplay;
       target.innerHTML=prev;
     });
     return res;
-  }, MIN_CLEARANCE);
+  }, [MIN_CLEARANCE, s.sat]);
 
   const bad=out.filter(x=>!x.ok);
   check(`${s.n}: every exit control is reachable (${out.length} controls)`,
