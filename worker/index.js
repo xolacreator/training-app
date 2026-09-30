@@ -27,7 +27,7 @@ function distToKm(v) {
   if (units === 'm' || units.includes('meter')) return qty / 1000;
   return qty; // assume km
 }
-// Normalise a workout from Health Auto Export / a Shortcut into a compact summary.
+// Normalize a workout from Health Auto Export / a Shortcut into a compact summary.
 function normWorkout(w) {
   if (!w || typeof w !== 'object') return null;
   const startRaw = w.start || w.startDate || w.start_date || w.date || w.startTime;
@@ -80,7 +80,7 @@ export default {
       const appUrl = (stateParam ? decodeURIComponent(stateParam) : null) || env.APP_URL;
 
       if (error || !code) {
-        return Response.redirect(`${appUrl}#strava=error&reason=${encodeURIComponent(error||'cancelled')}`, 302);
+        return Response.redirect(`${appUrl}#strava=error&reason=${encodeURIComponent(error||'canceled')}`, 302);
       }
       try {
         const resp = await fetch(STRAVA_TOKEN_URL, {
