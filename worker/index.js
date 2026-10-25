@@ -68,7 +68,8 @@ async function garminBearer(env) {
   const cached = await env.HEALTH_DATA.get('garmin:bearer', 'json');
   if (cached && cached.exp - Date.now() / 1000 > 3600) return cached.token;
   const r = await fetch(GARMIN_BASE + GARMIN_TOKEN, {
-    method: 'POST', headers: { 'Accept': '*/*', 'Authorization': 'ApiKey ' + env.GARMIN_PERSONAL_KEY } });
+    method: 'POST', headers: { 'Accept': '*/*', 'Authorization': 'ApiKey ' + env.GARMIN_PERSONAL_KEY },
+    signal: AbortSignal.timeout(15000) });
   if (!r.ok) throw new Error('token_' + r.status);
   const token = (await r.text()).trim();
   let exp = Date.now() / 1000 + 6 * 3600;
@@ -80,7 +81,8 @@ async function garminBearer(env) {
 
 async function garminGet(env, bearer, path, params) {
   const q = params ? '?' + new URLSearchParams(params).toString() : '';
-  const r = await fetch(GARMIN_BASE + path + q, { headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + bearer } });
+  const r = await fetch(GARMIN_BASE + path + q, { headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + bearer },
+                                                   signal: AbortSignal.timeout(15000) });
   if (r.status === 204) return null;
   if (!r.ok) throw new Error(path.split('/')[1] + '_' + r.status);
   const t = await r.text();
@@ -143,6 +145,7 @@ async function garminSync(env, token, opts) {
   opts = opts || {};
   if (!env.GARMIN_PERSONAL_KEY || !env.GARMIN_OWNER_TOKEN) return { ok: false, reason: 'not_configured' };
   if (token !== env.GARMIN_OWNER_TOKEN) return { ok: false, reason: 'not_owner' };
+  if (!env.HEALTH_DATA) return { ok: false, reason: 'no_storage' };
   const stateKey = 'garmin:' + token + ':state';
   const state = (await env.HEALTH_DATA.get(stateKey, 'json')) || {};
   if (!opts.force && state.at && Date.now() - Date.parse(state.at) < 10 * 60 * 1000) return { ok: true, throttled: true, ...state };
@@ -199,7 +202,25 @@ async function garminSync(env, token, opts) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
+    try {
+      return await handle(request, env, ctx);
+    } catch (e) {
+      // Never a bare 500: the app cannot read one across origins and shows nothing at all.
+      return new Response(JSON.stringify({ ok: false, reason: 'worker_error', detail: String((e && e.message) || e).slice(0, 200) }),
+        { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+  },
+
+  // Every two hours, if a cron trigger is set on the Worker (Settings, Trigger Events, Cron).
+  async scheduled(event, env, ctx) {
+    if (env.GARMIN_PERSONAL_KEY && env.GARMIN_OWNER_TOKEN && env.HEALTH_DATA)
+      ctx.waitUntil(garminSync(env, env.GARMIN_OWNER_TOKEN, { force: true }));
+  },
+};
+
+async function handle(request, env, ctx) {
+  {
     const url  = new URL(request.url);
     const path = url.pathname;
 
@@ -364,20 +385,25 @@ export default {
 
     // -- Garmin Personal API: sync, status, and the synced data -----------------
     if (path.startsWith('/garmin/')) {
-      const token = request.headers.get('X-Sync-Token') || '';
+      /* The status check also takes ?token= so it can be opened in a browser to diagnose setup. */
+      const token = request.headers.get('X-Sync-Token') || (path === '/garmin/status' ? url.searchParams.get('token') || '' : '');
       if (!token) return gJson({ ok: false, reason: 'missing_token' }, 401);
       if (path === '/garmin/status' && request.method === 'GET') {
         const configured = !!(env.GARMIN_PERSONAL_KEY && env.GARMIN_OWNER_TOKEN);
         const mine = configured && token === env.GARMIN_OWNER_TOKEN;
-        const state = mine ? await env.HEALTH_DATA.get('garmin:' + token + ':state', 'json') : null;
-        return gJson({ ok: true, configured, owner: mine, last: state || null });
+        const storage = !!env.HEALTH_DATA;
+        const state = mine && storage ? await env.HEALTH_DATA.get('garmin:' + token + ':state', 'json') : null;
+        return gJson({ ok: true, configured, owner: mine, storage,
+                       key_set: !!env.GARMIN_PERSONAL_KEY, owner_token_set: !!env.GARMIN_OWNER_TOKEN, last: state || null });
       }
       if (path === '/garmin/sync' && request.method === 'POST') {
         const r = await garminSync(env, token, { force: url.searchParams.get('force') === '1' });
-        return gJson(r, r.ok ? 200 : (r.reason === 'not_owner' ? 403 : r.reason === 'not_configured' ? 501 : 502));
+        return gJson(r, r.ok ? 200 : (r.reason === 'not_owner' ? 403 : r.reason === 'not_configured' ? 501
+                                     : r.reason === 'no_storage' ? 503 : 502));
       }
       if (path === '/garmin/health' && request.method === 'GET') {
         if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
+        if (!env.HEALTH_DATA) return gJson({ ok: false, reason: 'no_storage' }, 503);
         const n = Math.min(30, Math.max(1, parseInt(url.searchParams.get('days') || '14', 10) || 14)), rows = [];
         for (let i = 0; i < n; i++) {
           const row = await env.HEALTH_DATA.get('health:' + token + ':' + daysAgo(i), 'json');
@@ -387,6 +413,7 @@ export default {
       }
       if (path === '/garmin/activities' && request.method === 'GET') {
         if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
+        if (!env.HEALTH_DATA) return gJson({ ok: false, reason: 'no_storage' }, 503);
         const raw = await env.HEALTH_DATA.get('garmin:' + token + ':activities') || '[]';
         return new Response(raw, { headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
@@ -394,11 +421,5 @@ export default {
     }
 
     return new Response('Not found', { status: 404 });
-  },
-
-  // Every two hours, if a cron trigger is set on the Worker (Settings, Triggers, Cron).
-  async scheduled(event, env, ctx) {
-    if (env.GARMIN_PERSONAL_KEY && env.GARMIN_OWNER_TOKEN)
-      ctx.waitUntil(garminSync(env, env.GARMIN_OWNER_TOKEN, { force: true }));
-  },
-};
+  }
+}
