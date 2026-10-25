@@ -4,5 +4,21 @@
   "main": "worker/index.js",
   "compatibility_date": "2026-05-25",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // This file is the Worker's source of truth: every deploy from GitHub applies it, and
+  // anything set only in the dashboard (bindings, variables) is replaced. So the storage and
+  // the timer live here. Secrets (GARMIN_PERSONAL_KEY, GARMIN_OWNER_TOKEN) stay in the
+  // dashboard; deploys never touch them.
+
+  // Where synced Garmin data, activity summaries and health check-ins are kept.
+  "kv_namespaces": [
+    { "binding": "HEALTH_DATA", "id": "f17ce12ac81a48df9d965f0fc61a6480" }
+  ],
+
+  // The Garmin sync, every two hours at 17 past (UTC).
+  "triggers": { "crons": ["17 */2 * * *"] },
+
+  // Keep any plain variables set in the dashboard (APP_URL) instead of clearing them on deploy.
+  "keep_vars": true
 }
