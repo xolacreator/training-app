@@ -1,3 +1,5 @@
+import { decodeFit, compactFit, fitFromZip } from './fit.js';
+
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
 
@@ -98,7 +100,7 @@ function normGarminActivity(a) {
   const type = (a.activityType && (a.activityType.typeKey || a.activityType.key)) || a.activityTypeKey || 'workout';
   const n = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
   return {
-    _id: 'garmin-' + a.activityId, source: 'garmin', name: String(a.activityName || type), sport: String(type),
+    _id: 'garmin-' + a.activityId, garmin_id: String(a.activityId), source: 'garmin', name: String(a.activityName || type), sport: String(type),
     start: new Date(Date.parse(start)).toISOString(),
     start_local: a.startTimeLocal ? String(a.startTimeLocal).replace(' ', 'T') : null,
     distance_km: +(n(a.distance) / 1000).toFixed(3),
@@ -141,6 +143,42 @@ function gWalk(node, out, depth, inheritedDate) {
   for (const k in node) if (node[k] && typeof node[k] === 'object') gWalk(node[k], out, depth + 1, date && String(date).slice(0, 10));
 }
 
+/* One activity in full: Garmin's own summary of it (training effect, load, running dynamics -
+   whatever the watch recorded), and the original file decoded into laps and a 10-second trace.
+   Fetched once and kept; an activity does not change after it is saved. */
+const G_SUMMARY_KEEP = /^(average|avg|max|min|total|training|aerobic|anaerobic|activityTrainingLoad|vO2|moderate|vigorous|elevation|calories|steps|strides|groundContact|verticalOscillation|verticalRatio|stride|normalizedPower|lactate|recovery|difference|beginPotential|endPotential|maxDoubleCadence|waterEstimated|bodyBattery|hrTimeInZone|powerTimeInZone)/i;
+function gSummary(raw) {
+  const src = (raw && (raw.summaryDTO || raw.summary)) || raw || {};
+  const out = {};
+  for (const k in src) {
+    const v = src[k];
+    if ((typeof v === 'number' && isFinite(v)) || (typeof v === 'string' && v.length < 80)) {
+      if (G_SUMMARY_KEEP.test(k)) out[k] = v;
+    }
+  }
+  if (raw && raw.activityTypeDTO && raw.activityTypeDTO.typeKey) out.typeKey = raw.activityTypeDTO.typeKey;
+  return out;
+}
+
+async function garminDetail(env, token, id, bearer) {
+  const key = 'garmin:' + token + ':detail:' + id;
+  const cached = await env.HEALTH_DATA.get(key, 'json');
+  if (cached && cached.fit) return cached;
+  bearer = bearer || await garminBearer(env);
+  const out = { id: String(id), at: new Date().toISOString(), garmin: null, fit: null, errors: [] };
+  try { out.garmin = gSummary(await garminGet(env, bearer, '/activity-service/activity/' + id, null)); }
+  catch (e) { out.errors.push('summary: ' + String(e.message || e)); }
+  try {
+    const r = await fetch(GARMIN_BASE + '/download-service/files/activity/' + id, {
+      headers: { 'Accept': 'application/zip, application/x-zip-compressed, application/octet-stream', 'Authorization': 'Bearer ' + bearer },
+      signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error('file_' + r.status);
+    out.fit = compactFit(decodeFit(await fitFromZip(new Uint8Array(await r.arrayBuffer()))), 10);
+  } catch (e) { out.errors.push('file: ' + String(e.message || e)); }
+  if (out.fit || out.garmin) await env.HEALTH_DATA.put(key, JSON.stringify(out), { expirationTtl: GARMIN_TTL });
+  return out;
+}
+
 async function garminSync(env, token, opts) {
   opts = opts || {};
   if (!env.GARMIN_PERSONAL_KEY || !env.GARMIN_OWNER_TOKEN) return { ok: false, reason: 'not_configured' };
@@ -168,6 +206,14 @@ async function garminSync(env, token, opts) {
       }
       list.sort((x, y) => (x.start < y.start ? 1 : -1));
       await env.HEALTH_DATA.put(key, JSON.stringify(list.slice(0, 300)), { expirationTtl: GARMIN_TTL });
+      /* the newest few in full, so the review is ready before anyone opens it */
+      out.details = 0;
+      for (const a of list.slice(0, 6)) {
+        if (out.details >= 3) break;
+        const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
+        if (!/^\d+$/.test(gid) || await env.HEALTH_DATA.get('garmin:' + token + ':detail:' + gid)) continue;
+        try { await garminDetail(env, token, gid, bearer); out.details++; } catch (e) { out.errors.push('detail ' + gid); }
+      }
     } catch (e) { out.errors.push(String(e.message || e)); }
     // health, last 7 days, into the same daily check-in store the app already reads
     const hFrom = daysAgo(7), days = { __found: {} };
@@ -280,9 +326,9 @@ async function handle(request, env, ctx) {
         { headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
 
-    // ── ACTIVITY BRIDGE ──────────────────────────────────────────────────────
+    // -- ACTIVITY BRIDGE --------------------------------------------------------
     // Store workout summaries pushed from Apple Health (via Health Auto Export or an
-    // iOS Shortcut) so the app can auto-import them — no Strava/Garmin API needed.
+    // iOS Shortcut) so the app can auto-import them - no Strava/Garmin API needed.
     // POST: body = a workout object, an array, or { data:{ workouts:[…] } }.
     if (path === '/activity' && request.method === 'POST') {
       const token = request.headers.get('X-Sync-Token') || '';
@@ -326,7 +372,7 @@ async function handle(request, env, ctx) {
       return new Response(raw, { headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
 
-    // Proxy Claude API calls — avoids CORS/iOS PWA restrictions on direct browser requests
+    // Proxy Claude API calls - avoids CORS/iOS PWA restrictions on direct browser requests
     if (path === '/claude' && request.method === 'POST') {
       try {
         const { key, model, system, messages, max_tokens } = await request.json();
@@ -352,7 +398,7 @@ async function handle(request, env, ctx) {
       }
     }
 
-    // Proxy OpenAI (ChatGPT) calls — same CORS/iOS-PWA reasons as /claude.
+    // Proxy OpenAI (ChatGPT) calls - same CORS/iOS-PWA reasons as /claude.
     // Accepts the same Claude-shaped payload {key, model, system, messages, max_tokens}
     // and translates to OpenAI's chat-completions format. Returns OpenAI's raw JSON;
     // the client normalizes it to the {content:[{text}]} shape.
@@ -410,6 +456,13 @@ async function handle(request, env, ctx) {
           if (row && row.source === 'garmin') rows.push(row);
         }
         return gJson(rows);
+      }
+      const dm = /^\/garmin\/activity\/(\d+)$/.exec(path);
+      if (dm && request.method === 'GET') {
+        if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
+        if (!env.HEALTH_DATA) return gJson({ ok: false, reason: 'no_storage' }, 503);
+        const d = await garminDetail(env, token, dm[1]);
+        return gJson({ ok: !!(d.fit || d.garmin), ...d }, d.fit || d.garmin ? 200 : 502);
       }
       if (path === '/garmin/activities' && request.method === 'GET') {
         if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
