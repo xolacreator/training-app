@@ -109,7 +109,20 @@ function normGarminActivity(a) {
     avg_speed: +n(a.averageSpeed).toFixed(3), elev_gain_m: Math.round(n(a.elevationGain)),
     calories: Math.round(n(a.calories)),
     te_aerobic: +n(a.aerobicTrainingEffect).toFixed(1), te_anaerobic: +n(a.anaerobicTrainingEffect).toFixed(1),
+    ...(a.totalSets != null || a.activeSets != null ? { sets: Math.round(n(a.activeSets != null ? a.activeSets : a.totalSets)) } : {}),
+    ...(a.totalReps != null ? { reps: Math.round(n(a.totalReps)) } : {}),
+    // A fingerprint of everything Garmin says about the activity. An edit in Garmin Connect (a
+    // new name or type, a corrected distance, sets and weights typed in) changes it, and a
+    // changed fingerprint is how the Worker and the app know to read the activity again.
+    rev: gRev(a),
   };
+}
+
+function gRev(obj) {
+  const s = JSON.stringify(obj);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }
 
 // Daily health, merged by date. Garmin's response shapes differ by service, so this walks each
@@ -144,9 +157,25 @@ function gWalk(node, out, depth, inheritedDate) {
 }
 
 /* One activity in full: Garmin's own summary of it (training effect, load, running dynamics -
-   whatever the watch recorded), and the original file decoded into laps and a 10-second trace.
-   Fetched once and kept; an activity does not change after it is saved. */
+   whatever the watch recorded), the original file decoded into laps and a 10-second trace, and,
+   for strength work, the sets as Garmin Connect holds them. Kept until the activity's fingerprint
+   changes: an activity edited in Connect is read again (the sync drops the stale copy). */
 const G_SUMMARY_KEEP = /^(average|avg|max|min|total|training|aerobic|anaerobic|activityTrainingLoad|vO2|moderate|vigorous|elevation|calories|steps|strides|groundContact|verticalOscillation|verticalRatio|stride|normalizedPower|lactate|recovery|difference|beginPotential|endPotential|maxDoubleCadence|waterEstimated|bodyBattery|hrTimeInZone|powerTimeInZone)/i;
+/* Heart-rate zones from Garmin Connect's settings: the maximum and the five zone floors, from the
+   general (or running) set. Read by any of the names Garmin is known to use. */
+function gHrZones(raw) {
+  const sets = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const pick = sets.find((x) => x && /default|running/i.test(String(x.sport || 'DEFAULT'))) || sets[0];
+  if (!pick || typeof pick !== 'object') return null;
+  const max = pick.maxHeartRateUsed || pick.maxHeartRate || pick.maxHr || null;
+  const floors = [1, 2, 3, 4, 5].map((i) => pick['zone' + i + 'Floor']);
+  const ok = floors.every((f) => typeof f === 'number' && f > 0);
+  if (!max && !ok) return null;
+  return { max: typeof max === 'number' ? max : null, floors: ok ? floors : null,
+           method: pick.trainingMethod || null, resting: pick.restingHeartRateUsed || null,
+           source: ok ? 'zone floors' : 'maximum only' };
+}
+
 function gSummary(raw) {
   const src = (raw && (raw.summaryDTO || raw.summary)) || raw || {};
   const out = {};
@@ -160,12 +189,38 @@ function gSummary(raw) {
   return out;
 }
 
-async function garminDetail(env, token, id, bearer) {
+/* Sets as Garmin Connect holds them, which is where edits made in the Connect app live: the
+   original file keeps what the watch counted and is never rewritten. Read defensively, because
+   the shape is not in Garmin's published client. Returned in the decoder's own form,
+   [offset s, duration s, reps, kg, exercise], with `unit` saying how the weight was read. */
+function gExerciseSets(raw, startIso) {
+  const list = raw && (Array.isArray(raw) ? raw : raw.exerciseSets);
+  if (!Array.isArray(list) || !list.length) return null;
+  const active = list.filter((x) => x && String(x.setType || x.set_type || 'ACTIVE').toUpperCase() !== 'REST');
+  const rest = list.filter((x) => x && String(x.setType || x.set_type || '').toUpperCase() === 'REST');
+  const ws = active.map((x) => (typeof x.weight === 'number' ? x.weight : null)).filter((w) => w != null && w > 0);
+  // Grams or kilograms is not documented. No barbell holds 500 kg, so a larger number is grams.
+  const grams = ws.length && Math.max.apply(null, ws) > 500;
+  const t0 = startIso ? Date.parse(startIso) : null;
+  const sets = active.map((x) => {
+    const ex = (Array.isArray(x.exercises) && x.exercises[0]) || {};
+    const cat = String(ex.category || x.category || '').toLowerCase() || null;
+    const st = x.startTime ? Date.parse(String(x.startTime).replace(' ', 'T') + (/[zZ+]/.test(String(x.startTime).slice(10)) ? '' : 'Z')) : null;
+    const reps = x.repetitionCount != null ? x.repetitionCount : x.reps != null ? x.reps : null;
+    const w = typeof x.weight === 'number' && x.weight > 0 ? Math.round((grams ? x.weight / 1000 : x.weight) * 10) / 10 : null;
+    const dur = typeof x.duration === 'number' ? Math.round(x.duration * 10) / 10 : null;
+    return [st != null && t0 != null && isFinite(st) ? Math.round((st - t0) / 1000) : null, dur, reps, w, cat === 'unknown' ? null : cat];
+  });
+  const restS = rest.reduce((a, x) => a + (typeof x.duration === 'number' ? x.duration : 0), 0);
+  return { sets, rest_s: Math.round(restS), unit: ws.length ? (grams ? 'g' : 'kg') : null };
+}
+
+async function garminDetail(env, token, id, bearer, rev) {
   const key = 'garmin:' + token + ':detail:' + id;
   const cached = await env.HEALTH_DATA.get(key, 'json');
-  if (cached && cached.fit) return cached;
+  if (cached && cached.fit && (!rev || !cached.rev || cached.rev === rev)) return cached;
   bearer = bearer || await garminBearer(env);
-  const out = { id: String(id), at: new Date().toISOString(), garmin: null, fit: null, errors: [] };
+  const out = { id: String(id), rev: rev || null, at: new Date().toISOString(), garmin: null, fit: null, connectSets: null, errors: [] };
   try { out.garmin = gSummary(await garminGet(env, bearer, '/activity-service/activity/' + id, null)); }
   catch (e) { out.errors.push('summary: ' + String(e.message || e)); }
   try {
@@ -175,6 +230,11 @@ async function garminDetail(env, token, id, bearer) {
     if (!r.ok) throw new Error('file_' + r.status);
     out.fit = compactFit(decodeFit(await fitFromZip(new Uint8Array(await r.arrayBuffer()))), 10);
   } catch (e) { out.errors.push('file: ' + String(e.message || e)); }
+  const kind = String((out.garmin && out.garmin.typeKey) || (out.fit && out.fit.sport) || '');
+  if (/strength|training|fitness|hiit|cardio/.test(kind) || (out.fit && out.fit.sets && out.fit.sets.length)) {
+    try { out.connectSets = gExerciseSets(await garminGet(env, bearer, '/activity-service/activity/' + id + '/exerciseSets', null), out.fit && out.fit.start); }
+    catch (e) { out.errors.push('sets: ' + String(e.message || e)); }
+  }
   if (out.fit || out.garmin) await env.HEALTH_DATA.put(key, JSON.stringify(out), { expirationTtl: GARMIN_TTL });
   return out;
 }
@@ -191,18 +251,41 @@ async function garminSync(env, token, opts) {
   let bearer;
   try { bearer = await garminBearer(env); } catch (e) { out.ok = false; out.errors.push(String(e.message || e)); }
   if (bearer) {
-    const from = daysAgo(state.at ? 7 : 30), to = daysAgo(0);
+    /* Three weeks back on every sync: an activity edited in Garmin Connect days later is read again. */
+    const from = daysAgo(state.at ? 21 : 30), to = daysAgo(0);
     // activities
     try {
       const raw = await garminGet(env, bearer, '/activitylist-service/activities/search/activities',
         { start: 0, limit: 100, startDate: from, endDate: to });
       const key = 'garmin:' + token + ':activities';
       let list = (await env.HEALTH_DATA.get(key, 'json')) || [];
-      const seen = new Set(list.map((a) => a._id));
+      const at = new Map(list.map((a, i) => [a._id, i]));
+      const got = new Set();
+      out.updated = 0; out.removed = 0;
       for (const a of (Array.isArray(raw) ? raw : [])) {
         const n = normGarminActivity(a);
-        if (!n || seen.has(n._id)) continue;
-        list.unshift(n); seen.add(n._id); out.activities++;
+        if (!n) continue;
+        got.add(n._id);
+        if (!at.has(n._id)) { list.unshift(n); at.set(n._id, -1); out.activities++; continue; }
+        const i = list.findIndex((x) => x._id === n._id), old = list[i];
+        if (old.rev === n.rev) continue;
+        /* edited in Garmin Connect: the new summary replaces the old, and the stored file and sets
+           are dropped so the next read is the edited activity */
+        list[i] = n;
+        await env.HEALTH_DATA.delete('garmin:' + token + ':detail:' + n.garmin_id);
+        const { rev: _r, sets: _s, reps: _p, ...now } = n, { rev: _o, sets: _t, reps: _q, ...was } = old;
+        if (old.rev || JSON.stringify(now) !== JSON.stringify(was)) out.updated++;
+      }
+      /* Deleted in Garmin: inside the window just read, absent from a list that was not cut
+         short. The window's first day is left alone, since its edge depends on time zones. */
+      if (Array.isArray(raw) && raw.length < 100) {
+        const keep = list.filter((x) => {
+          const d = String(x.start_local || x.start || '').slice(0, 10);
+          return !(d > from && d <= to && !got.has(x._id));
+        });
+        for (const x of list) if (!keep.includes(x)) await env.HEALTH_DATA.delete('garmin:' + token + ':detail:' + x.garmin_id);
+        out.removed = list.length - keep.length;
+        list = keep;
       }
       list.sort((x, y) => (x.start < y.start ? 1 : -1));
       await env.HEALTH_DATA.put(key, JSON.stringify(list.slice(0, 300)), { expirationTtl: GARMIN_TTL });
@@ -212,7 +295,7 @@ async function garminSync(env, token, opts) {
         if (out.details >= 3) break;
         const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
         if (!/^\d+$/.test(gid) || await env.HEALTH_DATA.get('garmin:' + token + ':detail:' + gid)) continue;
-        try { await garminDetail(env, token, gid, bearer); out.details++; } catch (e) { out.errors.push('detail ' + gid); }
+        try { await garminDetail(env, token, gid, bearer, a.rev); out.details++; } catch (e) { out.errors.push('detail ' + gid); }
       }
     } catch (e) { out.errors.push(String(e.message || e)); }
     // health, last 7 days, into the same daily check-in store the app already reads
@@ -228,6 +311,11 @@ async function garminSync(env, token, opts) {
       catch (e) { out.errors.push(String(e.message || e)); }
     }
     out.found = days.__found; delete days.__found;
+    // the athlete's own heart-rate zones, as set in Garmin Connect, for the session review
+    try {
+      const z = gHrZones(await garminGet(env, bearer, '/biometric-service/heartRateZones/v2', null));
+      if (z) { await env.HEALTH_DATA.put('garmin:' + token + ':hrzones', JSON.stringify(z), { expirationTtl: GARMIN_TTL }); out.found.hrZones = z.source; }
+    } catch (e) { out.optional = ['heart-rate zones: ' + String(e.message || e)]; }   // optional: the review falls back to the observed maximum
     let latest = null;
     for (const d of Object.keys(days).sort()) {
       const row = days[d];
@@ -461,8 +549,13 @@ async function handle(request, env, ctx) {
       if (dm && request.method === 'GET') {
         if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
         if (!env.HEALTH_DATA) return gJson({ ok: false, reason: 'no_storage' }, 503);
-        const d = await garminDetail(env, token, dm[1]);
+        const d = await garminDetail(env, token, dm[1], null, url.searchParams.get('rev') || null);
         return gJson({ ok: !!(d.fit || d.garmin), ...d }, d.fit || d.garmin ? 200 : 502);
+      }
+      if (path === '/garmin/profile' && request.method === 'GET') {
+        if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
+        if (!env.HEALTH_DATA) return gJson({ ok: false, reason: 'no_storage' }, 503);
+        return gJson({ ok: true, hrZones: await env.HEALTH_DATA.get('garmin:' + token + ':hrzones', 'json') });
       }
       if (path === '/garmin/activities' && request.method === 'GET') {
         if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return gJson({ ok: false, reason: 'not_owner' }, 403);
