@@ -114,12 +114,27 @@ function normGarminActivity(a) {
     // Multisport: a parent lists its legs' ids, a leg names its parent. Kept so a leg is never
     // counted twice and a parent's running legs count as running.
     ...(gChildIds(a).length ? { child_ids: gChildIds(a) } : {}),
+    // Strength: Garmin's per-exercise summary on the list entry. It carries edits made in Connect
+    // (exercise, reps, weight), and it is there even when the editable set list is not served.
+    ...(gExSummary(a) ? { ex_summary: gExSummary(a) } : {}),
     ...(gParentId(a) ? { parent_id: gParentId(a) } : {}),
     // A fingerprint of everything Garmin says about the activity. An edit in Garmin Connect (a
     // new name or type, a corrected distance, sets and weights typed in) changes it, and a
     // changed fingerprint is how the Worker and the app know to read the activity again.
     rev: gRev(a),
   };
+}
+
+/* summarizedExerciseSets as [exercise, sets, reps, kg moved]. Garmin keeps volume in grams (a
+   single set of 5 x 100 kg reads 500000); a number that size is read as grams. */
+function gExSummary(a) {
+  const xs = a && (a.summarizedExerciseSets || (a.summaryDTO && a.summaryDTO.summarizedExerciseSets));
+  if (!Array.isArray(xs) || !xs.length) return null;
+  return xs.slice(0, 20).map((x) => {
+    const vol = typeof x.volume === 'number' ? x.volume : 0;
+    return [String(x.category || x.subCategory || 'other').toLowerCase(), Math.round(x.sets || 0), Math.round(x.reps || 0),
+            Math.round(vol > 50000 ? vol / 1000 : vol)];
+  });
 }
 
 function gChildIds(a) {
@@ -201,6 +216,8 @@ function gSummary(raw) {
     }
   }
   if (raw && raw.activityTypeDTO && raw.activityTypeDTO.typeKey) out.typeKey = raw.activityTypeDTO.typeKey;
+  const ex = gExSummary(raw || {});
+  if (ex) out.exSummary = ex;
   return out;
 }
 
@@ -307,6 +324,7 @@ async function garminSync(env, token, opts) {
         if (!at.has(n._id)) { list.unshift(n); at.set(n._id, -1); out.activities++; continue; }
         const i = list.findIndex((x) => x._id === n._id), old = list[i];
         if (old.rev === n.rev) { if (old.drev) n.drev = old.drev; list[i] = { ...old, ...n }; continue; }
+        /* the legs are re-read on the next pass (they may be what was edited) */
         /* edited in Garmin Connect: the new summary replaces the old, and the stored file and sets
            are dropped so the next read is the edited activity */
         list[i] = n;
@@ -341,7 +359,33 @@ async function garminSync(env, token, opts) {
           const d = await garminDetail(env, token, gid, bearer, a.rev, true);
           out.refreshed++;
           if (d.drev && d.drev !== a.drev) { if (a.drev) out.updated++; a.drev = d.drev; }
+          if (Array.isArray(d.legs)) a.legs = d.legs.map((l) => ({ id: l.id, sport: l.sport, dist_m: l.dist_m, time_s: l.time_s, hr: l.hr }));
+          if (d.garmin && d.garmin.exSummary) a.ex_summary = d.garmin.exSummary;
         } catch (e) { out.errors.push('refresh ' + gid); }
+      }
+      /* Multisport: the legs onto the list entry itself, so a session's running legs count from the
+         first sync, with or without its full detail. At most 6 sessions a sync. */
+      out.legs = 0;
+      const legSince = daysAgo(21);
+      for (const a of list) {
+        if (out.legs >= 6) break;
+        const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
+        const multi = /multi/.test(String(a.sport || '')) || (a.child_ids && a.child_ids.length);
+        if (!multi || a.legs || a.parent_id || !/^\d+$/.test(gid) || String(a.start_local || a.start || '').slice(0, 10) < legSince) continue;
+        try {
+          let kids = a.child_ids || [];
+          if (!kids.length) kids = gChildIds(await garminGet(env, bearer, '/activity-service/activity/' + gid, null) || {});
+          const legs = [];
+          for (const cid of kids.slice(0, 8)) {
+            const c = await garminGet(env, bearer, '/activity-service/activity/' + cid, null), sm = (c && (c.summaryDTO || c.summary)) || c || {};
+            const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
+            legs.push({ id: String(cid), sport: (c && c.activityTypeDTO && c.activityTypeDTO.typeKey) || 'other',
+                        dist_m: Math.round(num(sm.distance)), time_s: Math.round(num(sm.duration || sm.elapsedDuration)), hr: Math.round(num(sm.averageHR)) });
+          }
+          a.child_ids = kids.map(String);
+          a.legs = legs;
+          out.legs++;
+        } catch (e) { out.errors.push('legs ' + gid + ': ' + String(e.message || e)); }
       }
       /* the newest few in full, so the review is ready before anyone opens it */
       out.details = 0;
