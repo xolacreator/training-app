@@ -137,6 +137,11 @@ function gExSummary(a) {
   });
 }
 
+/* A HYROX simulation is 8 runs and 8 stations plus Garmin's transitions: well over 16 legs. The
+   first version read 8 and dropped every run after them; reads made then carry no `legs_v` and are
+   read again. */
+const MAX_LEGS = 40, LEGS_V = 2, LEG_READS_PER_SYNC = 120;
+
 function gChildIds(a) {
   const m = (a && a.metadataDTO) || {};
   const ids = (a && (a.childIds || a.childActivityIds)) || m.childIds || [];
@@ -264,7 +269,7 @@ async function garminDetail(env, token, id, bearer, rev, fresh) {
   const kids = gChildIds(raw || {});
   if (kids.length) {
     out.legs = [];
-    for (const cid of kids.slice(0, 8)) {
+    for (const cid of kids.slice(0, MAX_LEGS)) {
       try {
         const c = await garminGet(env, bearer, '/activity-service/activity/' + cid, null), sm = (c && (c.summaryDTO || c.summary)) || c || {};
         const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
@@ -359,7 +364,7 @@ async function garminSync(env, token, opts) {
           const d = await garminDetail(env, token, gid, bearer, a.rev, true);
           out.refreshed++;
           if (d.drev && d.drev !== a.drev) { if (a.drev) out.updated++; a.drev = d.drev; }
-          if (Array.isArray(d.legs)) a.legs = d.legs.map((l) => ({ id: l.id, sport: l.sport, dist_m: l.dist_m, time_s: l.time_s, hr: l.hr }));
+          if (Array.isArray(d.legs)){ a.legs = d.legs.map((l) => ({ id: l.id, sport: l.sport, dist_m: l.dist_m, time_s: l.time_s, hr: l.hr })); a.legs_v = LEGS_V; }
           if (d.garmin && d.garmin.exSummary) a.ex_summary = d.garmin.exSummary;
         } catch (e) { out.errors.push('refresh ' + gid); }
       }
@@ -367,23 +372,26 @@ async function garminSync(env, token, opts) {
          first sync, with or without its full detail. At most 6 sessions a sync. */
       out.legs = 0;
       const legSince = daysAgo(21);
+      let legReads = 0;
       for (const a of list) {
-        if (out.legs >= 6) break;
+        if (out.legs >= 6 || legReads >= LEG_READS_PER_SYNC) break;
         const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
         const multi = /multi/.test(String(a.sport || '')) || (a.child_ids && a.child_ids.length);
-        if (!multi || a.legs || a.parent_id || !/^\d+$/.test(gid) || String(a.start_local || a.start || '').slice(0, 10) < legSince) continue;
+        const complete = a.legs && a.legs_v === LEGS_V && !(a.child_ids && a.legs.length < a.child_ids.length);
+        if (!multi || complete || a.parent_id || !/^\d+$/.test(gid) || String(a.start_local || a.start || '').slice(0, 10) < legSince) continue;
         try {
           let kids = a.child_ids || [];
           if (!kids.length) kids = gChildIds(await garminGet(env, bearer, '/activity-service/activity/' + gid, null) || {});
           const legs = [];
-          for (const cid of kids.slice(0, 8)) {
+          for (const cid of kids.slice(0, MAX_LEGS)) {
+            legReads++;
             const c = await garminGet(env, bearer, '/activity-service/activity/' + cid, null), sm = (c && (c.summaryDTO || c.summary)) || c || {};
             const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
             legs.push({ id: String(cid), sport: (c && c.activityTypeDTO && c.activityTypeDTO.typeKey) || 'other',
                         dist_m: Math.round(num(sm.distance)), time_s: Math.round(num(sm.duration || sm.elapsedDuration)), hr: Math.round(num(sm.averageHR)) });
           }
           a.child_ids = kids.map(String);
-          a.legs = legs;
+          a.legs = legs; a.legs_v = LEGS_V;
           out.legs++;
         } catch (e) { out.errors.push('legs ' + gid + ': ' + String(e.message || e)); }
       }
