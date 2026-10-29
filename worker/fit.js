@@ -1,7 +1,8 @@
 // -- FIT DECODER ------------------------------------------------------------------------------
 // Garmin's original activity file is a FIT file (the published Garmin FIT protocol), delivered by
 // the Personal API inside a ZIP. This reads the messages the session review needs - the session
-// summary, the laps, the per-second records and the strength sets - and nothing else. Field numbers and
+// summary (one per leg in a multisport file), the laps, the per-second records and the strength
+// sets - and nothing else. Field numbers and
 // scales follow the FIT profile; anything unknown is skipped by its declared size, so a newer
 // watch with more fields still decodes.
 
@@ -50,7 +51,7 @@ const EXERCISE = ['bench_press', 'calf_raise', 'cardio', 'carry', 'chop', 'core'
   'sit_up', 'squat', 'total_body', 'triceps_extension', 'warm_up', 'run'];
 
 const INTENSITY = ['active', 'rest', 'warmup', 'cooldown', 'recovery', 'interval', 'other'];
-const SPORT = { 0: 'generic', 1: 'running', 2: 'cycling', 4: 'fitness_equipment', 5: 'swimming', 10: 'training', 11: 'walking', 15: 'rowing', 17: 'hiking' };
+const SPORT = { 0: 'generic', 1: 'running', 2: 'cycling', 3: 'transition', 4: 'fitness_equipment', 5: 'swimming', 10: 'training', 11: 'walking', 15: 'rowing', 17: 'hiking' };
 
 function readNum(view, pos, type, little) {
   switch (type) {
@@ -74,7 +75,7 @@ export function decodeFit(buf) {
   const dataSize = view.getUint32(4, true);
   const end = Math.min(bytes.length, headerSize + dataSize);
   const defs = {};
-  const out = { session: null, laps: [], records: [], sets: [] };
+  const out = { session: null, sessions: [], laps: [], records: [], sets: [] };
   let pos = headerSize, lastTs = 0;
 
   while (pos < end) {
@@ -127,7 +128,7 @@ export function decodeFit(buf) {
     pos += def.devSize;
     if (msg) {
       if (compressedTs != null && msg.timestamp == null) msg.timestamp = compressedTs;
-      if (def.global === 18) out.session = msg;
+      if (def.global === 18) { out.session = msg; out.sessions.push(msg); }
       else if (def.global === 19) out.laps.push(msg);
       else if (def.global === 20) out.records.push(msg);
       else if (def.global === 225) out.sets.push(msg);
@@ -142,7 +143,11 @@ export function fitTime(t) { return t == null ? null : new Date((t + FIT_EPOCH) 
 // every `step` seconds - enough for pace and heart-rate curves, small enough for a phone.
 export function compactFit(fit, step) {
   step = step || 10;
-  const s = fit.session || {};
+  /* A multisport file has one session per leg, transitions included: the summary is all of them,
+     and each leg is kept, so its sport, distance and time need no read of its own. */
+  const ss = fit.sessions && fit.sessions.length ? fit.sessions : (fit.session ? [fit.session] : []);
+  const multi = ss.length > 1;
+  const s = multi ? gather(ss) : (ss[0] || {});
   const spd = (o) => (o.enh_avg_speed != null ? o.enh_avg_speed : o.avg_speed);
   const r1 = (v, d) => (v == null ? null : Math.round(v * (d || 1)) / (d || 1));
   const laps = fit.laps.map((l) => ({
@@ -168,6 +173,11 @@ export function compactFit(fit, step) {
     }
   });
   const allHr = recs.map((r) => r.hr).filter((h) => h > 0);
+  const legHr = (x) => {
+    if (x.start_time == null) return null;
+    const hrs = span(x.start_time, x.start_time + (x.elapsed_s || x.timer_s || 0) + 1).map((r) => r.hr).filter((h) => h > 0);
+    return hrs.length ? Math.round(avg(hrs)) : null;
+  };
   const t0 = fit.records.length ? fit.records[0].timestamp : null;
   const series = [];
   let next = 0;
@@ -184,7 +194,7 @@ export function compactFit(fit, step) {
   }
   const sets = fit.sets || [];
   return {
-    sport: SPORT[s.sport] || (s.sport != null ? 'sport_' + s.sport : null),
+    sport: multi ? 'multisport' : SPORT[s.sport] || (s.sport != null ? 'sport_' + s.sport : null),
     start: fitTime(s.start_time), time_s: r1(s.timer_s != null ? s.timer_s : s.elapsed_s, 10),
     elapsed_s: r1(s.elapsed_s, 10), dist_m: r1(s.distance_m), speed: r1(spd(s), 1000),
     hr: s.avg_hr != null ? r1(s.avg_hr) : (allHr.length ? Math.round(avg(allHr)) : null),
@@ -199,7 +209,24 @@ export function compactFit(fit, step) {
       x.reps != null ? x.reps : null, x.weight_kg != null ? r1(x.weight_kg, 10) : null,
       x.category != null ? (EXERCISE[x.category] || 'other') : null]),
     rest_s: r1(sets.filter((x) => x.set_type === 0).reduce((a, x) => a + (x.duration_s || 0), 0)),
+    ...(multi ? { legs: ss.map((x) => ({
+      sport: SPORT[x.sport] || (x.sport != null ? 'sport_' + x.sport : 'other'), sub_sport: x.sub_sport != null ? x.sub_sport : null,
+      start: fitTime(x.start_time), time_s: r1(x.timer_s != null ? x.timer_s : x.elapsed_s, 10), dist_m: r1(x.distance_m),
+      hr: x.avg_hr != null ? r1(x.avg_hr) : legHr(x) })) } : {}),
   };
+}
+
+/* One summary for a multisport file: totals across the legs, heart rate weighted by time. */
+function gather(ss) {
+  const t = (x) => (x.timer_s != null ? x.timer_s : x.elapsed_s) || 0;
+  const sum = (k) => { const v = ss.filter((x) => x[k] != null); return v.length ? v.reduce((a, x) => a + x[k], 0) : null; };
+  const max = (k) => { const v = ss.map((x) => x[k]).filter((v) => v != null); return v.length ? Math.max.apply(null, v) : null; };
+  const hr = ss.filter((x) => x.avg_hr != null && t(x) > 0), ht = hr.reduce((a, x) => a + t(x), 0);
+  const tt = ss.reduce((a, x) => a + t(x), 0), dist = sum('distance_m');
+  return { start_time: ss[0].start_time, timer_s: tt, elapsed_s: sum('elapsed_s'), distance_m: dist,
+           avg_speed: dist != null && tt > 0 ? dist / tt : null, max_speed: max('max_speed'),
+           avg_hr: ht ? hr.reduce((a, x) => a + x.avg_hr * t(x), 0) / ht : null, max_hr: max('max_hr'),
+           ascent_m: sum('ascent_m'), calories: sum('calories'), te_aerobic: max('te_aerobic'), te_anaerobic: max('te_anaerobic') };
 }
 
 // The Personal API delivers the original file as a ZIP. Read its central directory and inflate

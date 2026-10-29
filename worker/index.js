@@ -65,8 +65,9 @@ function gJson(obj, status) {
 function isoDay(d) { return d.toISOString().slice(0, 10); }
 function daysAgo(n) { const d = new Date(); d.setUTCDate(d.getUTCDate() - n); return isoDay(d); }
 
-/* Cloudflare's free plan lets one Worker run make 50 outbound requests, and a multisport session is
-   one Garmin read per leg. Every Garmin call draws from a budget that stops short of the limit
+/* Cloudflare's free plan lets one Worker run make 50 outbound requests, and reading a multisport
+   session leg by leg can take more than that alone (gLegSteps keeps it to the legs that need it).
+   Every Garmin call draws from a budget that stops short of the limit
    (GARMIN_FETCH_BUDGET raises it on a paid plan); work that does not fit is left pending for the
    next call (/garmin/continue) instead of failing the run. */
 class BudgetOut extends Error { constructor() { super('budget'); this.name = 'BudgetOut'; } }
@@ -152,6 +153,31 @@ function gExSummary(a) {
    first version read 8 and dropped every run after them; reads made then carry no `legs_v` and are
    read again. */
 const MAX_LEGS = 40, LEGS_V = 2;
+
+/* A multisport session's legs, cheaply. The original file holds a summary for every leg (sport,
+   distance, time, heart rate), so one download replaces a Garmin read per leg. The file is never
+   rewritten, so the legs an athlete edits in Connect are read on their own: stations (erg meters)
+   and a run the file says has no distance. Transitions never are; `all` (an on-demand read) also
+   reads the runs. The file's legs pair with Garmin's leg ids in order, with or without its
+   transitions; when neither count matches, or a read showed the pairing was wrong, every leg is
+   read as before. */
+function gLegSteps(kids, fileLegs, all, bad) {
+  kids = kids.slice(0, MAX_LEGS).map(String);
+  let fl = !bad && fileLegs && fileLegs.length > 1 ? fileLegs : null;
+  if (fl && fl.length !== kids.length) fl = fl.filter((l) => l.sport !== 'transition');
+  if (!fl || fl.length !== kids.length) return { file: false, steps: kids.map((id) => ({ id, read: true })) };
+  return { file: true, steps: kids.map((id, i) => {
+    const f = fl[i], run = /run/.test(String(f.sport));
+    return { id, f, read: f.sport !== 'transition' && (all || !run || !(f.dist_m > 0)) };
+  }) };
+}
+const gFileLeg = (id, f) => ({ id, sport: String(f.sport || 'other'), dist_m: Math.round(f.dist_m || 0), time_s: Math.round(f.time_s || 0),
+                               hr: Math.round(f.hr || 0), src: 'file' });
+/* the file and Garmin disagree on what a leg was: the order did not hold, so stop trusting it */
+const gLegMismatch = (f, l) => !!(f && l && /run/.test(String(f.sport)) !== /run/.test(String(l.sport)) && l.sport !== 'transition');
+/* a leg as the activity list carries it, edits included */
+const gListLeg = (n) => ({ id: n.garmin_id, sport: n.sport, dist_m: Math.round((n.distance_km || 0) * 1000), time_s: n.duration_s || 0,
+                           hr: n.avg_hr || 0, src: 'list', start: n.start });
 
 function gChildIds(a) {
   const m = (a && a.metadataDTO) || {};
@@ -303,15 +329,26 @@ async function garminDetail(env, token, id, bearer, rev, fresh, B, withLegs) {
     try { out.connectSets = gExerciseSets(await garminGet(env, bearer, '/activity-service/activity/' + id + '/exerciseSets', null, B), out.fit && out.fit.start); }
     catch (e) { if (isBudget(e)) throw e; out.errors.push('sets: ' + String(e.message || e)); }
   }
-  /* multisport legs last, with whatever budget is left: an edit to a leg (an erg distance) shows */
+  /* multisport legs last, with whatever budget is left: an edit to a leg (an erg distance, a
+     treadmill run's corrected distance) shows. The file gives every leg; only the ones an athlete
+     can have edited are read, and a budget that runs out leaves the rest as they were. */
   const kids = gChildIds(raw || {});
+  if (kids.length) out.childIds = kids;
+  else if (cached && cached.childIds) out.childIds = cached.childIds;
   if (withLegs && kids.length) {
-    const legs = [];
-    try { for (const cid of kids.slice(0, MAX_LEGS)) legs.push(await gLeg(env, bearer, cid, B)); }
-    catch (e) { if (!isBudget(e)) out.errors.push('legs: ' + String(e.message || e)); }
-    out.legsRead = legs.length; out.legsTotal = Math.min(kids.length, MAX_LEGS);
-    if (legs.length === out.legsTotal) out.legs = legs;
-    else if (legs.length) { const byId = new Map((out.legs || []).map((l) => [l.id, l])); legs.forEach((l) => byId.set(l.id, l)); out.legs = kids.map(String).map((k) => byId.get(k)).filter(Boolean); }
+    const P = gLegSteps(kids, out.fit && out.fit.legs, true, false), got = new Map();
+    const before = new Map((out.legs || []).map((l) => [String(l.id), l]));
+    try {
+      for (const p of P.steps) {
+        if (!p.read) continue;
+        try { got.set(p.id, { ...(await gLeg(env, bearer, p.id, B)), src: 'connect' }); }
+        catch (e) { if (isBudget(e)) throw e; out.errors.push('leg ' + p.id + ': ' + String(e.message || e)); }
+      }
+    } catch (e) { if (!isBudget(e)) throw e; }
+    out.legsRead = got.size; out.legsTotal = P.steps.filter((p) => p.read).length; out.legsFrom = P.file ? 'file' : 'connect';
+    out.legs = P.steps.map((p) => got.get(p.id) || before.get(p.id) || (p.f ? gFileLeg(p.id, p.f) : null)).filter(Boolean);
+    out.legsComplete = got.size === out.legsTotal;
+    out.legsAt = new Date().toISOString();
   }
   out.drev = gRev({ g: out.garmin, s: out.connectSets, l: out.legs });
   out.changed = !!(cached && cached.drev && cached.drev !== out.drev);
@@ -325,29 +362,54 @@ async function garminDetail(env, token, id, bearer, rev, fresh, B, withLegs) {
    2. re-checks of recent activities for edits Garmin Connect keeps beside the list,
    3. the newest few activities in full.
    Stops when the budget does and says `pending`; /garmin/continue picks it up. */
-async function garminWork(env, token, bearer, list, B, out, plan) {
+async function garminWork(env, token, bearer, list, B, out, plan, listKids) {
   out.pending = false;
-  out.legs = out.legs || 0; out.refreshed = out.refreshed || 0; out.details = out.details || 0; out.updated = out.updated || 0;
+  out.legs = out.legs || 0; out.legReads = out.legReads || 0; out.refreshed = out.refreshed || 0; out.details = out.details || 0; out.updated = out.updated || 0;
   try {
     const legSince = daysAgo(21);
-    for (const a of list) {
+    const parents = list.filter((a) => {
       const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
       const multi = /multi/.test(String(a.sport || '')) || (a.child_ids && a.child_ids.length);
-      const complete = a.legs && a.legs_v === LEGS_V && !(a.child_ids && a.legs.length < a.child_ids.length);
-      if (!multi || complete || a.parent_id || !/^\d+$/.test(gid) || String(a.start_local || a.start || '').slice(0, 10) < legSince) continue;
+      return multi && !a.parent_id && /^\d+$/.test(gid) && String(a.start_local || a.start || '').slice(0, 10) >= legSince;
+    });
+    /* the sessions whose legs came free with the list go first, so a spent budget never strands them */
+    const free = (a) => !!(listKids && listKids.get(a.garmin_id || String(a._id || '').replace('garmin-', '')));
+    for (const a of parents.filter(free).concat(parents.filter((a) => !free(a)))) {
+      const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
+      /* 1. the legs came with the activity list: Garmin's own figures, edits included, no reads */
+      const lk = listKids && listKids.get(gid);
+      if (lk && lk.size && (!a.child_ids || !a.child_ids.length || a.child_ids.every((c) => lk.has(String(c))))) {
+        const ids = a.child_ids && a.child_ids.length ? a.child_ids.map(String) : [...lk.keys()].sort((x, y) => (lk.get(x).start < lk.get(y).start ? -1 : 1));
+        const legs = ids.slice(0, MAX_LEGS).map((c) => { const { start: _s, ...l } = lk.get(c); return l; });
+        if (JSON.stringify(legs) !== JSON.stringify(a.legs)) { a.legs = legs; a.legs_at = new Date().toISOString(); }
+        a.legs_v = LEGS_V; a.legs_src = 'list';
+        continue;
+      }
+      const complete = a.legs && a.legs_v === LEGS_V && !(a.child_ids && a.legs.length < Math.min(a.child_ids.length, MAX_LEGS) && a.legs_src !== 'file');
+      if (complete) continue;
       if (a.legs_v !== LEGS_V && a.legs_v !== 'partial') a.legs = [];
-      if (!a.child_ids || !a.child_ids.length) a.child_ids = gChildIds(await garminGet(env, bearer, '/activity-service/activity/' + gid, null, B) || {}).map(String);
-      const have = new Map((a.legs || []).map((l) => [String(l.id), l]));
+      /* 2. the original file: every leg in one download (and the session's full read, for its review) */
+      let det = await env.HEALTH_DATA.get('garmin:' + token + ':detail:' + gid, 'json');
+      if (!det || !det.fit) { det = await garminDetail(env, token, gid, bearer, a.rev, false, B, false); out.details++; }
+      if ((!a.child_ids || !a.child_ids.length) && det && det.childIds) a.child_ids = det.childIds.map(String);
+      if (!a.child_ids || !a.child_ids.length) { a.legs_v = 'none'; continue; }
+      const P = gLegSteps(a.child_ids, det && det.fit && det.fit.legs, false, a.legs_pairing === 'bad');
+      /* 3. only the legs an athlete can have edited, one Garmin read each, saved as they come */
+      const have = new Map((a.legs || []).filter((l) => l.src === 'connect').map((l) => [String(l.id), l]));
       try {
-        for (const cid of a.child_ids.slice(0, MAX_LEGS)) {
-          if (have.has(cid)) continue;
+        for (const p of P.steps) {
+          if (!p.read || have.has(p.id)) continue;
           /* one leg Garmin will not serve is reported and retried next time, not fatal to the rest */
-          try { have.set(cid, await gLeg(env, bearer, cid, B)); }
-          catch (e) { if (isBudget(e)) throw e; out.errors.push('leg ' + cid + ': ' + String(e.message || e)); }
+          try {
+            const l = { ...(await gLeg(env, bearer, p.id, B)), src: 'connect' };
+            have.set(p.id, l); out.legReads++;
+            if (gLegMismatch(p.f, l)) a.legs_pairing = 'bad';
+          } catch (e) { if (isBudget(e)) throw e; out.errors.push('leg ' + p.id + ': ' + String(e.message || e)); }
         }
       } finally {
-        a.legs = a.child_ids.slice(0, MAX_LEGS).map((c) => have.get(c)).filter(Boolean);
-        a.legs_v = a.legs.length >= Math.min(a.child_ids.length, MAX_LEGS) ? LEGS_V : 'partial';
+        a.legs = P.steps.map((p) => have.get(p.id) || (p.f ? gFileLeg(p.id, p.f) : null)).filter(Boolean);
+        a.legs_v = a.legs_pairing === 'bad' && P.file ? 'partial' : P.steps.every((p) => !p.read || have.has(p.id)) ? LEGS_V : 'partial';
+        a.legs_src = P.file ? 'file' : 'connect'; a.legs_at = new Date().toISOString();
       }
       out.legs++;
     }
@@ -356,7 +418,7 @@ async function garminWork(env, token, bearer, list, B, out, plan) {
     for (const a of list) {
       if (n >= 12) break;
       const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
-      if (!/^\d+$/.test(gid) || a.checked === plan.cycle || String(a.start_local || a.start || '').slice(0, 10) < since) continue;
+      if (!/^\d+$/.test(gid) || a.parent_id || a.checked === plan.cycle || String(a.start_local || a.start || '').slice(0, 10) < since) continue;
       if (!(await env.HEALTH_DATA.get('garmin:' + token + ':detail:' + gid))) continue;
       const d = await garminDetail(env, token, gid, bearer, a.rev, true, B, false);
       a.checked = plan.cycle; n++; out.refreshed++;
@@ -367,7 +429,7 @@ async function garminWork(env, token, bearer, list, B, out, plan) {
     for (const a of list.slice(0, 6)) {
       if (k >= 3) break;
       const gid = a.garmin_id || String(a._id || '').replace('garmin-', '');
-      if (!/^\d+$/.test(gid) || await env.HEALTH_DATA.get('garmin:' + token + ':detail:' + gid)) continue;
+      if (!/^\d+$/.test(gid) || a.parent_id || await env.HEALTH_DATA.get('garmin:' + token + ':detail:' + gid)) continue;
       const d = await garminDetail(env, token, gid, bearer, a.rev, false, B, false);
       if (d.drev) a.drev = d.drev; k++; out.details++;
     }
@@ -397,17 +459,43 @@ async function garminSync(env, token, opts) {
     const from = daysAgo(state.at ? 21 : 30), to = daysAgo(0);
     const key = 'garmin:' + token + ':activities';
     let list = (await env.HEALTH_DATA.get(key, 'json')) || [];
+    const listKids = new Map();
     // activities
     try {
-      const raw = await garminGet(env, bearer, '/activitylist-service/activities/search/activities',
-        { start: 0, limit: 100, startDate: from, endDate: to }, B);
+      /* Asked with each multisport session's legs, which then cost no reads of their own. The
+         Personal API does not document this; if it refuses, the list is read without them from
+         then on, and the legs come from each session's file instead. */
+      out.childList = state.childList === 'refused' ? 'refused' : null;
+      const page = async (start) => {
+        const q = { start, limit: 100, startDate: from, endDate: to };
+        if (out.childList !== 'refused') q.excludeChildren = 'false';
+        try { return await garminGet(env, bearer, '/activitylist-service/activities/search/activities', q, B); }
+        catch (e) {
+          if (isBudget(e) || out.childList === 'refused' || !/_400$/.test(String(e.message))) throw e;
+          out.childList = 'refused'; delete q.excludeChildren;
+          return await garminGet(env, bearer, '/activitylist-service/activities/search/activities', q, B);
+        }
+      };
+      let raw = [], cut = false;
+      for (let pg = 0; pg < 4; pg++) {
+        const r = await page(pg * 100), rows = Array.isArray(r) ? r : [];
+        raw = raw.concat(rows);
+        cut = rows.length >= 100;
+        if (!cut) break;
+      }
       const at = new Map(list.map((a, i) => [a._id, i]));
       const got = new Set();
       out.updated = 0; out.removed = 0;
-      for (const a of (Array.isArray(raw) ? raw : [])) {
+      for (const a of raw) {
         const n = normGarminActivity(a);
         if (!n) continue;
         got.add(n._id);
+        /* a leg of a multisport session: kept on its parent, not as an activity of its own */
+        if (n.parent_id) {
+          if (!listKids.has(n.parent_id)) listKids.set(n.parent_id, new Map());
+          listKids.get(n.parent_id).set(n.garmin_id, gListLeg(n));
+          continue;
+        }
         if (!at.has(n._id)) { list.unshift(n); at.set(n._id, -1); out.activities++; continue; }
         const i = list.findIndex((x) => x._id === n._id), old = list[i];
         if (old.rev === n.rev) { list[i] = { ...old, ...n }; continue; }
@@ -420,7 +508,7 @@ async function garminSync(env, token, opts) {
       }
       /* Deleted in Garmin: inside the window just read, absent from a list that was not cut
          short. The window's first day is left alone, since its edge depends on time zones. */
-      if (Array.isArray(raw) && raw.length < 100) {
+      if (!cut) {
         const keep = list.filter((x) => {
           const d = String(x.start_local || x.start || '').slice(0, 10);
           return !(d > from && d <= to && !got.has(x._id));
@@ -429,6 +517,7 @@ async function garminSync(env, token, opts) {
         out.removed = list.length - keep.length;
         list = keep;
       }
+      if (out.childList !== 'refused') out.childList = listKids.size > 0 ? 'served' : 'none';
       list.sort((x, y) => (x.start < y.start ? 1 : -1));
       await env.HEALTH_DATA.put(key, JSON.stringify(list.slice(0, 300)), { expirationTtl: GARMIN_TTL });
     } catch (e) { out.errors.push(String(e.message || e)); }
@@ -464,7 +553,7 @@ async function garminSync(env, token, opts) {
       if (!cur || cur <= latest) await env.HEALTH_DATA.put('health:' + token + ':latest', latest, { expirationTtl: GARMIN_TTL });
     }
     /* the work after the core, with what is left of the budget */
-    await garminWork(env, token, bearer, list, B, out, plan);
+    await garminWork(env, token, bearer, list, B, out, plan, listKids);
     await env.HEALTH_DATA.put(key, JSON.stringify(list.slice(0, 300)), { expirationTtl: GARMIN_TTL });
   }
   out.spent = B.spent; out.plan = plan;
@@ -714,10 +803,15 @@ async function handle(request, env, ctx) {
         let d;
         try { d = await garminDetail(env, token, dm[1], null, url.searchParams.get('rev') || null, fresh, gBudget(env), fresh); }
         catch (e) { if (isBudget(e)) return gJson({ ok: false, reason: 'busy', detail: 'Garmin read limit for one call reached; try again' }, 503); throw e; }
-        /* legs are kept on the list entry by the sync; the detail carries them too */
-        if (!d.legs) {
-          const e = ((await env.HEALTH_DATA.get('garmin:' + token + ':activities', 'json')) || []).find((a) => String(a.garmin_id) === dm[1]);
-          if (e && e.legs && e.legs.length) d = { ...d, legs: e.legs, legsFrom: 'list' };
+        /* legs live on the list entry, which the sync keeps current. A fresh read here updates it;
+           otherwise the detail carries the list's, with their time, so the newer always wins. */
+        const lkey = 'garmin:' + token + ':activities';
+        const all = (await env.HEALTH_DATA.get(lkey, 'json')) || [], e = all.find((a) => String(a.garmin_id) === dm[1]);
+        if (e && d.legs && d.legsAt && d.legsComplete) {
+          e.legs = d.legs; e.legs_v = LEGS_V; e.legs_src = d.legsFrom === 'file' ? 'file' : 'connect'; e.legs_at = d.legsAt;
+          await env.HEALTH_DATA.put(lkey, JSON.stringify(all), { expirationTtl: GARMIN_TTL });
+        } else if (e && e.legs && e.legs.length && (!d.legs || (e.legs_at && (!d.legsAt || e.legs_at > d.legsAt)))) {
+          d = { ...d, legs: e.legs, legsAt: e.legs_at || null, legsFrom: 'list' };
         }
         return gJson({ ok: !!(d.fit || d.garmin), ...d }, d.fit || d.garmin ? 200 : 502);
       }
