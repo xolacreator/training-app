@@ -19,6 +19,11 @@
   // The Garmin sync, every two hours at 17 past (UTC).
   "triggers": { "crons": ["17 */2 * * *"] },
 
+  // Calls to Garmin per run: Cloudflare allows 50 on the free plan, so the Worker budgets 45
+  // (GARMIN_FETCH_BUDGET) and leaves the rest for /garmin/continue, which the app calls until
+  // done. On a paid plan, raise both: "limits": { "subrequests": 1000 } here and
+  // GARMIN_FETCH_BUDGET=900 as a dashboard variable.
+
   // Keep any plain variables set in the dashboard (APP_URL) instead of clearing them on deploy.
   "keep_vars": true
 }
