@@ -144,8 +144,10 @@ function gExSummary(a) {
   if (!Array.isArray(xs) || !xs.length) return null;
   return xs.slice(0, 20).map((x) => {
     const vol = typeof x.volume === 'number' ? x.volume : 0;
+    /* the movement itself (subCategory: BARBELL_BACK_SQUAT, GOBLET_SQUAT) rides fifth, so a variant
+       is never read as the lift its category names */
     return [String(x.category || x.subCategory || 'other').toLowerCase(), Math.round(x.sets || 0), Math.round(x.reps || 0),
-            Math.round(vol > 50000 ? vol / 1000 : vol)];
+            Math.round(vol > 50000 ? vol / 1000 : vol), x.subCategory ? String(x.subCategory).toLowerCase() : null];
   });
 }
 
@@ -285,7 +287,8 @@ function gExerciseSets(raw, startIso) {
     const reps = x.repetitionCount != null ? x.repetitionCount : x.reps != null ? x.reps : null;
     const w = typeof x.weight === 'number' && x.weight > 0 ? Math.round((grams ? x.weight / 1000 : x.weight) * 10) / 10 : null;
     const dur = typeof x.duration === 'number' ? Math.round(x.duration * 10) / 10 : null;
-    return [st != null && t0 != null && isFinite(st) ? Math.round((st - t0) / 1000) : null, dur, reps, w, cat === 'unknown' ? null : cat];
+    const name = ex.name ? String(ex.name).toLowerCase() : null;
+    return [st != null && t0 != null && isFinite(st) ? Math.round((st - t0) / 1000) : null, dur, reps, w, cat === 'unknown' ? null : cat, name];
   });
   const restS = rest.reduce((a, x) => a + (typeof x.duration === 'number' ? x.duration : 0), 0);
   return { sets, rest_s: Math.round(restS), unit: ws.length ? (grams ? 'g' : 'kg') : null };
