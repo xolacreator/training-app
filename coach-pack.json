@@ -1,0 +1,23 @@
+{
+  "id": "2026-11-10-anaheim-final-weeks",
+  "title": "The last three weeks to Anaheim",
+  "from": "Head Coach",
+  "created": "2026-11-10",
+  "note": "Seven changes from now to race day. The hard, race-specific work finishes on Sat Nov 21, 13 days out. After that the volume comes down and the intensity stays, in short doses. Each change can be switched off here, or undone later from its day in Plan.",
+  "items": [
+    {"date": "2026-11-11", "mode": "replace", "role": "quality2", "match": "Hybrid engine", "lib": "CR-DT-032",
+     "why": "The relay you designed, in place of Hybrid engine. Half-distance stations at race weight with race-pace runs between them."},
+    {"date": "2026-11-13", "mode": "add", "lib": "STN-ERG-PACE",
+     "why": "After class. Find your SkiErg and row race split now and hold it to the meter, so race day is a number you have already practiced."},
+    {"date": "2026-11-17", "mode": "add", "lib": "STN-BBJ",
+     "why": "After class, about 10 minutes. One repeatable burpee broad jump rhythm: on race day this station is lost to stopping, not to slow reps."},
+    {"date": "2026-11-21", "mode": "replace", "role": "long", "match": "simulation", "lib": "STN-ALL-EIGHT-HALF",
+     "why": "In place of the full simulation. A second simulation 13 days out, a week after the last one, costs more than it teaches. Every station at half distance, for time, gives you all eight splits without the running volume."},
+    {"date": "2026-11-24", "mode": "replace", "role": "class", "match": "Lift class", "lib": "STR-MAINT", "optional": true,
+     "why": "Ten days out, and the class block has 1RM attempts today. Switch this on to hold strength with a few heavy sets instead. If you go to class, work at about RPE 8 and skip the max."},
+    {"date": "2026-11-27", "mode": "replace", "role": "class", "match": "Lift class", "lib": "STR-MAINT",
+     "why": "Seven days out. The class block has 1RM attempts plus race-distance carries. Keep the strength with two heavy sets per lift, and carry nothing into race week."},
+    {"date": "2026-12-01", "mode": "replace", "role": "class", "match": "Lift class", "lib": "STN-TECHNIQUE",
+     "why": "Three days out, in place of the Peak class and its 1RM work. Touch every station once at light load, tire none."}
+  ]
+}
