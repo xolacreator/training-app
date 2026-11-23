@@ -252,7 +252,9 @@ function gRev(obj) {
 const G_FIELDS = {
   sleepHours:  [['sleepTimeSeconds', 3600], ['sleepTimeInSeconds', 3600], ['totalSleepSeconds', 3600]],
   hrv:         [['lastNightAvg', 1], ['lastNight5MinHigh', 0], ['hrvValue', 1]],
-  restingHR:   [['restingHeartRate', 1], ['restingHeartRateValue', 1], ['restingHR', 1]],
+  restingHR:   [['restingHeartRate', 1], ['restingHeartRateValue', 1], ['restingHR', 1], ['currentDayRestingHeartRate', 1],
+                ['restingHeartRateInBeatsPerMinute', 1], ['restingHr', 1], ['rhr', 1], ['wellnessRestingHeartRate', 1]],
+  restingHR7:  [['lastSevenDaysAvgRestingHeartRate', 1], ['sevenDayAvgRestingHeartRate', 1], ['restingHeartRate7DayAvg', 1]],
   steps:       [['totalSteps', 1], ['steps', 1]],
   bodyBattery: [['bodyBatteryAtWakeTime', 1], ['bodyBatteryHighestValue', 1], ['highest', 1], ['bodyBatteryMostRecentValue', 1]],
 };
@@ -260,7 +262,10 @@ function gWalk(node, out, depth, inheritedDate) {
   if (!node || depth > 6) return;
   if (Array.isArray(node)) { node.forEach((x) => gWalk(x, out, depth + 1, inheritedDate)); return; }
   if (typeof node !== 'object') return;
-  const date = node.calendarDate || node.date || node.calendar_date || inheritedDate;
+  /* a node without its own date takes one from a direct child that has it (Garmin's sleep data
+     dates its inner dailySleepDTO and keeps resting heart rate beside it) */
+  const childDate = (() => { for (const k in node) { const c = node[k]; if (c && typeof c === 'object' && !Array.isArray(c) && (c.calendarDate || c.calendar_date)) return c.calendarDate || c.calendar_date; } return null; })();
+  const date = node.calendarDate || node.date || node.calendar_date || childDate || inheritedDate;
   if (date && /^\d{4}-\d\d-\d\d/.test(String(date))) {
     const d = String(date).slice(0, 10), row = out[d] || (out[d] = {});
     const sc = node.sleepScores && node.sleepScores.overall && node.sleepScores.overall.value;
@@ -270,6 +275,17 @@ function gWalk(node, out, depth, inheritedDate) {
       for (const [k, div] of G_FIELDS[f]) {
         const v = node[k];
         if (div && typeof v === 'number' && isFinite(v) && v > 0) { row[f] = div === 1 ? v : +(v / div).toFixed(2); out.__found[f] = k; break; }
+      }
+    }
+    /* Resting heart rate goes by many names across Garmin's services (DR-0044): any day-level key
+       that reads as resting heart rate, in a plausible range, and is not a multi-day average. The
+       names seen are kept, so the next sync reports what Garmin actually sent. */
+    for (const k in node) {
+      const v = node[k];
+      if (typeof v !== 'number' || !/rest/i.test(k)) continue;
+      (out.__seen || (out.__seen = {}))[k] = 1;
+      if (row.restingHR == null && /rest(ing)?_?(heart_?rate|hr)/i.test(k) && !/seven|7|avg|average|trend|max|min/i.test(k) && v >= 25 && v <= 120) {
+        row.restingHR = v; out.__found.restingHR = k;
       }
     }
   }
@@ -604,12 +620,21 @@ async function garminSync(env, token, opts) {
       try { gWalk(await garminGet(env, bearer, path, params, B), days, 0, null); }
       catch (e) { out.errors.push(String(e.message || e)); }
     }
+    /* resting heart rate on its own, today and yesterday; optional, so a service this key cannot
+       read does not show as a sync problem */
+    if (!Object.keys(days).some((d) => d !== '__found' && d !== '__seen' && days[d].restingHR != null && d >= daysAgo(1))) {
+      for (const d of [daysAgo(0), daysAgo(1)]) {
+        try { gWalk(await garminGet(env, bearer, '/wellness-service/wellness/dailyHeartRate', { date: d }, B), days, 0, d); }
+        catch (e) { (out.optional || (out.optional = [])).push('resting heart rate ' + d + ': ' + String(e.message || e).slice(0, 80)); break; }
+      }
+    }
     out.found = days.__found; delete days.__found;
+    out.seenRest = Object.keys(days.__seen || {}); delete days.__seen;
     // the athlete's own heart-rate zones, as set in Garmin Connect, for the session review
     try {
       const z = gHrZones(await garminGet(env, bearer, '/biometric-service/heartRateZones/v2', null, B));
       if (z) { await env.HEALTH_DATA.put('garmin:' + token + ':hrzones', JSON.stringify(z), { expirationTtl: GARMIN_TTL }); out.found.hrZones = z.source; }
-    } catch (e) { out.optional = ['heart-rate zones: ' + String(e.message || e)]; }   // optional: the review falls back to the observed maximum
+    } catch (e) { (out.optional || (out.optional = [])).push('heart-rate zones: ' + String(e.message || e)); }   // optional: the review falls back to the observed maximum
     let latest = null;
     for (const d of Object.keys(days).sort()) {
       const row = days[d];
