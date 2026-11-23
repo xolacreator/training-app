@@ -1,0 +1,15 @@
+{
+  "name": "Rev3",
+  "short_name": "Rev3",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
+  "icons": [
+    {"src": "rev3-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "rev3-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "rev3-icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any"},
+    {"src": "rev3-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

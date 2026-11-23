@@ -1,4 +1,4 @@
-const CACHE = 'rev51';
+const CACHE = 'rev52';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
