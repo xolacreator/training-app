@@ -65,9 +65,12 @@ const GARMIN_TTL   = 7776000; // keep synced data 90 days, like the other stores
 // the app asks for one while it is connected (each backup carries a fresh one), and a code works
 // once. Only a code's SHA-256 is stored. Wrong codes are capped per day.
 const RECOVERY_TTL = 365 * 86400;
-// One code issued by Engineering on 2026-11-23 for the reinstall that started this. Only its hash
-// is here; it works once and not after 2026-11-30.
-const RECOVERY_BOOT = { sha256: '25794bb4179b329b595711b9a05a40d3952fc86be02877e7109c12009da5508d', until: '2026-11-30T23:59:59Z' };
+// Codes issued by Engineering on 2026-11-23 for the reinstall that started this (the second after
+// the first file met a wrong saved token). Only hashes are here; each works once, not after 2026-11-30.
+const RECOVERY_BOOT = [
+  { sha256: '25794bb4179b329b595711b9a05a40d3952fc86be02877e7109c12009da5508d', until: '2026-11-30T23:59:59Z' },
+  { sha256: '97551f1f34a462a275dc748d9e1d05c2aa8a6a21b2acf48df73743eaa4c18ea9', until: '2026-11-30T23:59:59Z' },
+];
 async function sha256hex(s) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -92,7 +95,7 @@ async function garminRecover(env, code) {
   if (clean.length === 32) {
     const h = await sha256hex(clean), key = 'garmin:recovery:' + h, usedKey = 'garmin:recovery-used:' + h;
     if (await env.HEALTH_DATA.get(key)) { await env.HEALTH_DATA.delete(key); good = true; }
-    else if (h === RECOVERY_BOOT.sha256 && Date.now() < Date.parse(RECOVERY_BOOT.until) && !(await env.HEALTH_DATA.get(usedKey))) {
+    else if (RECOVERY_BOOT.some((b) => b.sha256 === h && Date.now() < Date.parse(b.until)) && !(await env.HEALTH_DATA.get(usedKey))) {
       await env.HEALTH_DATA.put(usedKey, new Date().toISOString(), { expirationTtl: RECOVERY_TTL }); good = true;
     }
   }
