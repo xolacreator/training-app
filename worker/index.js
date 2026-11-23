@@ -59,6 +59,47 @@ const GARMIN_BASE  = 'https://personal.connectapi.garmin.com';
 const GARMIN_TOKEN = '/personalapitoken-service/personal-api/personal-api-key/token';
 const GARMIN_TTL   = 7776000; // keep synced data 90 days, like the other stores
 
+// -- Recovery (DR-0043) ---------------------------------------------------------
+// Deleting the installed app erases its sync token, and Cloudflare never shows a secret again,
+// so an athlete who lost the token had no way back to their own data. A recovery code returns it:
+// the app asks for one while it is connected (each backup carries a fresh one), and a code works
+// once. Only a code's SHA-256 is stored. Wrong codes are capped per day.
+const RECOVERY_TTL = 365 * 86400;
+// One code issued by Engineering on 2026-11-23 for the reinstall that started this. Only its hash
+// is here; it works once and not after 2026-11-30.
+const RECOVERY_BOOT = { sha256: '25794bb4179b329b595711b9a05a40d3952fc86be02877e7109c12009da5508d', until: '2026-11-30T23:59:59Z' };
+async function sha256hex(s) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+function recoveryClean(code) { return String(code || '').toLowerCase().replace(/[^0-9a-f]/g, ''); }
+async function garminRecoveryIssue(env, token) {
+  if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return { ok: false, reason: 'not_owner' };
+  if (!env.HEALTH_DATA) return { ok: false, reason: 'no_storage' };
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  const code = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  await env.HEALTH_DATA.put('garmin:recovery:' + await sha256hex(code), new Date().toISOString(), { expirationTtl: RECOVERY_TTL });
+  return { ok: true, code: code.replace(/(.{4})(?=.)/g, '$1-'), expires_days: 365 };
+}
+async function garminRecover(env, code) {
+  if (!env.GARMIN_OWNER_TOKEN) return { ok: false, reason: 'not_configured' };
+  if (!env.HEALTH_DATA) return { ok: false, reason: 'no_storage' };
+  const failKey = 'garmin:recover-fail:' + isoDay(new Date());
+  const fails = +(await env.HEALTH_DATA.get(failKey) || 0);
+  if (fails >= 20) return { ok: false, reason: 'too_many_tries' };
+  const clean = recoveryClean(code);
+  let good = false;
+  if (clean.length === 32) {
+    const h = await sha256hex(clean), key = 'garmin:recovery:' + h, usedKey = 'garmin:recovery-used:' + h;
+    if (await env.HEALTH_DATA.get(key)) { await env.HEALTH_DATA.delete(key); good = true; }
+    else if (h === RECOVERY_BOOT.sha256 && Date.now() < Date.parse(RECOVERY_BOOT.until) && !(await env.HEALTH_DATA.get(usedKey))) {
+      await env.HEALTH_DATA.put(usedKey, new Date().toISOString(), { expirationTtl: RECOVERY_TTL }); good = true;
+    }
+  }
+  if (!good) { await env.HEALTH_DATA.put(failKey, String(fails + 1), { expirationTtl: 2 * 86400 }); return { ok: false, reason: 'bad_code' }; }
+  return { ok: true, token: env.GARMIN_OWNER_TOKEN };
+}
+
 function gJson(obj, status) {
   return new Response(JSON.stringify(obj), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
@@ -793,8 +834,18 @@ async function handle(request, env, ctx) {
     // -- Garmin Personal API: sync, status, and the synced data -----------------
     if (path.startsWith('/garmin/')) {
       /* The status check also takes ?token= so it can be opened in a browser to diagnose setup. */
+      /* Recovery takes a code instead of the token: it is how a lost token comes back. */
+      if (path === '/garmin/recover' && request.method === 'POST') {
+        let body = {}; try { body = await request.json(); } catch (e) {}
+        const r = await garminRecover(env, body && body.code);
+        return gJson(r, r.ok ? 200 : r.reason === 'too_many_tries' ? 429 : r.reason === 'bad_code' ? 403 : 503);
+      }
       const token = request.headers.get('X-Sync-Token') || (path === '/garmin/status' ? url.searchParams.get('token') || '' : '');
       if (!token) return gJson({ ok: false, reason: 'missing_token' }, 401);
+      if (path === '/garmin/recovery' && request.method === 'POST') {
+        const r = await garminRecoveryIssue(env, token);
+        return gJson(r, r.ok ? 200 : r.reason === 'not_owner' ? 403 : 503);
+      }
       if (path === '/garmin/status' && request.method === 'GET') {
         const configured = !!(env.GARMIN_PERSONAL_KEY && env.GARMIN_OWNER_TOKEN);
         const mine = configured && token === env.GARMIN_OWNER_TOKEN;
