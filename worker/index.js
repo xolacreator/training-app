@@ -103,6 +103,38 @@ async function garminRecover(env, code) {
   return { ok: true, token: env.GARMIN_OWNER_TOKEN };
 }
 
+/* What Garmin's health services send, for the athlete's own app (owner token only), so a field the
+   sync misses can be seen in the app instead of guessed (DR-0044). Shapes only, with values for
+   keys about resting heart rate, heart rate and dates. */
+function gShape(node, path, out, depth) {
+  if (out.length > 300 || depth > 5 || node == null) return;
+  if (Array.isArray(node)) { out.push(path + '[] ' + node.length); if (node.length) gShape(node[0], path + '[0]', out, depth + 1); return; }
+  if (typeof node !== 'object') return;
+  for (const k in node) {
+    const v = node[k], p = path ? path + '.' + k : k;
+    if (v && typeof v === 'object') gShape(v, p, out, depth + 1);
+    else out.push(p + ' = ' + (/rest|heart|^hr|hr$|date/i.test(k) || /heart|^hr/i.test(path) ? JSON.stringify(v) : typeof v));
+  }
+}
+async function garminProbe(env, token) {
+  if (!env.GARMIN_OWNER_TOKEN || token !== env.GARMIN_OWNER_TOKEN) return { ok: false, reason: 'not_owner' };
+  if (!env.HEALTH_DATA) return { ok: false, reason: 'no_storage' };
+  const B = gBudget(env), bearer = await garminBearer(env, B), from = daysAgo(1), to = daysAgo(0), out = { ok: true, at: new Date().toISOString(), probes: [] };
+  for (const [path, params] of [
+    ['/usersummary-service/v2/dailysummaries', { startDate: from, endDate: to }],
+    ['/wellness-service/wellness/dailyHeartRate', { date: to }],
+    ['/sleep-service/sleep/dailySleepSummariesByDate', { startDate: from, endDate: to }],
+  ]) {
+    const row = { path };
+    try { const shape = []; gShape(await garminGet(env, bearer, path, params, B), '', shape, 0); row.shape = shape.filter((l) => !/heartRateValues|\[\d+\]\[/.test(l)).slice(0, 80); }
+    catch (e) { row.error = String(e.message || e).slice(0, 120); }
+    out.probes.push(row);
+  }
+  const st = await env.HEALTH_DATA.get('garmin:' + token + ':state', 'json');
+  out.lastSync = st ? { at: st.at, found: st.found, seenRest: st.seenRest, optional: st.optional, errors: st.errors } : null;
+  return out;
+}
+
 function gJson(obj, status) {
   return new Response(JSON.stringify(obj), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
@@ -258,9 +290,9 @@ const G_FIELDS = {
   steps:       [['totalSteps', 1], ['steps', 1]],
   bodyBattery: [['bodyBatteryAtWakeTime', 1], ['bodyBatteryHighestValue', 1], ['highest', 1], ['bodyBatteryMostRecentValue', 1]],
 };
-function gWalk(node, out, depth, inheritedDate) {
+function gWalk(node, out, depth, inheritedDate, parentKey) {
   if (!node || depth > 6) return;
-  if (Array.isArray(node)) { node.forEach((x) => gWalk(x, out, depth + 1, inheritedDate)); return; }
+  if (Array.isArray(node)) { node.forEach((x) => gWalk(x, out, depth + 1, inheritedDate, parentKey)); return; }
   if (typeof node !== 'object') return;
   /* a node without its own date takes one from a direct child that has it (Garmin's sleep data
      dates its inner dailySleepDTO and keeps resting heart rate beside it) */
@@ -284,12 +316,13 @@ function gWalk(node, out, depth, inheritedDate) {
       const v = node[k];
       if (typeof v !== 'number' || !/rest/i.test(k)) continue;
       (out.__seen || (out.__seen = {}))[k] = 1;
-      if (row.restingHR == null && /rest(ing)?_?(heart_?rate|hr)/i.test(k) && !/seven|7|avg|average|trend|max|min/i.test(k) && v >= 25 && v <= 120) {
+      const named = /rest(ing)?_?(heart_?rate|hr)/i.test(k) || (/^rest/i.test(k) && /heart|^hr/i.test(String(parentKey || '')));
+      if (row.restingHR == null && named && !/seven|7|avg|average|trend|max|min/i.test(k) && v >= 25 && v <= 120) {
         row.restingHR = v; out.__found.restingHR = k;
       }
     }
   }
-  for (const k in node) if (node[k] && typeof node[k] === 'object') gWalk(node[k], out, depth + 1, date && String(date).slice(0, 10));
+  for (const k in node) if (node[k] && typeof node[k] === 'object') gWalk(node[k], out, depth + 1, date && String(date).slice(0, 10), k);
 }
 
 /* One activity in full: Garmin's own summary of it (training effect, load, running dynamics -
@@ -870,6 +903,10 @@ async function handle(request, env, ctx) {
       }
       const token = request.headers.get('X-Sync-Token') || (path === '/garmin/status' ? url.searchParams.get('token') || '' : '');
       if (!token) return gJson({ ok: false, reason: 'missing_token' }, 401);
+      if (path === '/garmin/probe' && request.method === 'GET') {
+        const r = await garminProbe(env, token);
+        return gJson(r, r.ok ? 200 : r.reason === 'not_owner' ? 403 : 503);
+      }
       if (path === '/garmin/recovery' && request.method === 'POST') {
         const r = await garminRecoveryIssue(env, token);
         return gJson(r, r.ok ? 200 : r.reason === 'not_owner' ? 403 : 503);
